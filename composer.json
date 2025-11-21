@@ -1,0 +1,23 @@
+{
+    "name": "juancandeloyosimarreyes/skillview",
+    "description": "Proyecto para optar por el titulo de ingeniero de sistemas",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "MVC\\" : "./",
+            "Controllers\\" : "./controllers",
+            "Model\\" : "./models",
+            "Classes\\" : "./classes"
+        }
+    },
+    "authors": [
+        {
+            "name": "Juan Sebastian Candelo Y Yosimar Reyes Ordoñez "
+        }
+    ],
+    "require": {
+        "phpmailer/phpmailer": "^6.5",
+        "vlucas/phpdotenv": "^5.4",
+        "intervention/image": "^2.7"
+    }
+}

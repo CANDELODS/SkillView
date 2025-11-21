@@ -1,0 +1,176 @@
+@use 'base/mixins' as m;
+@use 'base/variables' as v;
+
+.register {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 2rem;
+
+    &__card {
+        width: 50rem;
+        background: #fff;
+        padding: 4rem;
+        border-radius: 20px;
+        @include m.shadowForm;
+        text-align: center;
+    }
+
+    // ICONO
+    &__icon {
+        width: 55px;
+        height: 55px;
+        background: v.$primary;
+        border-radius: 50%;
+        margin: 0 auto 1.2rem auto;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        .icon {
+            width: 30px;
+            color: #fff;
+        }
+    }
+
+    // TITULO
+    &__title {
+        font-size: 3rem;
+        color: black;
+        margin-bottom: 0.2rem;
+        font-weight: 700;
+    }
+
+    // SUBTITULO
+    &__subtitle {
+        font-size: 1.6rem;
+        color: #555;
+        margin-bottom: 2.2rem;
+        line-height: 1.4;
+    }
+
+    // FORMULARIO
+    &__form {
+        @include m.grid(2, 2rem);
+        grid-auto-rows: auto;
+        grid-template-areas: 
+            "nombres apellidos"
+            "edad sexo"
+            "universidad carrera"
+            "correo correo"
+            "contraseña contraseña"
+            "contraseña2 contraseña2"
+            "button button";
+        align-items: center;
+    }
+
+    // CAMPOS DEL FORMULARIO
+    &__field{
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        &--nombres{
+            @extend .register__field;
+            grid-area: nombres;
+        }
+
+        &--apellidos{
+            @extend .register__field;
+            grid-area: apellidos;
+        }
+
+        &--edad{
+            @extend .register__field;
+            grid-area: edad;
+        }
+
+        &--sexo{
+            @extend .register__field;
+            grid-area: sexo;
+        }
+
+        &--universidad{
+            @extend .register__field;
+            grid-area: universidad;
+        }
+
+        &--carrera{
+            @extend .register__field;
+            grid-area: carrera;
+        }
+
+        &--correo{
+            @extend .register__field;
+            grid-area: correo;
+        }
+
+        &--contraseña{
+            @extend .register__field;
+            grid-area: contraseña;
+        }
+
+        &--contraseña2{
+            @extend .register__field;
+            grid-area: contraseña2;
+        }
+    }
+
+    // LABELS
+    &__label {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: black;
+        text-align: left;
+    }
+
+    // INPUTS
+    &__input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid v.$input-gray;
+        border-radius: 6px;
+        font-size: 1.4rem;
+        transition: 0.2s;
+
+        &:focus {
+            border-color: v.$primary;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(v.$primary, 0.15);
+        }
+
+        &::placeholder {
+            color: v.$p-gray;
+        }
+    }
+
+    // BOTÓN
+    &__button {
+        @include m.boton(v.$primary, white);
+        font-size: 1.6rem;
+        width: auto;
+        border-radius: 0.8rem;
+        grid-area: button;
+    }
+
+    // FOOTER
+    &__footer {
+        margin-top: 2rem;
+        margin-bottom: 0;
+        font-size: 1.4rem;
+        color: #555;
+
+        .register__link {
+            color: v.$primary;
+            font-weight: 600;
+            text-decoration: none;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+    }
+}
