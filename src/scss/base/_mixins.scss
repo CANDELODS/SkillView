@@ -47,6 +47,29 @@
     grid-template-columns: repeat($columnas, 1fr);
 }
 
+@mixin contenedor {
+    width: min(95%, 120rem);
+    margin: 0 auto;
+}
+
+@mixin contenedor-md {
+    width: min(95%, 80rem);
+    margin: 0 auto;
+}
+
+@mixin contenedor-sm {
+    width: min(95%, 60rem);
+    margin: 0 auto;
+}
+
+@mixin sombra {
+    box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+}
+
+@mixin sombraBTN {
+    box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 10px;
+}
+
 @mixin shadowForm{
     box-shadow: 0 12px 30px rgba(0,0,0,0.1);
 }

@@ -10,8 +10,12 @@ $xl_desktop: 1200px;
 // Colores
 $primary: #EB4328;
 $background: #FEF5F4;
-$p-gray: #949494;
+$gray: #413c3c;
+$p-gray: oklch(50% .01 30);
 $input-gray: #D2D2D2;
+$grisTr: #919191;
+$grisClaro: #D9D9D9;
+$grisOscuro: #1E293B;
 $primary-dark:#A22915;
 $green: #00C951;
 $green-light: #00c9512b;

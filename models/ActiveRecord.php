@@ -181,4 +181,24 @@ class ActiveRecord {
         $resultado = self::$db->query($query);
         return $resultado;
     }
+
+    //PAGINACIÓN
+        //Traer el total de registros
+    public static function total()
+    {
+        $query = "SELECT COUNT(*) FROM " . static::$tabla;
+        //No usamos consultarSQL ya que no queremos crear un objeto del modelo
+        $resultado = self::$db->query($query);
+        $total = $resultado->fetch_array();
+        //Con array_shift extraemos el primer registro del arreglo
+        return array_shift($total);
+    }
+
+    //Paginar Registros
+    public static function paginar($ordenar, $porPagina, $offset)
+    {
+        $query = "SELECT * FROM " . static::$tabla . " ORDER BY ${ordenar} ASC LIMIT ${porPagina} OFFSET ${offset} ";
+        $resultado = self::consultarSQL($query);
+        return $resultado;
+    }
 }

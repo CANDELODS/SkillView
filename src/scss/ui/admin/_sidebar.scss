@@ -1,0 +1,122 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+/* ====== SIDEBAR ====== */
+
+.sidebar {
+  background-color: v.$primary;
+  color: #fff;
+  padding: 2.4rem 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100vh;
+
+  &__link-top{
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  &__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 3rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid v.$gray;
+  }
+
+  &__brand {
+    font-size: 2rem;
+    font-weight: v.$bold;
+    
+    &--a{
+      @extend .sidebar__brand;
+      color: white;
+      text-decoration: none;
+
+      &:hover{
+        cursor: pointer;
+      }
+    }
+  }
+
+  &__close {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 1.8rem;
+    cursor: pointer;
+  }
+
+  &__nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  &__link {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.2rem;
+    border-radius: 0.8rem;
+    color: #fff;
+    font-size: 1.5rem;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+
+    &:hover {
+      background-color: v.$primary-dark;
+      transform: translateY(-1px);
+    }
+
+    &--active {
+      background-color: v.$primary-dark;
+    }
+  }
+
+  &__icon {
+    width: 28px;
+    display: inline-flex;
+    justify-content: center;
+
+    i {
+      font-size: 1.8rem;
+      color: #fff;
+    }
+
+    &--small i {
+      font-size: 1.5rem;
+    }
+  }
+
+  &__text {
+    flex: 1;
+  }
+
+  &__logout {
+    margin-top: 3rem;
+    border-top: 1px solid v.$gray;
+    padding-top: 1rem;
+  }
+
+  &__logout-button {
+    @include m.boton(v.$primary, #fff);
+    width: 100%;
+    border-radius: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    box-shadow: 3px 2px 7px 0px black;
+  }
+
+  @media (max-width: 767px) {
+    min-height: auto;
+
+    &__logout {
+      margin-top: 2rem;
+    }
+  }
+}

@@ -1,0 +1,179 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+.tabla {
+    @include m.contenedor-sm;
+    @include m.sombra;
+    border-radius: 1.5rem;
+
+    &--scroll {
+        @extend .tabla;
+
+        @include m.tablet {
+            overflow-y: scroll;
+            height: 40rem;
+
+            &::-webkit-scrollbar {
+                //Todo El Elemento ScrollBar
+                width: 1rem;
+            }
+
+            &::-webkit-scrollbar-thumb {
+                //Solo La Barra
+                background-color: #c2c2c2;
+                border-radius: 5px;
+            }
+        }
+    }
+
+    // Se usó el siguiente truco ya que existía un bug en el cual la tabla de la vista "equipos" no tenía el border
+    //Radius, según las pruebas fue por el scroll, por lo cual tocó hacerlo de esta manera
+    &--scrollX {
+        @extend .tabla;
+
+        @include m.tablet {
+            overflow-x: scroll;
+
+            &::-webkit-scrollbar {
+                //Todo El Elemento ScrollBar
+                width: 1rem;
+            }
+
+            &::-webkit-scrollbar-thumb {
+                //Solo La Barra
+                background-color: #c2c2c2;
+                border-radius: 5px;
+            }
+        }
+    }
+
+    @include m.tablet {
+        @include m.contenedor;
+    }
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+
+    &__thead {
+        background-color: white;
+        color: black;
+        //Escondemos los encabezados en pantallas pequeñas
+        display: none;
+
+        @include m.tablet {
+            display: table-header-group;
+        }
+    }
+
+    &__trhead {
+        border-bottom: 1px solid #c2c2c2;
+    }
+
+    &__th {
+        padding: 1.5rem 2rem;
+        text-align: left;
+    }
+
+    &__tr {
+        //Cambiamos el display a block para que se vea bien en pantallas pequeñas
+        display: block;
+        border-bottom: 1px solid black;
+        transition: background-color 0.2s ease-in-out;
+
+        &:last-child {
+            border-bottom: none;
+        }
+
+        @include m.tablet {
+            display: table-row;
+            border-bottom: 1px solid v.$grisTr;
+
+            &:last-child {
+                border-bottom: 1px solid v.$grisTr;
+            }
+        }
+
+        &:nth-child(even) {
+            background-color: v.$grisClaro;
+        }
+
+        &:hover {
+            background-color: v.$gray;
+            color: white;
+        }
+    }
+
+    &__td {
+        //Cambiamos el display a block para que se vea bien en pantallas pequeñas
+        display: block;
+        padding: 1.5rem 2rem;
+        text-align: right;
+        position: relative;
+        border-bottom: 1px solid #c2c2c2;
+
+        &:last-child {
+            border-bottom: none;
+        }
+
+        &::before {
+            content: attr(data-label);
+            //Posicionamos el pseudo elemento antes del contenido
+            position: absolute;
+            left: 0;
+            width: 50%;
+            text-align: left;
+            padding-left: 1rem;
+        }
+
+        @include m.tablet {
+            display: table-cell;
+            text-align: left;
+            border-bottom: 1px solid black;
+
+            &::before {
+                content: none;
+            }
+
+            border-bottom: none;
+        }
+
+        &--acciones {
+            @extend .table__td;
+            display: flex;
+            justify-content: space-around;
+            gap: 1rem;
+            align-items: center;
+
+            @include m.tablet {
+                justify-content: flex-end;
+            }
+        }
+
+    }
+
+    &__accion {
+        all: unset;
+        font-weight: v.$bold;
+
+        &--editar {
+            @include m.boton(white, black);
+            width: auto;
+            padding: 1.2rem;
+            font-size: 1.4rem;
+            border-radius: .8rem;
+            @include m.sombraBTN;
+        }
+
+        &--eliminar {
+            @include m.boton(v.$red, white);
+            width: auto;
+            padding: 1.2rem;
+            font-size: 1.4rem;
+            border-radius: .8rem; 
+            @include m.sombraBTN;
+        }
+
+    }
+}
