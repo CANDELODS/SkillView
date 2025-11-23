@@ -1,0 +1,72 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+
+.users-admin {
+  &__header {
+    margin-bottom: 2rem;
+  }
+
+  &__title {
+    font-size: 2.6rem;
+    font-weight: v.$bold;
+    margin: 0 0 1.5rem 0;
+    color: #000;
+  }
+
+  &__search {
+    max-width: 40rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    @include m.tablet{
+      max-width: 45rem;
+      flex-direction: row;
+      align-items: center;
+      gap: 2rem;
+
+    }
+  }
+
+  &__search-input {
+    width: 100%;
+    padding: 1.1rem 1.4rem;
+    border-radius: 0.8rem;
+    border: 1px solid v.$input-gray;
+    font-size: 1.5rem;
+    outline: none;
+    background-color: #fff;
+
+    &::placeholder {
+      color: v.$p-gray;
+    }
+
+    &:focus {
+      border-color: v.$primary;
+      box-shadow: 0 0 0 3px rgba(v.$primary, 0.1);
+    }
+  }
+
+  &__container-search{
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    @include m.tablet{
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+  }
+
+  &__search-button{
+    @include m.boton(v.$primary, #fff);
+    width: auto;
+    border-radius: .8rem;
+
+    &--bf{
+      @include m.boton(v.$gray, #fff);
+      width: auto;
+      border-radius: .8rem;
+    }
+  }
+}

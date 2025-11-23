@@ -182,7 +182,7 @@ class ActiveRecord {
         return $resultado;
     }
 
-    //PAGINACIÓN
+    //------------------PAGINACIÓN Y BUSQUEDA------------------//
         //Traer el total de registros
     public static function total()
     {
@@ -201,4 +201,99 @@ class ActiveRecord {
         $resultado = self::consultarSQL($query);
         return $resultado;
     }
+
+    // Buscar por varias columnas usando LIKE
+    public static function buscar($termino, $columnas = []) {
+    // Escapar el término
+    $termino = self::$db->escape_string($termino);
+
+    // Si no hay columnas, no buscamos
+    if (empty($columnas)) return [];
+
+    // Construimos el WHERE dinámico
+    $where = [];
+    foreach ($columnas as $columna) {
+        $where[] = "{$columna} LIKE '%{$termino}%'";
+    }
+    /*
+    "nombres LIKE '%yos%'",
+    "apellidos LIKE '%yos%'",
+    "correo LIKE '%yos%'"
+    */
+
+    // Unimos todas las condiciones con OR
+    //Join une todos los elementos de un array en una sola cadena, usando un separador: join($separador, $array)
+    $whereSQL = join(" OR ", $where);
+
+    //nombres LIKE '%yos%' OR apellidos LIKE '%yos%' OR correo LIKE '%yos%'
+
+    $query = "SELECT * FROM " . static::$tabla . " WHERE {$whereSQL} ORDER BY id DESC";
+
+    /*
+    SELECT * FROM usuarios 
+    WHERE nombres LIKE '%yos%' 
+    OR apellidos LIKE '%yos%' 
+    OR correo LIKE '%yos%'
+    ORDER BY id DESC;
+    */
+
+    return self::consultarSQL($query);
+    }
+
+    // Total de registros que cumplen una búsqueda
+    public static function totalBusqueda($termino, $columnas = []) {
+
+    $termino = self::$db->escape_string($termino);
+
+    if (empty($columnas)) return 0;
+
+    $where = [];
+    foreach ($columnas as $columna) {
+        $where[] = "{$columna} LIKE '%{$termino}%'";
+    }
+
+    $whereSQL = join(" OR ", $where);
+
+    $query = "SELECT COUNT(*) FROM " . static::$tabla . " WHERE {$whereSQL}";
+    /*
+    SELECT COUNT(*) 
+    FROM usuarios
+    WHERE nombres LIKE '%juan%' OR apellidos LIKE '%juan%' OR correo LIKE '%juan%'
+    */
+    $resultado = self::$db->query($query);
+    $total = $resultado->fetch_array();
+    return array_shift($total);
+    }
+
+    // Registros paginados que cumplen una búsqueda
+    public static function paginarBusqueda($termino, $columnas = [], $ordenar, $porPagina, $offset) {
+
+    $termino = self::$db->escape_string($termino);
+
+    if (empty($columnas)) return [];
+
+    $where = [];
+    foreach ($columnas as $columna) {
+        $where[] = "{$columna} LIKE '%{$termino}%'";
+    }
+
+    $whereSQL = join(" OR ", $where);
+
+    $query = "SELECT * FROM " . static::$tabla . " 
+              WHERE {$whereSQL}
+              ORDER BY {$ordenar} ASC
+              LIMIT {$porPagina} OFFSET {$offset}";
+
+    /*
+    SELECT * 
+    FROM usuarios 
+    WHERE nombres LIKE '%juan%' OR apellidos LIKE '%juan%' OR correo LIKE '%juan%'
+    ORDER BY nombres ASC
+    LIMIT 5 OFFSET 10
+
+    */
+
+    return self::consultarSQL($query);
+    }
+    //------------------FIN PAGINACIÓN Y BUSQUEDA------------------//
 }

@@ -132,8 +132,21 @@ class Usuario extends ActiveRecord {
         $this->password = password_hash($this->password, PASSWORD_BCRYPT);
     }
 
-    // Generar un Token
-    // public function crearToken() : void {
-    //     $this->token = uniqid();
-    // }
+    // Busca y devuelve los usuarios que coincidan con el término de búsqueda
+    public static function buscarUsuarios($termino) { //$termino es la cadena a buscar
+    // Utilizamos el método buscar de la clase ActiveRecord, enviandole la cadena a buscar y los campos donde buscar
+    return static::buscar($termino, ['nombres', 'apellidos', 'correo']);
+    }
+
+    // Total de usuarios que coinciden con la búsqueda
+    public static function totalBusquedaUsuarios($termino) {
+    return static::totalBusqueda($termino, ['nombres', 'apellidos', 'correo']);
+    }
+
+    // Usuarios paginados que coinciden con la búsqueda
+    public static function paginarBusquedaUsuarios($termino, $porPagina, $offset, $ordenar = 'nombres') {
+    return static::paginarBusqueda($termino, ['nombres', 'apellidos', 'correo'], $ordenar, $porPagina, $offset);
+    }
+
+
 }

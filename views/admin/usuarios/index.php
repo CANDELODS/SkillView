@@ -1,12 +1,29 @@
-<main class="main">
-<h2 class="dashboard__heading"><?php echo $titulo;?></h2>
+<header class="users-admin__header">
+        <h1 class="users-admin__title"><?php echo $titulo; ?></h1>
+        <div class="users-admin__container-search">
+            <div class="users-admin__form-input">
+                <form action="/admin/usuarios" method="GET" class="users-admin__search">
+                        <input
+                            type="text"
+                            class="users-admin__search-input"
+                            placeholder="Buscar por nombre, apellido o correo..."
+                            name="busqueda"
+                            id="busqueda"
+                            value="<?php echo isset($_GET['busqueda']) ? htmlspecialchars($_GET['busqueda']) : ''; ?>"
+                        >
+                    <input type="submit" class="users-admin__search-button" value="Buscar">
+                </form>
+            </div>
+            <!--Este enlace nos servirá para volver a ver todos los resultados cuando el usuario haya filtrado los datos-->
+            <a href="/admin/usuarios?page=1" class="users-admin__search-button--bf">Borrar Filtro</a>
+        </div>
+</header>
 
-    <div class="tabla--scrollX">
         <!-- Verificamos si hay usuarios para mostrar -->
         <?php if (!empty($usuarios)) { ?>
             <table class="table">
                 <thead class="table__thead">
-                    <tr>
+                    <tr class="table__trhead">
                         <th scope="col" class="table__th">Nombres</th>
                         <th scope="col" class="table__th">Apellidos</th>
                         <th scope="col" class="table__th">Edad</th>
@@ -64,10 +81,9 @@
         <?php } else { ?>
             <p class="text-center">No Hay Usuarios Para Listar</p>
         <?php } ?> <!--Fin if(!empty($usuarios))-->
-    </div>
     <!-- Mostramos los enlaces de la paginación -->
     <?php
-    if (!empty($equipos)) {
+    if (!empty($usuarios)) {
         echo $paginacion;
     }
     ?>

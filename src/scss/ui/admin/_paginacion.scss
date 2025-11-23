@@ -1,0 +1,48 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+.paginacion{
+    margin: 5rem 0 3rem 0;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    @include m.tablet{
+        justify-content: flex-end;
+    }
+
+    &__enlace{
+        color: v.$primary;
+        font-size: 2rem;
+
+        &--texto{
+            padding: 1rem;
+            border-radius: .5rem;
+            border: 1px solid v.$primary;
+
+            &:hover{
+                background-color: v.$primary;
+                color: white;
+                transition: 300ms background-color ease, 300ms color ease;
+            }
+        }
+
+        &--numero{
+            font-weight: v.$bold;
+            display: none;
+            @include m.tablet{
+                display: inline;
+            }
+        }
+
+        &--actual{
+            color: v.$gray;
+            font-weight: v.$bold;
+            display: none;
+            @include m.tablet{
+                display: inline;
+            }
+        }
+    }
+}
