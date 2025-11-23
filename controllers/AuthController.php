@@ -73,45 +73,64 @@ class AuthController {
     }
 
     public static function registro(Router $router) {
-        $alertas = [];
-        $login = true;
-        $usuario = new Usuario;
+    $login = true;
+    $usuario = new Usuario;
+    $alertas = [];
 
-        if($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-            $usuario->sincronizar($_POST);
-            
-            $alertas = $usuario->validar_cuenta();
+        // Sincronizar datos enviados por POST
+        $usuario->sincronizar($_POST);
+        
+        // Validar datos
+        $alertas = $usuario->validar_cuenta();
 
-            if(empty($alertas)) {
-                $existeUsuario = Usuario::where('correo', $usuario->correo);
+        if(empty($alertas)) {
 
-                if($existeUsuario) {
-                    Usuario::setAlerta('error', 'El Usuario ya esta registrado');
-                    $alertas = Usuario::getAlertas();
-                } else {
-                    // Hashear el password
-                    $usuario->hashPassword();
+            // Verificar si el correo ya está registrado
+            $existeUsuario = Usuario::where('correo', $usuario->correo);
 
-                    // Eliminar password2
-                    unset($usuario->password2);
-
-                    // Crear un nuevo usuario
-                    $resultado =  $usuario->guardar();
-                    
-                    if($resultado) {
-                        header('Location: /');
-                    }
+            if($existeUsuario) {
+                Usuario::setAlerta('error', 'El Usuario ya esta registrado');
+            } else {
+                // Hash al password
+                $usuario->hashPassword();
+                // Eliminar password2
+                unset($usuario->password2);
+                // Guardar nuevo usuario
+                $resultado =  $usuario->guardar();
+                
+                if($resultado) {
+                    // Creamos alerta de éxito (para el modal)
+                    Usuario::setAlerta(
+                        'exito',
+                        'La cuenta se creó correctamente. Serás redirigido a la página principal en unos segundos.'
+                    );
                 }
             }
         }
-
-        // Render a la vista
-        $router->render('auth/registro', [
-            'titulo' => 'Crea tu cuenta en SkillView',
-            'usuario' => $usuario, 
-            'alertas' => $alertas,
-            'login' => $login
-        ]);
     }
+
+    // Obtenemos todas las alertas (incluyendo 'exito')
+    $alertas = Usuario::getAlertas();
+
+    // Guardamos las alertas de éxito en una variable aparte
+    $alertasExito = $alertas['exito'] ?? [];
+
+    // Creamos una copia para la vista sin las alertas de éxito
+    $alertasVista = $alertas;
+    if (isset($alertasVista['exito'])) {
+        unset($alertasVista['exito']);
+    }
+
+    // Renderizar vista
+    $router->render('auth/registro', [
+        'titulo'       => 'Crea tu cuenta en SkillView',
+        'usuario'      => $usuario, 
+        'alertas'      => $alertasVista,   // para alertas.php (sin 'exito')
+        'alertasExito' => $alertasExito,   // solo éxito, para el modal
+        'login'        => $login
+    ]);
+}
+
 }

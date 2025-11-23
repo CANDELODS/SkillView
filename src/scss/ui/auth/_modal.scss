@@ -1,0 +1,88 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+.modal {
+  position: fixed;
+  inset: 0; // top: 0; right: 0; bottom: 0; left: 0;
+  display: none; // por defecto oculto
+  align-items: center;
+  justify-content: center;
+  z-index: 999; // por encima del resto
+
+  &--visible {
+    display: flex;
+  }
+
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+
+  &__content {
+    position: relative;
+    z-index: 1;
+    max-width: 400px;
+    width: 90%;
+    background-color: #ffffff;
+    border-radius: 0.75rem;
+    padding: 1.75rem 1.5rem;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.15);
+    text-align: center;
+    animation: modal-fade-in 0.25s ease-out;
+  }
+
+  &__icon {
+    width: 5rem;
+    height: 5rem;
+    margin: 0 auto 0.75rem auto;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #e6fffa;
+    color: #0f766e;
+  }
+
+  &__title {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+
+  &__message {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    color: v.$p-gray;
+  }
+
+  &__submessage {
+    font-size: 1.4rem;
+    color: #6b7280;
+    margin-bottom: 1rem;
+  }
+
+  &__button {
+    @include m.boton(v.$blue, white);
+    font-size: 1.4rem;
+    border-radius: 1.2rem;
+    width: auto;
+
+    &:active {
+      transform: translateY(0);
+      box-shadow: none;
+      opacity: 0.9;
+    }
+  }
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
