@@ -19,3 +19,7 @@ function isAuth(): bool
 
     return isset($_SESSION['correo']) && !empty($_SESSION);
 }
+
+function pagina_actual($path) : bool {
+    return str_contains($_SERVER['PATH_INFO'], $path) ? true : false;
+}

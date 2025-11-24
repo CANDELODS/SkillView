@@ -12,14 +12,14 @@
       
         <nav class="sidebar__nav">
             <!-- sidebar__link--active -->
-          <a href="/admin/usuarios" class="sidebar__link">
+          <a href="/admin/usuarios" class="sidebar__link <?php echo pagina_actual('/usuarios') ? 'sidebar__link--active' : ''; ?>">
             <span class="sidebar__icon">
               <i class="fa-solid fa-user-group"></i>
             </span>
             <span class="sidebar__text">Usuarios</span>
           </a>
       
-          <a href="/admin/habilidades" class="sidebar__link">
+          <a href="/admin/habilidades" class="sidebar__link <?php echo pagina_actual('/habilidades') ? 'sidebar__link--active' : ''; ?>">
             <span class="sidebar__icon">
               <i class="fa-regular fa-star"></i>
             </span>
