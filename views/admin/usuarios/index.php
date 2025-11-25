@@ -67,7 +67,8 @@
                                 <a class="table__accion table__accion--editar" href="/admin/usuarios/editar?id=<?php echo $usuario->id; ?>">Editar</a>
                                 <!-- Botón para eliminar un usuario, además tiene un input de tipo hidden el cual manda el id del usuario
                                  al servidor y así poder eliminar el usuario -->
-                                <form method="post" action="/admin/usuarios/eliminar" class="table__form" onsubmit="return confirmDelete('¿Estás seguro de que deseas eliminar este usuario?.')">
+                                <!--Enviamos el event en la funcion confirmDelete para poder leerlo con JS y pausar el envío automático del Form-->
+                                <form method="POST" action="/admin/usuarios/eliminar" class="table__form" onsubmit="return confirmDelete(event, '¿Estás seguro de que deseas eliminar este usuario?.')">
                                     <input type="hidden" name="id" value="<?php echo $usuario->id; ?>">
                                     <button class="table__accion table__accion--eliminar" type="submit">
                                         Eliminar
@@ -82,9 +83,14 @@
             <p class="text-center">No Hay Usuarios Para Listar</p>
         <?php } ?> <!--Fin if(!empty($usuarios))-->
     <!-- Mostramos los enlaces de la paginación -->
-    <?php
-    if (!empty($usuarios)) {
-        echo $paginacion;
-    }
-    ?>
+     <div class="dashboard__pagAlert">
+        <?php
+            if (!empty($usuarios)) {
+            echo $paginacion;
+            }
+        ?>
+        <?php
+        require_once __DIR__ . '/../../templates/alertas.php';
+        ?>
+     </div>
 </main>

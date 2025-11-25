@@ -133,14 +133,30 @@ class DashboardController
         ]);
     }
 
-    public static function eliminarUsuarios(Router $router)
-    {
-
-        // Render a la vista 
-        $router->render('admin/usuarios/eliminar', [
-            'titulo' => 'Editar Usuario'
-        ]);
+    public static function eliminarUsuarios() {
+    // Verificamos si el usuario está autenticado
+    if (!isAuth()) {
+        header('Location: /');
+        exit;
     }
+
+    if($_SERVER['REQUEST_METHOD'] === 'POST'){
+        $id = $_POST['id'];
+        $usuario = Usuario::find($id);
+        if(!isset($usuario)){
+            $_SESSION['alertas']['error'][] = "No se pudo eliminar el usuario";
+            header('Location: /admin/usuarios');
+            exit;
+        }
+        $resultado = $usuario->eliminar();
+        if($resultado){
+            // Guardamos la alerta en sesión para mostrarla después del redirect
+            $_SESSION['alertas']['exito'][] = "El usuario se eliminó correctamente";
+            header('Location: /admin/usuarios');
+            exit;
+        }
+    }
+}
 
     public static function indexHabilidades(Router $router)
     {

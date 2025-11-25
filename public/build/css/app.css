@@ -346,12 +346,16 @@ h3 {
   background-color: #fff;
   border-radius: 1.6rem;
   padding: 2.4rem 2.8rem;
-  width: 40rem;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 1.4rem;
+}
+@media (min-width: 768px) {
+  .admin-card {
+    width: 40rem;
+  }
 }
 .admin-card__header {
   display: flex;
@@ -426,6 +430,18 @@ h3 {
 }
 .dashboard__contenido {
   padding: 3rem 3.5rem;
+}
+.dashboard__pagAlert {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+@media (min-width: 768px) {
+  .dashboard__pagAlert {
+    flex-direction: row-reverse;
+    gap: 1rem;
+  }
 }
 @media (min-width: 480px) {
   .dashboard__grid {
@@ -530,6 +546,90 @@ h3 {
 .users-admin__search-button--bf {
   width: auto;
   border-radius: 0.8rem;
+}
+
+.modal-delete {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.modal-delete__backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+.modal-delete__content {
+  position: relative;
+  background-color: #fff;
+  padding: 2rem;
+  border-radius: 0.75rem;
+  max-width: 400px;
+  width: 90%;
+  z-index: 2100;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.modal-delete__title {
+  font-size: 3rem;
+  margin: 0;
+  padding: 0;
+}
+.modal-delete__text {
+  font-size: 1.4rem;
+  color: oklch(50% 0.01 30deg);
+}
+.modal-delete__actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-start;
+}
+.modal-delete__btn, .modal-delete__btn--no, .modal-delete__btn--yes {
+  font-size: 1rem;
+  border-radius: 1.2rem;
+}
+.modal-delete__btn--yes {
+  background-color: #00C951;
+  padding: 1.5rem 4rem;
+  color: white;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.modal-delete__btn--yes:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.modal-delete__btn--yes {
+  width: auto;
+}
+.modal-delete__btn--no {
+  background-color: rgb(169, 0, 0);
+  padding: 1.5rem 4rem;
+  color: white;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.modal-delete__btn--no:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.modal-delete__btn--no {
+  width: auto;
 }
 
 .paginacion {
@@ -910,6 +1010,9 @@ h3 {
   margin: 1rem 0;
   font-size: 1.2rem;
   font-weight: 700;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  opacity: 1;
+  width: auto;
 }
 .alerta__error {
   background-color: rgba(169, 0, 0, 0.1);
@@ -921,6 +1024,10 @@ h3 {
   border-left: 0.5rem solid #00C951;
   filter: brightness(-2);
   color: #00C951;
+}
+.alerta--ocultar {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 .modal {

@@ -6,6 +6,9 @@
     margin: 1rem 0;
     font-size: 1.2rem;
     font-weight: v.$bold;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    opacity: 1;
+    width: auto;
     &__error{
         background-color: v.$red-light;
         border-left: .5rem solid v.$red;
@@ -17,4 +20,9 @@
         filter: brightness(-2);
         color: v.$green;
     }
+    &--ocultar{
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
 }

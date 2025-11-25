@@ -16,6 +16,17 @@
     padding: 3rem 3.5rem;
   }
 
+  &__pagAlert{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    @include m.tablet {
+      flex-direction: row-reverse;
+      gap: 1rem;
+    }
+  }
+
   @include m.telefono {
     &__grid {
       grid-template-columns: 240px 1fr;
