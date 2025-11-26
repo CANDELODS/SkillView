@@ -16,6 +16,14 @@
         border-radius: 20px;
         @include m.shadowForm;
         text-align: center;
+
+        &--edit{
+            width: auto;
+            padding: 2rem;
+            @include m.tablet{
+                padding: 4rem;
+            }
+        }
     }
 
     // ICONO

@@ -12,7 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (registerContainer && modal) {
     const modalContent = modal.querySelector('.modal__content');
     const closeButton = modal.querySelector('[data-modal-close]');
-    const redirectUrl = '/principal';
+    let redirectUrl = '/principal';
+    if (window.location.pathname.startsWith('/admin/usuarios/editar')) {
+      redirectUrl = '/admin/usuarios';
+    } 
     const REDIRECT_DELAY = 5000; // 5 segundos
 
     // Mostrar el modal

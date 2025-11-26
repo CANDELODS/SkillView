@@ -64,7 +64,7 @@
         //Escondemos los encabezados en pantallas pequeñas
         display: none;
 
-        @include m.tablet {
+        @include m.xl-desktop {
             display: table-header-group;
         }
     }
@@ -94,7 +94,7 @@
             border-bottom: none;
         }
 
-        @include m.tablet {
+        @include m.xl-desktop {
             display: table-row;
             border-bottom: 1px solid v.$table-border;
             &:hover {
@@ -130,7 +130,7 @@
             padding-left: 1rem;
         }
 
-        @include m.tablet {
+        @include m.xl-desktop {
             display: table-cell;
             text-align: left;
 
@@ -148,7 +148,7 @@
             gap: 1rem;
             align-items: center;
 
-            @include m.tablet {
+            @include m.xl-desktop {
                 justify-content: flex-end;
             }
         }

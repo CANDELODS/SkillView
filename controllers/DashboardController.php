@@ -124,12 +124,60 @@ class DashboardController
     ]);
 }
 
-    public static function editarUsuarios(Router $router)
-    {
+    public static function editarUsuarios(Router $router) {
+        $alertas = [];
+        $alertasExito = [];
+        //Validar el id que llega por la URL
+        $id = $_GET['id'];
+        //Validamos si el id es un número entero
+        $id = filter_var($id, FILTER_VALIDATE_INT);
+        if(!$id){
+            header('Location: /admin/usuarios');
+            exit;
+        }
+        //Obtenemos el usuario a editar
+        $usuario = Usuario::find($id);
+        //Validamos si el usuario existe
+        if(!$usuario){
+            header('Location: /admin/usuarios');
+            exit;
+        }
 
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            //Guardamos el hash original antes de sincronizar
+            $passwordOriginal = $usuario->password;
+            //Sincronizamos con los datos del formulario
+            $usuario->sincronizar($_POST);
+            //Validamos
+            $alertas = $usuario->validar_edicion();
+            //Si no hay alertar, guardamos
+            if(empty($alertas)){
+                //Validamos si el admin escribió un nuevo password
+                if($usuario->password){
+                    //Si el admin escribió una nueva contraseña...
+                    $usuario->hashPassword();
+                }else{
+                    //Si no escribió nada en password, mantenemos la contraseña original
+                    $usuario->password = $passwordOriginal;
+                }
+                // Eliminar password2
+                unset($usuario->password2);
+                //Actualizamos el usuarios
+                $resultado = $usuario->guardar();
+
+                if($resultado){
+                    $alertasExito[] = "El usuario de actualizó correctamente";
+                } else{
+                    $alertas['error'] [] = "Ocurrió un error al guardar el usuario";
+                }
+            }
+        }
         // Render a la vista 
         $router->render('admin/usuarios/editar', [
-            'titulo' => 'Editar Usuario'
+            'titulo' => 'Editar Usuario',
+            'alertas' => $alertas,
+            'alertasExito' => $alertasExito,
+            'usuario' => $usuario
         ]);
     }
 
