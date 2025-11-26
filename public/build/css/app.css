@@ -1241,13 +1241,16 @@ h3 {
     transform: translateY(0);
   }
 }
-.register {
+.register, .register--edit {
   height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
   width: 100%;
   padding: 2rem;
+}
+.register--edit {
+  height: auto;
 }
 .register__card {
   width: 50rem;
@@ -1292,13 +1295,21 @@ h3 {
   margin-bottom: 2.2rem;
   line-height: 1.4;
 }
-.register__form {
+.register__form, .register__form--edit {
   display: grid;
   gap: 2rem;
   grid-template-columns: repeat(2, 1fr);
   grid-auto-rows: auto;
   grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "button button";
   align-items: center;
+}
+.register__form--edit {
+  grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "button button" "buttonBack buttonBack";
+}
+@media (min-width: 1024px) {
+  .register__form--edit {
+    grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "button buttonBack";
+  }
 }
 .register__field, .register__field--contraseña2, .register__field--contraseña, .register__field--correo, .register__field--carrera, .register__field--universidad, .register__field--sexo, .register__field--edad, .register__field--apellidos, .register__field--nombres {
   text-align: left;
@@ -1355,7 +1366,7 @@ h3 {
 .register__input::placeholder {
   color: oklch(50% 0.01 30deg);
 }
-.register__button {
+.register__button, .register__button--back {
   background-color: #EB4328;
   padding: 1.5rem 4rem;
   color: white;
@@ -1368,15 +1379,39 @@ h3 {
   width: 100%;
   display: inline-block;
 }
-.register__button:hover {
+.register__button:hover, .register__button--back:hover {
   filter: brightness(1.2);
   cursor: pointer;
 }
-.register__button {
+.register__button, .register__button--back {
   font-size: 1.6rem;
   width: auto;
   border-radius: 0.8rem;
   grid-area: button;
+}
+.register__button--back {
+  background-color: white;
+  padding: 1.5rem 4rem;
+  color: black;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.register__button--back:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.register__button--back {
+  border: 1px solid #D2D2D2;
+  grid-area: buttonBack;
+}
+.register__button--back:hover {
+  filter: brightness(0.9);
 }
 .register__footer {
   margin-top: 2rem;

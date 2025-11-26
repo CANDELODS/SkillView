@@ -9,6 +9,11 @@
     width: 100%;
     padding: 2rem;
 
+    &--edit{
+        @extend .register;
+        height: auto;
+    }
+
     &__card {
         width: 50rem;
         background: #fff;
@@ -73,6 +78,29 @@
             "contraseña2 contraseña2"
             "button button";
         align-items: center;
+
+        &--edit{
+            @extend .register__form;
+            grid-template-areas: 
+            "nombres apellidos"
+            "edad sexo"
+            "universidad carrera"
+            "correo correo"
+            "contraseña contraseña"
+            "contraseña2 contraseña2"
+            "button button"
+            "buttonBack buttonBack";
+            @include m.desktop{
+            grid-template-areas: 
+            "nombres apellidos"
+            "edad sexo"
+            "universidad carrera"
+            "correo correo"
+            "contraseña contraseña"
+            "contraseña2 contraseña2"
+            "button buttonBack";
+            }
+        }
     }
 
     // CAMPOS DEL FORMULARIO
@@ -162,6 +190,16 @@
         width: auto;
         border-radius: 0.8rem;
         grid-area: button;
+
+        &--back{
+            @extend .register__button;
+            @include m.boton(white, black);
+            border: 1px solid v.$input-gray;
+            grid-area: buttonBack;
+            &:hover{
+                filter: brightness(0.9);
+            }
+        }
     }
 
     // FOOTER

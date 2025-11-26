@@ -1,5 +1,5 @@
 <div 
-  class="register"
+  class="register--edit"
   <?php echo (!empty($alertasExito)) ? 'data-registro-exitoso="1"' : ''; ?>>
 
   <div class="register__card register__card--edit">
@@ -20,7 +20,7 @@
     require_once __DIR__ . '/../../templates/alertas.php';
     ?>
     <!--No necesitamos action ya que nos borraría el id que traemos desde la URL-->
-    <form class="register__form" method="POST">
+    <form class="register__form--edit" method="POST">
 
       <!-- Nombres -->
       <div class="register__field--nombres">
@@ -136,7 +136,7 @@
       </div>
       <!-- Submit -->
       <button class="register__button" type="submit">Editar Usuario</button>
-
+      <a href="/admin/usuarios" class="register__button--back">Volver</a>
     </form>
     <?php
     // Tomamos el primer mensaje de éxito (si existe) para mostrarlo en el modal
