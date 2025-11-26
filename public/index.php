@@ -19,13 +19,21 @@ $router->post('/logout', [AuthController::class, 'logout']);
 $router->get('/registro', [AuthController::class, 'registro']);
 $router->post('/registro', [AuthController::class, 'registro']);
 
-//área de administración
+//--------------------ÁREA DE ADMINISTRACIÓN--------------------
 $router->get('/admin/dashboard', [DashboardController::class, 'index']);
+//ADMINISTRAR USUARIOS
 $router->get('/admin/usuarios', [DashboardController::class, 'indexUsuarios']);
 $router->get('/admin/usuarios/editar', [DashboardController::class, 'editarUsuarios']);
 $router->post('/admin/usuarios/editar', [DashboardController::class, 'editarUsuarios']);
 $router->post('/admin/usuarios/eliminar', [DashboardController::class, 'eliminarUsuarios']);
+//ADMINISTRAR HABILIDADES
 $router->get('/admin/habilidades', [DashboardController::class, 'indexHabilidades']);
+$router->get('/admin/habilidades/crear', [DashboardController::class, 'crearHabilidades']);
+$router->post('/admin/habilidades/crear', [DashboardController::class, 'crearHabilidades']);
+$router->get('/admin/habilidades/editar', [DashboardController::class, 'editarHabilidades']);
+$router->post('/admin/habilidades/editar', [DashboardController::class, 'editarHabilidades']);
+$router->post('/admin/habilidades/eliminar', [DashboardController::class, 'eliminarHabilidades']);
+//--------------------FIN ÁREA DE ADMINISTRACIÓN--------------------
 
 //Página Principal y 404
 $router->get('/principal', [PrincipalController::class, 'index']);

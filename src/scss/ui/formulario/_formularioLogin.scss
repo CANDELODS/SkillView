@@ -83,13 +83,48 @@
       border-color: v.$primary;
       box-shadow: 0 0 0 2px rgba(v.$primary, 0.15);
     }
+
+    &--textarea{
+      @extend .login__input;
+      resize: none;
+    }
   }
+  //----CREAR HABILIDAD----
+  &__check{
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    @include m.tablet{
+      align-items: center;
+    }
+
+    &--check{
+      transform: scale(2);
+      accent-color: v.$primary;
+    }
+  }
+
+  &__list{
+    @include m.tags;
+  }
+  //------------------------
 
   &__button {
     @include m.boton(v.$primary, white);
     font-size: 1.6rem;
     width: auto;
     border-radius: 0.8rem;
+  //----CREAR HABILIDAD----
+    &--back{
+        @extend .login__button;
+        @include m.boton(white, black);
+        border: 1px solid v.$input-gray;
+        grid-area: buttonBack;
+        &:hover{
+            filter: brightness(0.9);
+        }
+    }
+  //------------------------  
   }
 
   // Registro

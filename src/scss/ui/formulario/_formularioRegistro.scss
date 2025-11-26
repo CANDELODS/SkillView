@@ -29,6 +29,13 @@
                 padding: 4rem;
             }
         }
+
+        &--create{
+            width: auto;
+            @include m.desktop{
+                width: 50rem;
+            }
+        }
     }
 
     // ICONO

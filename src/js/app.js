@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const registerContainer = document.querySelector('.register[data-registro-exitoso="1"]');
   const modal = document.getElementById('modal-registro-exitoso');
 
-  // ⭐ CAMBIO:
   // Solo si estamos en la vista de registro exitoso Y existe el modal,
   // ejecutamos la lógica del modal. PERO no hacemos return, para no cortar el resto del código.
   if (registerContainer && modal) {
@@ -15,7 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let redirectUrl = '/principal';
     if (window.location.pathname.startsWith('/admin/usuarios/editar')) {
       redirectUrl = '/admin/usuarios';
-    } 
+    } else if(window.location.pathname.startsWith('/admin/habilidades/crear') || window.location.pathname.startsWith('/admin/habilidades/editar')){
+      redirectUrl = '/admin/habilidades';
+    }
     const REDIRECT_DELAY = 5000; // 5 segundos
 
     // Mostrar el modal
@@ -73,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
   //---------------FIN MODAL DE REGISTRO EXITOSO CON REDIRECCIÓN AUTOMÁTICA----------------//
 
   //---------------OCULTAR ALERTAS DESPUES DE UNOS SEGUNDOS----------------//
-  // ⭐ ESTE CÓDIGO AHORA SIEMPRE SE EJECUTA EN CUALQUIER VISTA
+  //ESTE CÓDIGO AHORA SIEMPRE SE EJECUTA EN CUALQUIER VISTA
 
   const alertas = document.querySelectorAll('.alerta');
 
