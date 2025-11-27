@@ -1,5 +1,5 @@
 <div 
-  class="register--edit"
+  class="register register--edit"
   <?php echo (!empty($alertasExito)) ? 'data-registro-exitoso="1"' : ''; ?>>
 
   <div class="register__card register__card--edit">
