@@ -22,7 +22,7 @@
             <a href="/aprendizaje" class="btn--primary">
                 Iniciar mi ruta de aprendizaje
             </a>
-            <a href="/retos" class="btn--secondary">
+            <a href="/blog" class="btn--secondary">
                 Descubrir mis habilidades
             </a>
         </div>

@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../includes/app.php';
 
+use Controllers\AprendizajeController;
 use MVC\Router;
 use Controllers\AuthController;
 use Controllers\DashboardController;
@@ -39,4 +40,8 @@ $router->post('/admin/habilidades/eliminar', [DashboardController::class, 'elimi
 $router->get('/principal', [PrincipalController::class, 'index']);
 $router->get('/404', [PrincipalController::class, 'notFound']);
 
+//--------------------APRENDIZAJE--------------------
+$router->get('/aprendizaje', [AprendizajeController::class, 'index']);
+$router->post('/aprendizaje', [AprendizajeController::class, 'index']);
+//--------------------FIN APRENDIZAJE--------------------
 $router->comprobarRutas();
