@@ -341,6 +341,43 @@ h3 {
   text-align: center;
 }
 
+.notFound {
+  width: min(95%, 120rem);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+.notFound__tittle {
+  margin: 0;
+}
+.notFound__p {
+  color: oklch(50% 0.01 30deg);
+}
+.notFound__btn {
+  background-color: #EB4328;
+  padding: 1.5rem 4rem;
+  color: white;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.notFound__btn:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.notFound__btn {
+  width: auto;
+  border-radius: 0.8rem;
+}
+
 body:not(.login) {
   background-color: #FEF5F4;
 }
