@@ -21,22 +21,12 @@
             <div class="site-header__user">
                 <div class="site-header__user-info">
                     <span class="site-header__user-name">
-                        <?php echo $_SESSION['nombre_usuario'] ?? 'Juan Candelo'; ?>
+                        <?php echo $nombreUsuario ?? 'Juan Candelo'; ?>
                     </span>
                     <span class="site-header__user-role">Estudiante</span>
                 </div>
-                <?php
-                    $iniciales = 'JC';
-                    if (isset($_SESSION['nombre_usuario'])) {
-                        $parts = explode(' ', trim($_SESSION['nombre_usuario']));
-                        $iniciales = strtoupper(
-                            substr($parts[0] ?? '', 0, 1) .
-                            substr($parts[1] ?? '', 0, 1)
-                        );
-                    }
-                ?>
                 <div class="site-header__user-avatar" aria-hidden="true">
-                    <?php echo $iniciales; ?>
+                    <?php echo $inicialesUsuario ?? 'JC'; ?>
                 </div>
             </div>
 
