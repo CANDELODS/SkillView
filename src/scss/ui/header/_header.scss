@@ -1,0 +1,233 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+.site-header {
+    position: sticky;      // pegado arriba
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+
+    // color de fondo principal
+    background-color: v.$primary;
+    color: #fff;
+    box-shadow: 0 1px 0 rgba(0,0,0,.1);
+
+    &__top {
+        @include m.contenedor-xl;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 2rem 0;
+        gap: 2rem;
+    }
+
+    &__brand-link {
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+        color: #fff;
+    }
+
+    &__logo {
+        width: 5.6rem;
+        height: 5.6rem;
+        border-radius: 1.2rem;
+        background-color: rgba(255,255,255,.16);
+        display: grid;
+        place-items: center;
+
+        svg {
+            width: 4.2rem;
+            height: 3.2rem;
+        }
+    }
+
+    &__brand-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.1;
+        gap: .8rem;
+    }
+
+    &__brand-name {
+        font-weight: v.$bold;
+        font-size: 2rem;
+    }
+
+    &__brand-slogan {
+        font-size: 1.4rem;
+        opacity: .9;
+    }
+
+    &__right {
+        display: flex;
+        align-items: center;
+        gap: 1.4rem;
+    }
+
+    &__user {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+    }
+
+    &__user-info {
+        display: none;
+
+        @include m.tablet {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            font-size: 1.3rem;
+            gap: .8rem;
+        }
+    }
+
+    &__user-name {
+        font-weight: 600;
+        font-size: 1.6rem;
+    }
+
+    &__user-role {
+        font-size: 1.4rem;
+        opacity: .9;
+    }
+
+    &__user-avatar {
+        width: 4.2rem;
+        height: 4.2rem;
+        border-radius: 999px;
+        background-color: #fff;
+        color: v.$primary;
+        display: grid;
+        place-items: center;
+        font-weight: v.$bold;
+        font-size: 1.8rem;
+    }
+
+    // Botón hamburguesa
+    &__toggle {
+        border: none;
+        background: transparent;
+        display: inline-flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: .50rem;
+        padding: .3rem;
+        cursor: pointer;
+
+        @include m.tablet {
+            display: none; // solo en móvil
+        }
+    }
+
+    &__toggle-line {
+        width: 2.4rem;
+        height: .3rem;
+        border-radius: 999px;
+        background-color: #fff;
+    }
+}
+
+/* Barra de navegación inferior */
+
+.site-nav {
+    background-color: v.$background-nav;
+    border-top: 1px solid rgb(255 255 255 / 15%);
+
+    &--desktop {
+        display: none;
+
+        @include m.tablet {
+            display: block;
+        }
+    }
+
+    &--mobile {
+        position: absolute;
+        inset-inline: 0;
+        top: 100%;
+        background-color: v.$primary;
+        transform-origin: top;
+        transform: scaleY(0);
+        max-height: 0;
+        overflow: hidden;
+        transition: transform .2s ease-out, max-height .2s ease-out;
+
+        &.site-nav--mobile-open {
+            transform: scaleY(1);
+            max-height: 40rem;
+        }
+    }
+
+    &__mobile-header {
+        @include m.contenedor;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: .9rem 0 .4rem;
+    }
+
+    &__mobile-brand {
+        font-weight: v.$bold;
+    }
+
+    &__mobile-close {
+        border: none;
+        background: transparent;
+        font-size: 2.4rem;
+        color: #fff;
+        cursor: pointer;
+    }
+
+    &__list {
+        @include m.reset-list;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+
+        @include m.tablet {
+            justify-content: center;
+        }
+
+        &--mobile {
+            flex-direction: column;
+            align-items: stretch;
+            padding-bottom: 1.2rem;
+            @include m.contenedor;
+        }
+    }
+
+    &__item { }
+
+    &__link {
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+        padding: 1.8rem 1.8rem;
+        border-radius: 0; // para que se vea como pestaña
+        font-size: 1.5rem;
+        color: #fff;
+        opacity: .95;
+        position: relative;
+
+        &--active {
+            background-color: v.$primary-dark;
+        }
+
+        &:hover {
+            background-color: v.$primary-dark;
+        }
+    }
+
+    &__icon {
+        font-size: 1.5rem;
+    }
+
+    // En móvil el listado va tipo panel
+    &--mobile .site-nav__link {
+        border-radius: .6rem;
+        padding: 1rem 1.4rem;
+    }
+}

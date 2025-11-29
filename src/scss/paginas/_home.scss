@@ -1,0 +1,167 @@
+@use 'base/mixins' as m;
+@use 'base/variables' as v;
+
+body:not(.login) {
+    background-color: v.$background;
+}
+
+/* HERO */
+
+.home {
+    padding-bottom: 4rem;
+}
+
+.home-hero {
+    @include m.contenedor;
+    text-align: center;
+    padding: 5rem 0 3rem;
+
+    &__icon {
+        width: 8rem;
+        height: 8rem;
+        border-radius: 999px;
+        background-color: v.$primary;
+        display: grid;
+        place-items: center;
+        font-size: 3rem;
+        color: v.$primary;
+        margin: 0 auto 2rem;
+
+        svg{
+            width: 5rem;
+            height: 5rem;
+        }
+    }
+
+    &__title {
+        font-size: clamp(2.6rem, 4vw, 4.8rem);
+        font-weight: v.$bold;
+        margin-bottom: 1.6rem;
+    }
+
+    &__subtitle {
+        font-size: 1.8rem;
+        line-height: 2.8rem;
+        max-width: 60rem;
+        margin: 0 auto 2.4rem;
+        color: v.$p-gray;
+    }
+
+    &__actions {
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+        justify-content: center;
+        align-items: stretch;
+        
+        @include m.tablet {
+            flex-direction: row;
+            margin: 0 auto;
+        }
+        
+        @include m.desktop{
+            @include m.contenedor-md;
+
+        }
+    }
+}
+
+/* Botones reutilizables */
+
+.btn {
+    width: auto;
+    border-radius: .8rem;
+    &--primary{
+        @extend .btn;
+        @include m.boton(v.$primary, white);
+        font-size: 1.6rem;
+    }
+    &--secondary {
+        @extend .btn;
+        @include m.boton(v.$background, black);
+        font-size: 1.6rem;
+        border: 1px solid v.$input-gray;
+        &:hover{
+            filter: brightness(0.9);
+        }
+    }
+}
+
+/* ¿Cómo funciona? */
+
+.how-it-works {
+    padding: 2rem 0 4rem;
+
+    &__header {
+        @include m.contenedor-md;
+        text-align: center;
+        margin-bottom: 2.4rem;
+    }
+
+    &__title {
+        font-size: 3rem;
+        font-weight: v.$bold;
+        margin-bottom: .6rem;
+    }
+
+    &__subtitle {
+        font-size: 1.6rem;
+        color: v.$p-gray;
+    }
+
+    &__grid {
+        @include m.contenedor;
+        display: grid;
+        gap: 1.8rem;
+
+        @include m.tablet {
+            @include m.grid(3, 2rem);
+        }
+    }
+}
+
+.how-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    background-color: #fff;
+    border-radius: 1.6rem;
+    padding: 2.6rem 2.2rem;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(0,0,0,.04);
+
+    @include m.tablet{
+        height: 30rem;
+        justify-content: space-evenly;
+        gap: 0;
+        transition-property: outline;
+        &:hover{
+            outline: 2.5px solid v.$primary;
+        }
+    }
+
+    &__icon {
+        width: 8rem;
+        height: 8rem;
+        border-radius: 999px;
+        background-color: rgba(235,67,40,.06);
+        display: grid;
+        place-items: center;
+        margin: 0 1.6rem;
+        color: v.$primary;
+        font-size: 3.2rem;
+    }
+
+    &__title {
+        font-size: 2rem;
+        font-weight: v.$bold;
+        margin: 1rem 0 0.8rem 0;
+    }
+
+    &__text {
+        font-size: 1.6rem;
+        color: v.$p-gray;
+        line-height: 2.4rem;
+    }
+}
