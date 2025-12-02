@@ -1,0 +1,60 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+/* CTA inferior */
+.learning-cta {
+  margin-top: 1rem;
+  display: grid;
+  gap: 2rem;
+
+  @include m.tablet {
+    @include m.grid(2, 2.4rem);
+  }
+
+  &__card {
+    background-color: v.$background-ca;
+    border: 1px solid v.$ca-border;
+    border-radius: 1.6rem;
+    padding: 2rem 2.2rem 2.4rem;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    gap: 1.8rem;
+
+    @include m.tablet {
+      padding: 2.2rem 2.6rem 2.6rem;
+    }
+  }
+
+  &__icon {
+    color: v.$primary;
+    font-size: 3.4rem;
+  }
+
+  &__content {
+    flex: 1;
+  }
+
+  &__title {
+    font-size: 1.8rem;
+    font-weight: v.$bold;
+    color: v.$grisOscuro;
+    margin-bottom: .4rem;
+  }
+
+  &__text {
+    font-size: 1.4rem;
+    color: v.$p-gray;
+    margin-bottom: 1.4rem;
+  }
+
+  &__btn {
+    @include m.boton(v.$background-ca, black);
+    border-radius: .8rem;
+    border: 1px solid v.$input-gray;
+    font-size: 1.4rem;
+    &:hover{
+        filter: brightness(0.9);
+    }
+  }
+}

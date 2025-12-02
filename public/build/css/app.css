@@ -370,6 +370,145 @@ h3 {
   line-height: 1.5;
 }
 
+/* CTA inferior */
+.learning-cta {
+  margin-top: 1rem;
+  display: grid;
+  gap: 2rem;
+}
+@media (min-width: 768px) {
+  .learning-cta {
+    display: grid;
+    gap: 2.4rem;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.learning-cta__card {
+  background-color: #FBEBE8;
+  border: 1px solid #EFC7BD;
+  border-radius: 1.6rem;
+  padding: 2rem 2.2rem 2.4rem;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 1.8rem;
+}
+@media (min-width: 768px) {
+  .learning-cta__card {
+    padding: 2.2rem 2.6rem 2.6rem;
+  }
+}
+.learning-cta__icon {
+  color: #EB4328;
+  font-size: 3.4rem;
+}
+.learning-cta__content {
+  flex: 1;
+}
+.learning-cta__title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1E293B;
+  margin-bottom: 0.4rem;
+}
+.learning-cta__text {
+  font-size: 1.4rem;
+  color: oklch(50% 0.01 30deg);
+  margin-bottom: 1.4rem;
+}
+.learning-cta__btn {
+  background-color: #FBEBE8;
+  padding: 1.5rem 4rem;
+  color: black;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.learning-cta__btn:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.learning-cta__btn {
+  border-radius: 0.8rem;
+  border: 1px solid #D2D2D2;
+  font-size: 1.4rem;
+}
+.learning-cta__btn:hover {
+  filter: brightness(0.9);
+}
+
+/* Card de módulo */
+.module-card {
+  background-color: #fff;
+  border-radius: 1.6rem;
+  padding: 1.8rem 2rem 2.2rem;
+  width: 100%;
+  max-width: 30rem;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.06);
+}
+@media (min-width: 768px) {
+  .module-card {
+    max-width: 34rem;
+    padding: 2rem 2.2rem 2.4rem;
+  }
+}
+.module-card__title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1E293B;
+  margin-bottom: 0.6rem;
+}
+.module-card__meta {
+  font-size: 1.4rem;
+  color: oklch(50% 0.01 30deg);
+  margin-bottom: 1.2rem;
+}
+.module-card__actions {
+  margin-top: 1.4rem;
+}
+.module-card__btn {
+  background-color: #EB4328;
+  padding: 1.5rem 4rem;
+  color: #fff;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.module-card__btn:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.module-card__btn {
+  box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 10px;
+  border-radius: 0.8rem;
+  font-size: 1.4rem;
+}
+.module-card__btn--outline {
+  background-color: #fff;
+  color: #EB4328;
+  border: 1px solid #EB4328;
+  box-shadow: none;
+}
+.module-card__btn--outline:hover {
+  filter: brightness(0.96);
+}
+.module-card__btn--disabled {
+  background-color: oklch(96% 0.01 30deg);
+  color: #919191;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
 /* Card de resumen superior */
 .learning-summary {
   background-color: #fff;
@@ -530,6 +669,12 @@ h3 {
   justify-content: center;
   z-index: 2;
 }
+@media (min-width: 768px) {
+  .learning-roadmap__node {
+    width: 10.6rem;
+    height: 10.6rem;
+  }
+}
 .learning-roadmap__status-icon {
   width: 3.4rem;
   height: 3.4rem;
@@ -539,6 +684,17 @@ h3 {
   justify-content: center;
   font-size: 1.8rem;
 }
+@media (min-width: 768px) {
+  .learning-roadmap__status-icon {
+    width: 10.4rem;
+    height: 10.4rem;
+  }
+}
+@media (min-width: 768px) {
+  .learning-roadmap__i {
+    font-size: 5rem;
+  }
+}
 .learning-roadmap__badge {
   position: absolute;
   top: 50%;
@@ -546,7 +702,7 @@ h3 {
   transform: translateY(-50%);
   background-color: #F0B100;
   color: #fff;
-  font-size: 1.1rem;
+  font-size: 1.7rem;
   font-weight: 700;
   padding: 0.4rem 0.8rem;
   border-radius: 999px;
@@ -571,145 +727,6 @@ h3 {
   .learning-roadmap__item--right .module-card {
     margin-left: 7rem;
   }
-}
-
-/* Card de módulo */
-.module-card {
-  background-color: #fff;
-  border-radius: 1.6rem;
-  padding: 1.8rem 2rem 2.2rem;
-  width: 100%;
-  max-width: 30rem;
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.06);
-}
-@media (min-width: 768px) {
-  .module-card {
-    max-width: 34rem;
-    padding: 2rem 2.2rem 2.4rem;
-  }
-}
-.module-card__title {
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #1E293B;
-  margin-bottom: 0.6rem;
-}
-.module-card__meta {
-  font-size: 1.3rem;
-  color: oklch(50% 0.01 30deg);
-  margin-bottom: 1.2rem;
-}
-.module-card__actions {
-  margin-top: 1.4rem;
-}
-.module-card__btn {
-  background-color: #EB4328;
-  padding: 1.5rem 4rem;
-  color: #fff;
-  font-size: 1.8rem;
-  font-weight: 700;
-  border: none;
-  transition-property: filter;
-  transition-duration: 0.3s;
-  text-align: center;
-  width: 100%;
-  display: inline-block;
-}
-.module-card__btn:hover {
-  filter: brightness(1.2);
-  cursor: pointer;
-}
-.module-card__btn {
-  box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 10px;
-  border-radius: 999px;
-  font-size: 1.3rem;
-  padding: 1rem 2.4rem;
-  width: auto;
-  min-width: 14rem;
-}
-.module-card__btn--outline {
-  background-color: #fff;
-  color: #EB4328;
-  border: 1px solid #EB4328;
-  box-shadow: none;
-}
-.module-card__btn--disabled {
-  background-color: oklch(96% 0.01 30deg);
-  color: #919191;
-  box-shadow: none;
-  cursor: not-allowed;
-}
-
-/* CTA inferior */
-.learning-cta {
-  margin-top: 1rem;
-  display: grid;
-  gap: 2rem;
-}
-@media (min-width: 768px) {
-  .learning-cta {
-    display: grid;
-    gap: 2.4rem;
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-.learning-cta__card {
-  background-color: #FBEBE8;
-  border: 1px solid #EFC7BD;
-  border-radius: 1.6rem;
-  padding: 2rem 2.2rem 2.4rem;
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.06);
-  display: flex;
-  align-items: center;
-  gap: 1.8rem;
-}
-@media (min-width: 768px) {
-  .learning-cta__card {
-    padding: 2.2rem 2.6rem 2.6rem;
-  }
-}
-.learning-cta__icon {
-  color: #EB4328;
-  font-size: 3.4rem;
-}
-.learning-cta__content {
-  flex: 1;
-}
-.learning-cta__title {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #1E293B;
-  margin-bottom: 0.4rem;
-}
-.learning-cta__text {
-  font-size: 1.4rem;
-  color: oklch(50% 0.01 30deg);
-  margin-bottom: 1.4rem;
-}
-.learning-cta__btn {
-  background-color: #FBEBE8;
-  padding: 1.5rem 4rem;
-  color: black;
-  font-size: 1.8rem;
-  font-weight: 700;
-  border: none;
-  transition-property: filter;
-  transition-duration: 0.3s;
-  text-align: center;
-  width: 100%;
-  display: inline-block;
-}
-.learning-cta__btn:hover {
-  filter: brightness(1.2);
-  cursor: pointer;
-}
-.learning-cta__btn {
-  border-radius: 0.8rem;
-  border: 1px solid #D2D2D2;
-  font-size: 1.4rem;
-}
-.learning-cta__btn:hover {
-  filter: brightness(0.9);
 }
 
 .notFound {

@@ -1,0 +1,58 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+/* Card de módulo */
+.module-card {
+  background-color: #fff;
+  border-radius: 1.6rem;
+  padding: 1.8rem 2rem 2.2rem;
+  width: 100%;
+  max-width: 30rem;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.06);
+
+  @include m.tablet {
+    max-width: 34rem;
+    padding: 2rem 2.2rem 2.4rem;
+  }
+
+  &__title {
+    font-size: 2rem;
+    font-weight: v.$bold;
+    color: v.$grisOscuro;
+    margin-bottom: .6rem;
+  }
+
+  &__meta {
+    font-size: 1.4rem;
+    color: v.$p-gray;
+    margin-bottom: 1.2rem;
+  }
+
+  &__actions {
+    margin-top: 1.4rem;
+  }
+
+  &__btn {
+    @include m.boton(v.$primary, #fff);
+    @include m.sombraBTN;
+    border-radius: .8rem;
+    font-size: 1.4rem;
+
+    &--outline {
+      background-color: #fff;
+      color: v.$primary;
+      border: 1px solid v.$primary;
+      box-shadow: none;
+      &:hover{
+        filter: brightness(0.96);
+      }
+    }
+
+    &--disabled {
+      background-color: v.$grayTr;
+      color: v.$grisTr;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+  }
+}

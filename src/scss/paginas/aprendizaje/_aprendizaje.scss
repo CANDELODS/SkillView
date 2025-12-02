@@ -1,0 +1,33 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+.learning {
+  background: v.$background;
+  padding: 4rem 0 6rem;
+
+  &__wrapper {
+    @include m.contenedor;
+  }
+
+  &__header {
+    text-align: center;
+    margin: 0 auto 3rem;
+  }
+
+  &__title {
+    font-size: 3rem;
+    font-weight: v.$black;
+    color: black;
+    margin-bottom: 1rem;
+
+    @include m.tablet {
+      font-size: 4.8rem;
+    }
+  }
+
+  &__subtitle {
+    font-size: 1.8rem;
+    color: v.$p-gray;
+    line-height: 1.5;
+  }
+}

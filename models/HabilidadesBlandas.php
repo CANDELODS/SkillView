@@ -55,4 +55,13 @@ class HabilidadesBlandas extends ActiveRecord
     {
         return static::paginarBusqueda($termino, ['nombre'], $ordenar, $porPagina, $offset);
     }
+
+    //----------------------------APRENDIZAJE----------------------------
+    public static function habilitadas() {
+    $query = "SELECT * FROM " . static::$tabla . " 
+              WHERE habilitado = 1
+              ORDER BY id ASC";
+    return self::consultarSQL($query);
+    }
+    //----------------------------FIN APRENDIZAJE----------------------------
 }

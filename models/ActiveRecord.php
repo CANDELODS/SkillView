@@ -296,4 +296,25 @@ class ActiveRecord {
     return self::consultarSQL($query);
     }
     //------------------FIN PAGINACIÓN Y BUSQUEDA------------------//
+
+    //------------------APRENDIZAJE CARDS------------------//
+    //Traer el total (Número) de registros dependiendo de una condición
+        public static function totalIf($columna = '', $valor = '')
+    {
+        $query = "SELECT COUNT(*) FROM " . static::$tabla;
+        if ($columna) {
+            $query .= " WHERE ${columna} = ${valor}";
+        }
+        $resultado = self::$db->query($query);
+        $total = $resultado->fetch_array(); //Traemos Los Resultados
+        return array_shift($total); //Array Shift Extrae El Primer Registro Del Arreglo
+    }
+
+    // Busqueda Where con Columna y sin array_shift para traer todos los resultados
+    public static function whereSAF($columna, $valor) {
+        $query = "SELECT * FROM " . static::$tabla . " WHERE ${columna} = '${valor}'";
+        $resultado = self::consultarSQL($query);
+        return $resultado;
+    }
+    //------------------FIN APRENDIZAJE CARDS------------------//
 }
