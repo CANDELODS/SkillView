@@ -9,10 +9,13 @@
   width: 100%;
   max-width: 30rem;
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.06);
+  margin-top: 2.5rem;  // separación respecto al nodo en móvil
+  text-align: left;
 
   @include m.tablet {
     max-width: 34rem;
     padding: 2rem 2.2rem 2.4rem;
+    margin-top: 0; // en desktop ya se alinea lateral
   }
 
   &__title {
@@ -43,7 +46,8 @@
       color: v.$primary;
       border: 1px solid v.$primary;
       box-shadow: none;
-      &:hover{
+
+      &:hover {
         filter: brightness(0.96);
       }
     }

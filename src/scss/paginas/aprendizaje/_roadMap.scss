@@ -1,7 +1,7 @@
 @use 'base/variables' as v;
 @use 'base/mixins' as m;
 
-/* ROADMAP / CAMINO */
+//* ROADMAP / CAMINO */
 .learning-roadmap {
   position: relative;
   padding: 3rem 0 4rem;
@@ -26,53 +26,48 @@
     position: relative;
   }
 
+  /* ====== MOBILE FIRST (por defecto) ====== */
   &__item {
     position: relative;
     display: flex;
+    flex-direction: column;     // card debajo del nodo
+    align-items: center;        // todo centrado sobre la línea
+    padding-top: 6.5rem;        // espacio para el nodo
     margin-bottom: 4rem;
-    align-items: flex-start;
 
     @include m.desktop {
-      margin-bottom: 5rem;
+      padding-top: 0;
     }
+  }
 
-    &--left {
-      justify-content: flex-start;
-    }
+  /* estados de icono */
+  &__item--completed .learning-roadmap__status-icon {
+    background-color: v.$green;
+    color: #fff;
+  }
 
-    &--right {
-      justify-content: flex-end;
-    }
+  &__item--current .learning-roadmap__status-icon {
+    background-color: v.$primary;
+    color: #fff;
+  }
 
-    /* estados */
-    &--completed .learning-roadmap__status-icon {
-      background-color: v.$green;
-      color: #fff;
-    }
+  &__item--locked .learning-roadmap__status-icon {
+    background-color: #fff;
+    color: v.$grisTr;
+    border: 2px solid v.$grayTr;
+  }
 
-    &--current .learning-roadmap__status-icon {
-      background-color: v.$primary;
-      color: #fff;
-    }
-
-    &--upcoming .learning-roadmap__status-icon,
-    &--locked .learning-roadmap__status-icon {
-      background-color: #fff;
-      color: v.$grisTr;
-      border: 2px solid v.$grayTr;
-    }
-
-    &--locked .module-card__btn {
-      background-color: v.$grayTr;
-    }
+  &__item--locked .module-card__btn {
+    background-color: v.$grayTr;
   }
 
   &__node {
     position: absolute;
     left: 50%;
+    top: 0;
     transform: translate(-50%, 0);
-    width: 4.6rem;
-    height: 4.6rem;
+    width: 6.6rem;
+    height: 6.6rem;
     border-radius: 50%;
     background-color: #fff;
     box-shadow: 0 8px 20px rgba(0, 0, 0, .08);
@@ -81,29 +76,30 @@
     justify-content: center;
     z-index: 2;
 
-    @include m.tablet{
+    @include m.tablet {
       width: 10.6rem;
       height: 10.6rem;
     }
   }
 
   &__status-icon {
-    width: 3.4rem;
-    height: 3.4rem;
+    width: 6.6rem;
+    height: 6.6rem;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1.8rem;
 
-    @include m.tablet{
-    width: 10.4rem;
-    height: 10.4rem;
+    @include m.tablet {
+      width: 10.4rem;
+      height: 10.4rem;
     }
   }
 
-  &__i{
-    @include m.tablet{
+  &__i {
+      font-size: 4rem;
+    @include m.tablet {
       font-size: 5rem;
     }
   }
@@ -123,24 +119,34 @@
     white-space: nowrap;
   }
 
-  /* En móviles las cards van todas a la izquierda */
-  @include m.telefono {
-    &__item {
-      justify-content: flex-start;
-
-      &--right {
-        justify-content: flex-end;
-      }
-    }
-  }
-
+  /* ====== A PARTIR DE TABLET: alternar izquierda / derecha ====== */
   @include m.tablet {
+    &__item {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+
+    &__item--left {
+      justify-content: flex-start;
+    }
+
+    &__item--right {
+      justify-content: flex-end;
+    }
+
+    /* acercar las cards al nodo */
     &__item--left .module-card {
-      margin-right: 7rem;
+      margin-right: 4rem;
     }
 
     &__item--right .module-card {
-      margin-left: 7rem;
+      margin-left: 4rem;
     }
+  }
+
+  @include m.desktop{
+    @include m.contenedor-rm;
+      padding-top: 0;
+      margin-bottom: 5rem;
   }
 }

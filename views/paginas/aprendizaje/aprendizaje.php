@@ -8,9 +8,11 @@
         Tu ruta hacia el crecimiento personal empieza aquí. Completa cada módulo para desbloquear nuevas habilidades.
       </p>
     </header>
+    <!-- Fin Hero: título y subtítulo -->
+
 
     <!-- Resumen general de progreso -->
-    <section class="learning-summary">
+    <section class="learning-summary"> <!--Sumary = Resumen-->
       <div class="learning-summary__top">
         <div class="learning-summary__label">
           <i class="fa-solid fa-trophy learning-summary__icon"></i>
@@ -32,13 +34,13 @@
 
       <div class="progress">
         <div class="progress__bar">
-          <!-- este width vendrá calculado en PHP -->
           <div class="progress__fill" min="<?php $porcentajeProgreso; ?>, 100" style="width: <?php echo $porcentajeProgreso; ?>%;"></div>
         </div>
       </div>
     </section>
+    <!-- Fin Resumen general de progreso -->
 
-<!-- CAMINO / ROADMAP -->
+    <!-- CAMINO / ROADMAP -->
     <section class="learning-roadmap">
       <div class="learning-roadmap__line"></div>
 
@@ -87,24 +89,21 @@
                     style="width: <?= $porcentaje; ?>%;"></div>
                 </div>
               </div>
-
               <div class="module-card__actions">
                 <?php if ($estado === 'completed'): ?>
-                  <a href="/aprendizaje/habilidad?id=<?= $habilidad->id; ?>"
-                    class="module-card__btn module-card__btn--outline">
+                  <button type="button"
+                    class="module-card__btn module-card__btn--outline js-open-modal"
+                    data-modal-id="modal-habilidad-<?= $habilidad->id; ?>">
                     Revisar
-                  </a>
+                  </button>
                 <?php elseif ($estado === 'current'): ?>
-                  <a href="/aprendizaje/habilidad?id=<?= $habilidad->id; ?>"
-                    class="module-card__btn">
+                  <button type="button"
+                    class="module-card__btn js-open-modal"
+                    data-modal-id="modal-habilidad-<?= $habilidad->id; ?>">
                     Continuar
-                  </a>
-                <?php elseif ($estado === 'upcoming'): ?>
-                  <a href="/aprendizaje/habilidad?id=<?= $habilidad->id; ?>"
-                    class="module-card__btn">
-                    Empezar lección
-                  </a>
-                <?php else: ?>
+                  </button>
+                <?php else: // locked 
+                ?>
                   <button class="module-card__btn module-card__btn--disabled" disabled>
                     Bloqueado
                   </button>
@@ -115,9 +114,9 @@
         <?php endforeach; ?>
       </ul>
     </section>
-<!-- FIN CAMINO / ROADMAP -->
+    <!-- FIN CAMINO / ROADMAP -->
 
-<!-- Cards inferiores: Pon a prueba tus habilidades / Tus logros -->
+    <!-- Cards inferiores: Pon a prueba tus habilidades / Tus logros -->
     <section class="learning-cta">
       <article class="learning-cta__card">
         <div class="learning-cta__content">
@@ -145,5 +144,78 @@
         </div>
       </article>
     </section>
-  </section>
-</main>
+    <!-- Fin Cards inferiores: Pon a prueba tus habilidades / Tus logros -->
+  </section> <!--Fin .learning__wrapper-->
+<!--Modal Cards-->
+<?php foreach($habilidades as $habilidad): ?>
+  <div class="modal" id="modal-habilidad-<?= $habilidad->id; ?>" aria-hidden="true">
+    <div class="modal__backdrop" data-modal-close></div>
+
+    <div class="modal__content" role="dialog" aria-modal="true" aria-labelledby="modal-title-<?= $habilidad->id; ?>">
+      <!-- Header -->
+      <header class="modal__header">
+        <h2 id="modal-title-<?= $habilidad->id; ?>" class="modal__title">
+          <?= htmlspecialchars($habilidad->nombre); ?>
+        </h2>
+        <button type="button" class="modal__close" data-modal-close>&times;</button>
+      </header>
+
+      <!-- Bloque de progreso -->
+      <section class="modal__progress-card">
+        <p class="modal__progress-label">Tu progreso</p>
+        <p class="modal__progress-text">
+          <?= $habilidad->lecciones_completadas; ?> de <?= $habilidad->total_lecciones; ?> lecciones
+        </p>
+
+        <div class="progress progress--modal">
+          <div class="progress__bar">
+            <div class="progress__fill"
+                 style="width: <?= $habilidad->porcentaje_progreso; ?>%;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Contenido según estado -->
+      <section class="modal__body">
+        <?php if($habilidad->estado === 'completed'): ?>
+          <h3 class="modal__subtitle">¡Felicidades!</h3>
+          <p class="modal__text">
+            Has completado todas las lecciones de esta habilidad.
+          </p>
+        <?php else: ?>
+          <?php if($habilidad->leccion_actual): ?>
+            <h3 class="modal__subtitle">
+              Lección <?= $habilidad->leccion_actual->orden; ?>
+            </h3>
+            <p class="modal__text">
+              <?= nl2br(htmlspecialchars($habilidad->leccion_actual->descripcion)); ?>
+            </p>
+          <?php else: ?>
+            <h3 class="modal__subtitle">Sin lecciones disponibles</h3>
+            <p class="modal__text">
+              No hay lecciones pendientes para esta habilidad.
+            </p>
+          <?php endif; ?>
+        <?php endif; ?>
+      </section>
+
+      <!-- Footer / Botones -->
+      <footer class="modal__footer">
+        <?php if($habilidad->estado !== 'completed' && $habilidad->leccion_actual): ?>
+          <a href="/aprendizaje/leccion?id=<?= $habilidad->leccion_actual->id; ?>"
+             class="modal__btn modal__btn--primary">
+            Continuar lección
+          </a>
+        <?php endif; ?>
+
+        <button type="button"
+                class="modal__btn modal__btn--secondary"
+                data-modal-close>
+          Volver
+        </button>
+      </footer>
+    </div>
+  </div>
+<?php endforeach; ?>
+<!-- Fin Modal Cards-->
+</main> <!--Fin .learning-->

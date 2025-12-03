@@ -37,6 +37,8 @@ class AprendizajeController {
             // Guardamos estos datos directamente en el objeto para que la vista los use
             $habilidad->total_lecciones = $totalLecciones;
             $habilidad->lecciones_completadas = $leccionesCompletadas;
+            $habilidad->porcentaje_progreso = $totalLecciones > 0
+            ? ($leccionesCompletadas / $totalLecciones) * 100 : 0;
         }
 
         // 3) Calcular estado de cada habilidad (completed, current, upcoming, locked)
@@ -50,6 +52,7 @@ class AprendizajeController {
         //El indiceActual será la posición del array $habilidades
         //$index => 0, 1, 2, 3... (Posición)
         //$habilidad → objeto HabilidadesBlandas con los campos + los que le añadimos.
+        //BUSCAMOS LA PRIMERA HABILIDAD QUE NO ESTÁ COMPLETA (SERÁ LA ACTUAL)
         foreach ($habilidades as $index => $habilidad) {
             //Si la habilidad tiene lecciones y el usuario no las ha completado todas entonces...
             if ($habilidad->total_lecciones > 0 && 
@@ -77,9 +80,9 @@ class AprendizajeController {
             elseif ($indiceActual !== null && $index === $indiceActual) {
                 $habilidad->estado = 'current';
             }
-            //No están completas, No son la actual y tienen lecciones
+            //Todas las que vengan depués de la actual = bloqueadas
             else {
-                $habilidad->estado = 'upcoming';
+                $habilidad->estado = 'locked';
             }
         }
 
@@ -87,6 +90,16 @@ class AprendizajeController {
         $totalLeccionesSistema = Lecciones::total(); // todas las lecciones habilitadas en el sistema
         $leccionesCompletadasUsuario = usuarios_lecciones::totalCompletadasUsuario($idUsuario);
 
+        // 5) Asignar lección actual para el modal
+        foreach ($habilidades as $habilidad) {
+
+        // Solo tiene sentido buscar lección actual si la habilidad NO está completada
+        if ($habilidad->estado !== 'completed' && $habilidad->total_lecciones > 0) {
+        $habilidad->leccion_actual = Lecciones::leccionActualPorUsuarioYHabilidad($idUsuario, $habilidad->id);
+        } else {
+        $habilidad->leccion_actual = null;
+        }
+    }
         // Evitamos división por cero
         $porcentajeProgreso = 0;
         if ($totalLeccionesSistema > 0) {

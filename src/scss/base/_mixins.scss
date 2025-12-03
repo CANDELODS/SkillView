@@ -57,6 +57,11 @@
     margin: 0 auto;
 }
 
+@mixin contenedor-rm {
+    width: min(95%, 100rem);
+    margin: 0 auto;
+}
+
 @mixin contenedor-md {
     width: min(95%, 80rem);
     margin: 0 auto;

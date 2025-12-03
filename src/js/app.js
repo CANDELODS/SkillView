@@ -73,6 +73,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
   //---------------FIN MODAL DE REGISTRO EXITOSO CON REDIRECCIÓN AUTOMÁTICA----------------//
 
+  //---------------MODAL DE LAS CARDS DE LA SECCIÓN APRENDIZAJE----------------//
+  const body = document.body;
+  // Abrir modal
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('.js-open-modal');
+    if (!trigger) return;
+
+    e.preventDefault();
+    const modalId = trigger.dataset.modalId;
+    const modal   = document.getElementById(modalId);
+    if (!modal) return;
+
+    modal.classList.add('modal--visible');
+    body.classList.add('no-scroll');
+  });
+
+  // Cerrar modal (botón X, botón Volver, backdrop)
+  document.addEventListener('click', (e) => {
+    const closeTrigger = e.target.closest('[data-modal-close]');
+    if (!closeTrigger) return;
+
+    const modal = closeTrigger.closest('.modal');
+    if (!modal) return;
+
+    modal.classList.remove('modal--visible');
+    body.classList.remove('no-scroll');
+  });
+  //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN APRENDIZAJE----------------//
+
+
   //---------------OCULTAR ALERTAS DESPUES DE UNOS SEGUNDOS----------------//
   //ESTE CÓDIGO AHORA SIEMPRE SE EJECUTA EN CUALQUIER VISTA
 
