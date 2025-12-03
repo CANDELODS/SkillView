@@ -442,26 +442,23 @@ h3 {
   filter: brightness(0.9);
 }
 
-.modal {
+.learning-modal {
   position: fixed;
   inset: 0;
   display: none;
-  z-index: 1000;
+  z-index: 3000;
   align-items: center;
   justify-content: center;
 }
-
-.modal--visible {
+.learning-modal--visible {
   display: flex;
 }
-
-.modal__backdrop {
+.learning-modal__backdrop {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
 }
-
-.modal__content {
+.learning-modal__content {
   position: relative;
   background: #fff;
   border-radius: 1.6rem;
@@ -472,75 +469,57 @@ h3 {
   z-index: 1;
 }
 @media (min-width: 768px) {
-  .modal__content {
+  .learning-modal__content {
     padding: 3rem 3.2rem 2.8rem;
   }
 }
-
-.modal__header {
+.learning-modal__header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
   margin-bottom: 1.8rem;
 }
-
-.modal__title {
-  font-size: 2.4rem;
+.learning-modal__title {
+  font-size: 2.6rem;
   font-weight: 700;
-  color: #1E293B;
 }
-
-.modal__close {
+.learning-modal__close {
   background: transparent;
   border: none;
-  font-size: 2.4rem;
-  line-height: 1;
+  font-size: 2.6rem;
   cursor: pointer;
 }
-
-.modal__progress-card {
+.learning-modal__progress-card {
   background: rgba(169, 0, 0, 0.1);
-  border-radius: 1.2rem;
   padding: 1.4rem 1.6rem 1.8rem;
+  border-radius: 1.2rem;
   margin-bottom: 2.4rem;
 }
-
-.modal__progress-label {
-  font-size: 1.3rem;
+.learning-modal__progress-label {
+  font-size: 1.4rem;
   color: oklch(50% 0.01 30deg);
-  margin-bottom: 0.3rem;
 }
-
-.modal__progress-text {
+.learning-modal__progress-text {
   font-size: 1.6rem;
   font-weight: 700;
-  margin-bottom: 1.2rem;
+  margin: 0.4rem 0 1rem;
 }
-
-.modal__subtitle {
-  font-size: 1.6rem;
+.learning-modal__subtitle {
+  font-size: 1.8rem;
   font-weight: 700;
   margin-bottom: 0.8rem;
 }
-
-.modal__text {
+.learning-modal__text {
   font-size: 1.4rem;
   color: oklch(50% 0.01 30deg);
   margin-bottom: 2.4rem;
 }
-
-.modal__footer {
+.learning-modal__footer {
+  margin-top: 1rem;
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
 }
-@media (min-width: 768px) {
-  .modal__footer {
-    flex-direction: column;
-  }
-}
-
-.modal__btn {
+.learning-modal__btn {
   background-color: #f5f5f5;
   padding: 1.5rem 4rem;
   color: #1E293B;
@@ -553,16 +532,15 @@ h3 {
   width: 100%;
   display: inline-block;
 }
-.modal__btn:hover {
+.learning-modal__btn:hover {
   filter: brightness(1.2);
   cursor: pointer;
 }
-.modal__btn {
+.learning-modal__btn {
   border-radius: 0.8rem;
   font-size: 1.4rem;
 }
-
-.modal__btn--primary {
+.learning-modal__btn--primary {
   background-color: #EB4328;
   padding: 1.5rem 4rem;
   color: #fff;
@@ -575,13 +553,12 @@ h3 {
   width: 100%;
   display: inline-block;
 }
-.modal__btn--primary:hover {
+.learning-modal__btn--primary:hover {
   filter: brightness(1.2);
   cursor: pointer;
 }
-
-.modal__btn--secondary {
-  background-color: #fff;
+.learning-modal__btn--secondary {
+  background: #fff;
   border: 1px solid #D2D2D2;
 }
 

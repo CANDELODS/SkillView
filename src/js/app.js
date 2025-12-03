@@ -76,30 +76,56 @@ document.addEventListener('DOMContentLoaded', () => {
   //---------------MODAL DE LAS CARDS DE LA SECCIÓN APRENDIZAJE----------------//
   const body = document.body;
   // Abrir modal
+  //“Escucha cualquier click en TODA la página”. No escuchamos solo cada botón ya que el DOM puede
+  //Cambiar dinámicamente, por lo cual esta técnica "event delegation" garantiza que funcione siempre
   document.addEventListener('click', (e) => {
-    const trigger = e.target.closest('.js-open-modal');
+    //¿El elemento en el que hicieron click tiene la clase .js-learning-modal-open
+    //O está dentro de un elemento con esa clase?
+    const trigger = e.target.closest('.js-learning-modal-open');
+    //Si no, salimos con return y no hacemos nada, esto nos ayuda a evitar que cada click en la página
+    //Active algo
     if (!trigger) return;
-
+    //Evitamos que el navegador ejecute su acción normal
     e.preventDefault();
-    const modalId = trigger.dataset.modalId;
+    //Leemos el atributo data-learning-modal-id="learning-modal-habilidad-3 (Por ejemplo)"
+    const modalId = trigger.dataset.learningModalId;
+    //Buscamos el modal en toda la página: document.getElementById("learning-modal-habilidad-3")
     const modal   = document.getElementById(modalId);
+    //Si no lo encuentra, salimos con return y no hacemos nada
     if (!modal) return;
-
-    modal.classList.add('modal--visible');
+    //Mostramos el modal en pantalla
+    modal.classList.add('learning-modal--visible');
     body.classList.add('no-scroll');
   });
 
   // Cerrar modal (botón X, botón Volver, backdrop)
   document.addEventListener('click', (e) => {
-    const closeTrigger = e.target.closest('[data-modal-close]');
+    //Todo lo que tenga data-modal-close cierra el modal
+    //Seleccionamos los objetos del DOM que tiene el atributo data-learning-modal-close
+    const closeTrigger = e.target.closest('[data-learning-modal-close]');
     if (!closeTrigger) return;
 
-    const modal = closeTrigger.closest('.modal');
+    const modal = closeTrigger.closest('.learning-modal');
     if (!modal) return;
-
-    modal.classList.remove('modal--visible');
+    //Quitamos las clases que permiten mostrar el modal
+    modal.classList.remove('learning-modal--visible');
     body.classList.remove('no-scroll');
   });
+
+  //"El motodo closest busca el elemento padre mas cercano (Incluyendose a si mismo) que coincida con un selector"
+  /*<div class="learning-modal">           ← closest(".learning-modal") devuelve este
+   <div class="content">
+      <button data-learning-modal-close>Volver</button>  ← usuario hace click aquí
+   </div>
+  </div>
+  Al escribir: const modal = closeTrigger.closest('.learning-modal'); JS pregunta:
+  ¿El botón tiene la clase .learning-modal? NO
+  ¿Su padre <div class="content"> la tiene? NO
+  ¿Su abuelo <div class="learning-modal"> la tiene? SI : Nos devuelve el elemento
+  
+  El método closest es muy útil ya que como tenemos varios modales normalmente tendríamos que identificar
+  El modal con id específico para cerrarlo, pero con closest el botón ya "vive" deontro de su propio modal
+*/
   //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN APRENDIZAJE----------------//
 
 

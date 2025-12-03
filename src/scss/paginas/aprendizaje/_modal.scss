@@ -1,115 +1,108 @@
 @use 'base/mixins' as m;
 @use 'base/variables' as v;
 
-.modal {
+.learning-modal {
   position: fixed;
   inset: 0;
   display: none;
-  z-index: 1000;
+  z-index: 3000;
   align-items: center;
   justify-content: center;
-}
 
-.modal--visible {
-  display: flex;
-}
-
-.modal__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.35);
-}
-
-.modal__content {
-  position: relative;
-  background: #fff;
-  border-radius: 1.6rem;
-  padding: 2.4rem 2.8rem 2.4rem;
-  max-width: 52rem;
-  width: 95%;
-  box-shadow: 0 18px 40px rgba(0,0,0,0.2);
-  z-index: 1;
-
-  @include m.tablet {
-    padding: 3rem 3.2rem 2.8rem;
+  &--visible {
+    display: flex;
   }
-}
 
-.modal__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.8rem;
-}
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+  }
 
-.modal__title {
-  font-size: 2.4rem;
-  font-weight: v.$bold;
-  color: v.$grisOscuro;
-}
+  &__content {
+    position: relative;
+    background: #fff;
+    border-radius: 1.6rem;
+    padding: 2.4rem 2.8rem 2.4rem;
+    max-width: 52rem;
+    width: 95%;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.2);
+    z-index: 1;
 
-.modal__close {
-  background: transparent;
-  border: none;
-  font-size: 2.4rem;
-  line-height: 1;
-  cursor: pointer;
-}
+    @include m.tablet {
+      padding: 3rem 3.2rem 2.8rem;
+    }
+  }
 
-.modal__progress-card {
-  background: v.$red-light;
-  border-radius: 1.2rem;
-  padding: 1.4rem 1.6rem 1.8rem;
-  margin-bottom: 2.4rem;
-}
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.8rem;
+  }
 
-.modal__progress-label {
-  font-size: 1.3rem;
-  color: v.$p-gray;
-  margin-bottom: .3rem;
-}
+  &__title {
+    font-size: 2.6rem;
+    font-weight: v.$bold;
+  }
 
-.modal__progress-text {
-  font-size: 1.6rem;
-  font-weight: v.$bold;
-  margin-bottom: 1.2rem;
-}
+  &__close {
+    background: transparent;
+    border: none;
+    font-size: 2.6rem;
+    cursor: pointer;
+  }
 
-.modal__subtitle {
-  font-size: 1.6rem;
-  font-weight: v.$bold;
-  margin-bottom: .8rem;
-}
+  &__progress-card {
+    background: v.$red-light;
+    padding: 1.4rem 1.6rem 1.8rem;
+    border-radius: 1.2rem;
+    margin-bottom: 2.4rem;
+  }
 
-.modal__text {
-  font-size: 1.4rem;
-  color: v.$p-gray;
-  margin-bottom: 2.4rem;
-}
+  &__progress-label {
+    font-size: 1.4rem;
+    color: v.$p-gray;
+  }
 
-.modal__footer {
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
+  &__progress-text {
+    font-size: 1.6rem;
+    font-weight: v.$bold;
+    margin: .4rem 0 1rem;
+  }
 
-  @include m.tablet {
+  &__subtitle {
+    font-size: 1.8rem;
+    font-weight: v.$bold;
+    margin-bottom: .8rem;
+  }
+
+  &__text {
+    font-size: 1.4rem;
+    color: v.$p-gray;
+    margin-bottom: 2.4rem;
+  }
+
+  &__footer {
+    margin-top: 1rem;
+    display: flex;
     flex-direction: column;
+    gap: 1.2rem;
   }
-}
 
-.modal__btn {
-  @include m.boton(#f5f5f5, v.$grisOscuro);
-  border-radius: .8rem;
-  font-size: 1.4rem;
-}
+  &__btn {
+    @include m.boton(#f5f5f5, v.$grisOscuro);
+    border-radius: .8rem;
+    font-size: 1.4rem;
+  }
 
-.modal__btn--primary {
-  @include m.boton(v.$primary, #fff);
-}
+  &__btn--primary {
+    @include m.boton(v.$primary, #fff);
+  }
 
-.modal__btn--secondary {
-  background-color: #fff;
-  border: 1px solid v.$input-gray;
+  &__btn--secondary {
+    background: #fff;
+    border: 1px solid v.$input-gray;
+  }
 }
 
 .no-scroll {
