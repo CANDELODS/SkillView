@@ -7,6 +7,7 @@ use MVC\Router;
 use Controllers\AuthController;
 use Controllers\DashboardController;
 use Controllers\PrincipalController;
+use Controllers\RetosController;
 
 $router = new Router();
 
@@ -44,4 +45,9 @@ $router->get('/404', [PrincipalController::class, 'notFound']);
 $router->get('/aprendizaje', [AprendizajeController::class, 'index']);
 $router->post('/aprendizaje', [AprendizajeController::class, 'index']);
 //--------------------FIN APRENDIZAJE--------------------
+
+//--------------------RETOS--------------------
+$router->get('/retos', [RetosController::class, 'index']);
+$router->post('/retos', [RetosController::class, 'index']);
+//--------------------FIN RETOS--------------------
 $router->comprobarRutas();
