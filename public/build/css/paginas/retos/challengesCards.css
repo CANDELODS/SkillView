@@ -1,0 +1,30 @@
+/** Media Queries **/
+.challenges-cards {
+  border-top: 1px solid oklch(90% 0.01 30deg);
+  border-bottom: 1px solid oklch(90% 0.01 30deg);
+  padding: 2rem 0;
+}
+.challenges-cards__container {
+  width: min(95%, 120rem);
+  margin: 0 auto;
+}
+.challenges-cards__grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(1, 1fr);
+}
+@media (min-width: 768px) {
+  .challenges-cards__grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1024px) {
+  .challenges-cards__grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+/*# sourceMappingURL=challengesCards.css.map */
