@@ -18,8 +18,8 @@ class AprendizajeController {
         }
 
         $login = false;
-
-        // Id del usuario logueado (ajusta según cómo lo guardes en sesión)
+        $datosUsuario = obtenerDatosUsuarioHeader($_SESSION['id']);
+        // Id del usuario logueado
         $idUsuario = $_SESSION['id'] ?? null;
         
         // 1) Traer habilidades habilitadas
@@ -113,7 +113,9 @@ class AprendizajeController {
             'habilidades' => $habilidades, // aquí viene todo lo de cada card
             'totalLeccionesSistema' => $totalLeccionesSistema,
             'leccionesCompletadasUsuario' => $leccionesCompletadasUsuario,
-            'porcentajeProgreso' => $porcentajeProgreso
+            'porcentajeProgreso' => $porcentajeProgreso,
+            'nombreUsuario'    => $datosUsuario['nombreUsuario'],
+            'inicialesUsuario' => $datosUsuario['inicialesUsuario']
         ]);
     }
 }
