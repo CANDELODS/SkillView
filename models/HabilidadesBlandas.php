@@ -64,4 +64,20 @@ class HabilidadesBlandas extends ActiveRecord
     return self::consultarSQL($query);
     }
     //----------------------------FIN APRENDIZAJE----------------------------
+
+    //----------------------------RETOS----------------------------
+    public static function conRetosHabilitados(): array
+    {
+    $query = "
+        SELECT DISTINCT hb.*
+        FROM habilidades_blandas hb
+        INNER JOIN retos r ON r.id_habilidades = hb.id
+        WHERE hb.habilitado = 1
+          AND r.habilitado = 1
+        ORDER BY hb.nombre ASC
+    ";
+
+    return self::consultarSQL($query);
+    }
+    //----------------------------FIN RETOS----------------------------
 }

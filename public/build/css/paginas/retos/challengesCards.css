@@ -27,4 +27,10 @@
     grid-template-columns: repeat(3, 1fr);
   }
 }
+.challenges-cards__empty {
+  text-align: center;
+  font-size: 1.6rem;
+  color: oklch(50% 0.01 30deg);
+  padding: 2rem 0;
+}
 /*# sourceMappingURL=challengesCards.css.map */

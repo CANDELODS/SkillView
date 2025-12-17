@@ -20,4 +20,11 @@
             @include m.grid(3, 1.5rem);
         }
     }
+    &__empty{
+    text-align: center;
+    font-size: 1.6rem;
+    color: v.$p-gray;
+    padding: 2rem 0;
+    }
+
 }

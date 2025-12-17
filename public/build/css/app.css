@@ -923,6 +923,7 @@ h3 {
   padding: 2.4rem;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 1.5rem;
   width: 100%;
   max-width: 40rem;
@@ -1062,6 +1063,12 @@ h3 {
     gap: 1.5rem;
     grid-template-columns: repeat(3, 1fr);
   }
+}
+.challenges-cards__empty {
+  text-align: center;
+  font-size: 1.6rem;
+  color: oklch(50% 0.01 30deg);
+  padding: 2rem 0;
 }
 
 .notFound {
