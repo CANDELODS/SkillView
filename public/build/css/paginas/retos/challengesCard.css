@@ -10,6 +10,12 @@
   gap: 1.5rem;
   width: 100%;
   max-width: 40rem;
+  transition: all 0.1s ease;
+}
+.challenges-card:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  outline: 2px solid #EB4328;
 }
 .challenges-card__top {
   display: flex;
@@ -117,5 +123,28 @@
 }
 .challenges-card__button {
   border-radius: 0.8rem;
+}
+.challenges-card__button--completed {
+  background-color: #00C951;
+  padding: 1.5rem 4rem;
+  color: white;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.challenges-card__button--completed:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.challenges-card__button--completed {
+  opacity: 0.6;
+}
+.challenges-card__button--completed:hover {
+  cursor: not-allowed;
 }
 /*# sourceMappingURL=challengesCard.css.map */
