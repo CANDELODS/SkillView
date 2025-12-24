@@ -70,13 +70,11 @@
                                 <div class="challenges-card__timePoints">
                                     <span class="challenges-card__time">
                                         <i class="fa-regular fa-clock challenges-card__iTime"></i>
-                                        <!-- Tiempo dinámico <?php echo $retos->tiempo_min; ?> - <?php echo $retos->tiempo_max; ?> minutos -->
                                         <p class="challenges-card__pTime"><?php echo $reto->tiempo_min; ?> - <?php echo $reto->tiempo_max; ?> minutos</p>
                                     </span>
 
                                     <span class="challenges-card__points">
                                         <i class="fa-solid fa-trophy challenges-card__iPoints"></i>
-                                        <!-- Cantidad de puntos dinámica <?php echo $retos->puntos; ?> puntos -->
                                         <p class="challenges-card__pPoints"><?php echo $reto->puntos; ?> puntos</p>
                                     </span>
                                 </div>
@@ -98,8 +96,7 @@
                                         data-time-max="<?php echo (int)$reto->tiempo_max; ?>"
                                         data-points="<?php echo (int)$reto->puntos; ?>"
                                         data-tags="<?php echo htmlspecialchars(implode(',', $reto->tags ?? [])); ?>"
-                                        data-start-url="/retos/iniciar?id=<?php echo (int)$reto->id; ?>"
-                                        >
+                                        data-start-url="/retos/iniciar?id=<?php echo (int)$reto->id; ?>">
                                         Iniciar Reto
                                     </button>
                                 <?php endif; ?>
@@ -111,6 +108,101 @@
                 </div>
         </div>
     </section>
+
+    <!-- ===================== Tu Progreso (Progress) Y Logros (Achievements) ===================== -->
+    <section class="challenges__pa">
+        <h3 class="challenges__pa-tittle">Tu Progreso y Logros</h3>
+
+        <div class="challenges__pa-grid">
+
+            <!-- ===================== Progreso General ===================== -->
+            <article class="challenges__pa-card">
+                <header class="challenges__pa-cardHeader">
+                    <span class="challenges__pa-icon">
+                        <i class="fa-solid fa-bullseye"></i>
+                    </span>
+                    <h4 class="challenges__pa-cardTitle">Progreso General</h4>
+                </header>
+
+                <!-- Retos completados -->
+                <div class="challenges__pa-block">
+                    <div class="challenges__pa-row">
+                        <p class="challenges__pa-label">Retos completados</p>
+                        <p class="challenges__pa-value">
+                            <?php echo (int)$completadosTotal; ?> de <?php echo (int)$totalRetos; ?>
+                        </p>
+                    </div>
+
+                    <?php
+                    $pctGeneral = ($totalRetos > 0) ? (int) round(($completadosTotal / $totalRetos) * 100) : 0;
+                    ?>
+                    <div class="challenges__pa-bar">
+                        <span class="challenges__pa-barFill" style="width: <?php echo $pctGeneral; ?>%"></span>
+                    </div>
+                </div>
+
+                <!-- Nivel por habilidad -->
+                <div class="challenges__pa-block">
+                    <p class="challenges__pa-subtitle">Nivel por habilidad:</p>
+
+                    <div class="challenges__pa-skillList">
+                        <?php foreach ($progresoPorHabilidad as $ph) : ?>
+                            <div class="challenges__pa-skill">
+                                <div class="challenges__pa-row">
+                                    <p class="challenges__pa-skillName"><?php echo htmlspecialchars($ph['nombre']); ?></p>
+                                    <p class="challenges__pa-skillLevel">
+                                        <?php echo htmlspecialchars($ph['nivel']); ?> (<?php echo (int)$ph['porcentaje']; ?>%)
+                                    </p>
+                                </div>
+                                <div class="challenges__pa-bar challenges__pa-bar--small">
+                                    <span class="challenges__pa-barFill" style="width: <?php echo (int)$ph['porcentaje']; ?>%"></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </article>
+            <!-- ===================== FIN Progreso General ===================== -->
+
+
+            <!-- ===================== Medallas desbloqueadas ===================== -->
+            <article class="challenges__pa-card">
+                <header class="challenges__pa-cardHeader challenges__pa-cardHeader--between">
+                    <div class="challenges__pa-cardHeaderLeft">
+                        <span class="challenges__pa-icon">
+                            <i class="fa-solid fa-award"></i>
+                        </span>
+                        <h4 class="challenges__pa-cardTitle">Medallas Desbloqueadas</h4>
+                    </div>
+
+                    <a class="challenges__pa-link" href="/logros">Ver todas</a>
+                </header>
+
+                <div class="challenges__pa-medals">
+                    <?php foreach ($medallas as $m) : ?>
+                        <div class="challenges__pa-medal <?php echo $m->desbloqueado ? 'is-unlocked' : 'is-locked'; ?>">
+                            <div class="challenges__pa-medalIcon">
+                                <img
+                                    src="<?php
+                                            echo $_ENV['HOST'] . '/build/img/logros/' . $m->icono . '.svg';
+                                            ?>"
+                                    alt="Ícono logro <?php echo htmlspecialchars($m->nombre); ?>"
+                                    loading="lazy">
+                            </div>
+
+                            <p class="challenges__pa-medalTitle"><?php echo htmlspecialchars($m->nombre); ?></p>
+                            <p class="challenges__pa-medalDesc"><?php echo htmlspecialchars($m->descripcion); ?></p>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </article>
+            <!-- ===================== FIN Medallas desbloqueadas ===================== -->
+
+        </div>
+    </section>
+    <!-- ===================== FIN Tu Progreso Y Logros ===================== -->
+
+
     <!-- ===================== CHALLENGE MODAL (RETOS) ===================== -->
     <section class="sv-challenge-modal" id="sv-challenge-modal" aria-hidden="true">
         <div class="sv-challenge-modal__backdrop" data-sv-challenge-close></div>

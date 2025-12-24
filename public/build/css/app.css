@@ -916,6 +916,196 @@ h3 {
   border-radius: 0.8rem;
   color: #413c3c;
 }
+.challenges__pa {
+  padding: 4.5rem 0 6rem;
+}
+.challenges__pa-tittle {
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: black;
+  text-align: center;
+}
+@media (min-width: 768px) {
+  .challenges__pa-tittle {
+    font-size: 3rem;
+  }
+}
+.challenges__pa-grid {
+  width: min(95%, 120rem);
+  margin: 0 auto;
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(1, 1fr);
+}
+@media (min-width: 768px) {
+  .challenges__pa-grid {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.challenges__pa-card {
+  background: #fff;
+  border: 1px solid #D2D2D2;
+  border-radius: 1.4rem;
+  padding: 2rem;
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.06);
+}
+.challenges__pa-cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.6rem;
+}
+.challenges__pa-cardHeader--between {
+  justify-content: space-between;
+  align-items: center;
+}
+.challenges__pa-cardHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.challenges__pa-icon {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 999px;
+  background: rgba(255, 0, 0, 0.1);
+  display: grid;
+  place-items: center;
+}
+.challenges__pa-icon i {
+  color: #EB4328;
+  font-size: 1.4rem;
+}
+.challenges__pa-cardTitle {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+.challenges__pa-link {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #EB4328;
+  text-decoration: none;
+}
+.challenges__pa-link:hover {
+  text-decoration: underline;
+}
+.challenges__pa-block {
+  margin-bottom: 2rem;
+}
+.challenges__pa-block:last-child {
+  margin-bottom: 0;
+}
+.challenges__pa-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+.challenges__pa-label {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+.challenges__pa-value {
+  margin: 0;
+  font-size: 1.3rem;
+  color: oklch(50% 0.01 30deg);
+  font-weight: 600;
+}
+.challenges__pa-subtitle {
+  margin: 0 0 1.2rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+.challenges__pa-bar {
+  height: 0.85rem;
+  border-radius: 999px;
+  background: rgba(255, 0, 0, 0.16);
+  overflow: hidden;
+  margin-top: 1rem;
+}
+.challenges__pa-bar--small {
+  height: 0.75rem;
+  margin-top: 0.8rem;
+}
+.challenges__pa-barFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #EB4328;
+}
+.challenges {
+  /* ✅ Scroll si hay muchas habilidades */
+}
+.challenges__pa-skillList {
+  max-height: 23rem;
+  overflow-y: auto;
+  padding-right: 0.6rem;
+}
+.challenges__pa-skill {
+  margin-bottom: 1.4rem;
+}
+.challenges__pa-skill:last-child {
+  margin-bottom: 0;
+}
+.challenges__pa-skillName {
+  margin: 0;
+  font-size: 1.4rem;
+}
+.challenges__pa-skillLevel {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #EB4328;
+}
+.challenges {
+  /* Medallas */
+}
+.challenges__pa-medals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.3rem;
+}
+.challenges__pa-medal {
+  border: 1px solid rgba(255, 0, 0, 0.18);
+  border-radius: 1.2rem;
+  padding: 1.4rem 1.2rem;
+  text-align: center;
+  background: rgba(255, 0, 0, 0.03);
+}
+.challenges__pa-medal.is-locked {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+.challenges__pa-medalIcon {
+  width: 5.2rem;
+  height: 5.2rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 1rem;
+  background: rgba(255, 0, 0, 0.12);
+}
+.challenges__pa-medalIcon img {
+  width: 60%;
+  height: 60%;
+  object-fit: contain;
+}
+.challenges__pa-medalTitle {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+.challenges__pa-medalDesc {
+  margin: 0.5rem 0 0;
+  font-size: 1.2rem;
+  color: oklch(50% 0.01 30deg);
+  line-height: 1.35;
+}
+
 .challenges-card {
   background-color: white;
   border-radius: 1.4rem;

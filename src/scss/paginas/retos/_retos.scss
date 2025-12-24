@@ -42,7 +42,7 @@
         justify-content: center;
         gap: 2rem;
     }
-    
+
     &__select {
         padding: .8rem 1.2rem;
         background-color: v.$background;
@@ -50,6 +50,7 @@
         font-size: 1.4rem;
         border-radius: .8rem;
         color: v.$gray;
+
         &--skills {
             @extend .challenges__select;
 
@@ -61,7 +62,217 @@
         }
     }
 
-    &__option{
+    &__option {}
 
+    &__pa {
+        padding: 4.5rem 0 6rem;
     }
+
+    &__pa-tittle {
+        font-size: 2.6rem;
+        font-weight: v.$bold;
+        color: black;
+        text-align: center;
+
+        @include m.tablet {
+            font-size: 3rem;
+        }
+    }
+
+    &__pa-grid {
+        @include m.contenedor;
+        @include m.grid(1, 2rem);
+
+        @include m.tablet {
+            @include m.grid(2, 2rem);
+        }
+    }
+
+    &__pa-card {
+        background: #fff;
+        border: 1px solid v.$input-gray;
+        border-radius: 1.4rem;
+        padding: 2rem;
+        box-shadow: 0 .8rem 2rem rgba(0, 0, 0, .06);
+    }
+
+    &__pa-cardHeader {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.6rem;
+
+        &--between {
+            justify-content: space-between;
+            align-items: center;
+        }
+    }
+
+    &__pa-cardHeaderLeft {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    &__pa-icon {
+        width: 3.2rem;
+        height: 3.2rem;
+        border-radius: 999px;
+        background: rgba(255, 0, 0, .10);
+        display: grid;
+        place-items: center;
+
+        i {
+            color: v.$primary;
+            font-size: 1.4rem;
+        }
+    }
+
+    &__pa-cardTitle {
+        margin: 0;
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+
+    &__pa-link {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: v.$primary;
+        text-decoration: none;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+
+    &__pa-block {
+        margin-bottom: 2rem;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+    }
+
+    &__pa-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: baseline;
+    }
+
+    &__pa-label {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 600;
+    }
+
+    &__pa-value {
+        margin: 0;
+        font-size: 1.3rem;
+        color: v.$p-gray;
+        font-weight: 600;
+    }
+
+    &__pa-subtitle {
+        margin: 0 0 1.2rem;
+        font-size: 1.4rem;
+        font-weight: 700;
+    }
+
+    &__pa-bar {
+        height: .85rem;
+        border-radius: 999px;
+        background: rgba(255, 0, 0, .16);
+        overflow: hidden;
+        margin-top: 1rem;
+
+        &--small {
+            height: .75rem;
+            margin-top: .8rem;
+        }
+    }
+
+    &__pa-barFill {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        background: v.$primary;
+    }
+
+    /* ✅ Scroll si hay muchas habilidades */
+    &__pa-skillList {
+        max-height: 23rem;
+        overflow-y: auto;
+        padding-right: .6rem;
+    }
+
+    &__pa-skill {
+        margin-bottom: 1.4rem;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+    }
+
+    &__pa-skillName {
+        margin: 0;
+        font-size: 1.4rem;
+    }
+
+    &__pa-skillLevel {
+        margin: 0;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: v.$primary;
+    }
+
+    /* Medallas */
+    &__pa-medals {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.3rem;
+    }
+
+    &__pa-medal {
+        border: 1px solid rgba(255, 0, 0, .18);
+        border-radius: 1.2rem;
+        padding: 1.4rem 1.2rem;
+        text-align: center;
+        background: rgba(255, 0, 0, .03);
+
+        &.is-locked {
+            opacity: .45;
+            filter: grayscale(1);
+        }
+    }
+
+    &__pa-medalIcon {
+        width: 5.2rem;
+        height: 5.2rem;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 1rem;
+        background: rgba(255, 0, 0, .12);
+
+        img{
+            width: 60%;
+            height: 60%;
+            object-fit: contain;
+        }
+    }
+
+    &__pa-medalTitle {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 800;
+    }
+
+    &__pa-medalDesc {
+        margin: .5rem 0 0;
+        font-size: 1.2rem;
+        color: v.$p-gray;
+        line-height: 1.35;
+    }
+
 }

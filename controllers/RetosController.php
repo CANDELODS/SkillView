@@ -4,8 +4,10 @@ namespace Controllers;
 
 use MVC\Router;
 use Model\Retos;
-use Model\HabilidadesBlandas;
+use Model\Logros;
 use Model\usuarios_retos;
+use Model\HabilidadesBlandas;
+use Model\usuarios_logros;
 
 class RetosController
 {
@@ -22,6 +24,55 @@ class RetosController
         $datosUsuario = obtenerDatosUsuarioHeader($_SESSION['id']);
         // Id del usuario logueado
         $idUsuario = $_SESSION['id'] ?? null;
+
+        // ---- Progreso general ----
+        $totalRetos = Retos::totalHabilitados();
+        $completadosTotal = usuarios_retos::totalCompletadosUsuario($idUsuario);
+
+        // ---- Progreso por habilidad ----
+        // Traemos TODAS las habilidades habilitadas (para mostrarlas aunque estén en 0)
+        $habilidades = HabilidadesBlandas::conRetosHabilitados();
+        // completados por habilidad (solo las que el usuario ha completado algo)
+        $completadosHab = usuarios_retos::completadosPorHabilidad($idUsuario);
+
+        // Convertimos a lookup por id_habilidad para acceso rápido
+        $lookupCompletados = [];
+        foreach ($completadosHab as $row) {
+            $lookupCompletados[$row['id_habilidad']] = $row['completados'];
+        }
+
+        $progresoPorHabilidad = [];
+        $totalesHab = Retos::totalesPorHabilidad();
+        foreach ($habilidades as $hab) {
+            $idHab = (int)$hab->id;
+
+            $totalHab = $totalesHab[$idHab] ?? 0;
+            $compHab  = $lookupCompletados[$idHab] ?? 0;
+
+            $porcentaje = ($totalHab > 0) ? (int) round(($compHab / $totalHab) * 100) : 0;
+
+            // Niveles sugeridos (ajústalos a tu gusto)
+            $nivel = 'Básico';
+            if ($porcentaje >= 70) $nivel = 'Intermedio';
+            if ($porcentaje >= 90) $nivel = 'Avanzado';
+
+            $progresoPorHabilidad[] = [
+                'nombre' => $hab->nombre,
+                'porcentaje' => $porcentaje,
+                'nivel' => $nivel,
+                'completados' => $compHab,
+                'total' => $totalHab
+            ];
+        }
+
+        // ---- Medallas ----
+        $medallas = Logros::destacados(6);
+        $idsLogrosUsuario = usuarios_logros::idsLogrosUsuario($idUsuario);
+        $logrosLookup = array_flip($idsLogrosUsuario);
+
+        foreach ($medallas as $medalla) {
+            $medalla->desbloqueado = isset($logrosLookup[(int)$medalla->id]);
+        }
 
         $idCompletados = usuarios_retos::idsRetosCompletados((int)$idUsuario);
 
@@ -89,13 +140,18 @@ class RetosController
             'titulo' => 'Pon a prueba tus habilidades',
             'login' => $login,
             'retos' => $retos,
+            //Header
+            'nombreUsuario'    => $datosUsuario['nombreUsuario'],
+            'inicialesUsuario' => $datosUsuario['inicialesUsuario'],
             //Filtros
             'habilidadesFiltro' => $habilidadesFiltro,
             'filtroHabilidad'   => $idHabilidad,
             'filtroDificultad'  => $dificultad,
-            //Header
-            'nombreUsuario'    => $datosUsuario['nombreUsuario'],
-            'inicialesUsuario' => $datosUsuario['inicialesUsuario']
+            //Progreso
+            'totalRetos' => $totalRetos,
+            'completadosTotal' => $completadosTotal,
+            'progresoPorHabilidad' => $progresoPorHabilidad,
+            'medallas' => $medallas
         ]);
     }
 }
