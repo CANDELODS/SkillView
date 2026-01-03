@@ -28,9 +28,10 @@ class RetosController
         // ---- Progreso general ----
         $totalRetos = Retos::totalHabilitados();
         $completadosTotal = usuarios_retos::totalCompletadosUsuario($idUsuario);
+        //Con estas dos variables la vista puede mostrar por ejemplo (3 de 6)
 
         // ---- Progreso por habilidad ----
-        // Traemos TODAS las habilidades habilitadas (para mostrarlas aunque estén en 0)
+        // Traemos TODAS las habilidades habilitadas y que tengan retos (para mostrarlas aunque estén en 0)
         $habilidades = HabilidadesBlandas::conRetosHabilitados();
         // completados por habilidad (solo las que el usuario ha completado algo)
         $completadosHab = usuarios_retos::completadosPorHabilidad($idUsuario);
@@ -40,8 +41,25 @@ class RetosController
         foreach ($completadosHab as $row) {
             $lookupCompletados[$row['id_habilidad']] = $row['completados'];
         }
+        /*
+        Esto convierte esto:
+        [
+            ['id_habilidad'=>1,'completados'=>3],
+            ['id_habilidad'=>4,'completados'=>1],
+        ]
+        En esto:
+        [
+            1 => 3,
+            4 => 1,
+        ]
+        Con esto, podemos buscar dentro del foreach($habilidades) de forma rápida:
+        $compHab = $lookupCompletados[$idHab] ?? 0;
+        Si existe → usa el número
+        Si no existe → 0 (significa que el user no ha completado nada ahí)
+        */
 
         $progresoPorHabilidad = [];
+        //Total de retos por habilidad, lo hacemos afuera y con esta función para evitar el problema de N+1 queries, si no lo hacemos así, haría una consulta por cada habilidad dentro del foreach
         $totalesHab = Retos::totalesPorHabilidad();
         foreach ($habilidades as $hab) {
             $idHab = (int)$hab->id;
@@ -51,7 +69,7 @@ class RetosController
 
             $porcentaje = ($totalHab > 0) ? (int) round(($compHab / $totalHab) * 100) : 0;
 
-            // Niveles sugeridos (ajústalos a tu gusto)
+            // Asignamos nivel según el porcentaje
             $nivel = 'Básico';
             if ($porcentaje >= 70) $nivel = 'Intermedio';
             if ($porcentaje >= 90) $nivel = 'Avanzado';
@@ -68,9 +86,13 @@ class RetosController
         // ---- Medallas ----
         $medallas = Logros::destacados(6);
         $idsLogrosUsuario = usuarios_logros::idsLogrosUsuario($idUsuario);
+        //Convertir a lookup para búsqueda rápida O(1)
         $logrosLookup = array_flip($idsLogrosUsuario);
+        //Si el usuario tiene [2, 6, 9] entonces $logrosLookup será ['2'=>0,'6'=>1,'9'=>2]
 
         foreach ($medallas as $medalla) {
+            //Si el id está en el lookup → true (se ve normal)
+            //Si no está → false (se ve opaco)
             $medalla->desbloqueado = isset($logrosLookup[(int)$medalla->id]);
         }
 

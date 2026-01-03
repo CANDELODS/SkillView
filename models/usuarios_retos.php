@@ -54,13 +54,6 @@ class usuarios_retos extends ActiveRecord
         return (int) array_shift($total);
     }
 
-    /**
-     * Devuelve un array así:
-     * [
-     *   ['id_habilidad'=>1, 'nombre'=>'Comunicación', 'completados'=>3],
-     *   ['id_habilidad'=>4, 'nombre'=>'Liderazgo', 'completados'=>1],
-     * ]
-     */
     //Obtenemos el total de retos completados por habilidad para un usuario
     public static function completadosPorHabilidad(int $idUsuario): array
     {
@@ -95,6 +88,14 @@ class usuarios_retos extends ActiveRecord
         $resultado->free();
 
         return $data;
+
+            /**
+     * Devuelve un array así:
+     * [
+     *   ['id_habilidad'=>1, 'nombre'=>'Comunicación', 'completados'=>3],
+     *   ['id_habilidad'=>4, 'nombre'=>'Liderazgo', 'completados'=>1],
+     * ]
+     */
     }
 
     // ================== FIN RETOS ================== //
