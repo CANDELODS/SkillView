@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/app.php';
 use Controllers\AprendizajeController;
 use MVC\Router;
 use Controllers\AuthController;
+use Controllers\BlogController;
 use Controllers\DashboardController;
 use Controllers\PrincipalController;
 use Controllers\RetosController;
@@ -50,4 +51,10 @@ $router->post('/aprendizaje', [AprendizajeController::class, 'index']);
 $router->get('/retos', [RetosController::class, 'index']);
 $router->post('/retos', [RetosController::class, 'index']);
 //--------------------FIN RETOS--------------------
+
+//--------------------BLOG--------------------
+$router->get('/blog', [BlogController::class, 'index']);
+$router->post('/blog', [BlogController::class, 'index']);
+//--------------------FIN BLOG--------------------
+
 $router->comprobarRutas();
