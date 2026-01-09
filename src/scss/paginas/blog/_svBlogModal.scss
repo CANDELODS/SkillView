@@ -1,0 +1,166 @@
+@use '../../base/variables' as v;
+@use '../../base/mixins' as m;
+
+/* =========================================================
+   MODAL BLOG – SECCIÓN BLOG (CENTRADO + ANIMACIÓN)
+   ========================================================= */
+
+.sv-blog-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+
+    /* Estado base (oculto) */
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+
+    /* Centrado perfecto */
+    align-items: center;
+    justify-content: center;
+
+    transition: opacity .25s ease;
+
+    &.is-open {
+        display: flex;
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Fondo oscuro */
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, .55);
+    }
+
+    /* Caja principal del modal */
+    &__dialog {
+        position: relative;
+        z-index: 1;
+
+        background-color: white;
+        width: min(96%, 95rem);
+        max-height: min(90vh, 80rem);
+        border-radius: 1.6rem;
+        overflow: hidden;
+
+        display: grid;
+        grid-template-columns: 1fr;
+
+        /* Animación */
+        transform: translateY(12px) scale(.98);
+        opacity: 0;
+        transition: transform .25s ease, opacity .25s ease;
+
+        @include m.tablet {
+            grid-template-columns: 1.1fr 1fr;
+        }
+    }
+
+    &.is-open &__dialog {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+
+    /* Botón cerrar */
+    &__close {
+        position: absolute;
+        top: 1.2rem;
+        right: 1.2rem;
+        z-index: 2;
+
+        border: none;
+        width: 3.6rem;
+        height: 3.6rem;
+        border-radius: 999px;
+        cursor: pointer;
+
+        background: rgba(0, 0, 0, .08);
+        font-size: 1.6rem;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        transition: background-color .2s ease;
+
+        &:hover {
+            background: rgba(0, 0, 0, .15);
+        }
+    }
+
+    /* Sección de imagen */
+    &__media {
+        background: rgba(0, 0, 0, .04);
+        height: 24rem;
+
+        @include m.tablet {
+            height: auto;
+        }
+    }
+
+    &__img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    /* Contenido */
+    &__content {
+        padding: 2.2rem;
+        overflow-y: auto;
+    }
+
+    &__title {
+        font-size: 2.4rem;
+        font-weight: v.$black;
+        margin: 0 0 1rem;
+        color: v.$black;
+    }
+
+    &__desc {
+        font-size: 1.4rem;
+        color: v.$p-gray;
+        line-height: 1.6;
+        margin: 0 0 1.6rem;
+    }
+
+    &__tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .8rem;
+        margin-bottom: 1.6rem;
+    }
+
+    &__tag {
+        font-size: 1.2rem;
+        padding: .4rem .9rem;
+        border-radius: 999px;
+        background-color: rgba(0, 0, 0, .06);
+        color: v.$gray;
+        font-weight: v.$bold;
+    }
+
+    &__text {
+        font-size: 1.4rem;
+        line-height: 1.7;
+        color: v.$gray;
+
+        /* Respeta saltos de línea del contenido */
+        white-space: pre-line;
+    }
+
+    &__actions {
+        margin-top: 2rem;
+    }
+
+    &__btn {
+        @include m.boton(v.$background, black);
+        border-radius: .8rem;
+        &:hover {
+            filter: brightness(0.9);
+        }
+    }
+}

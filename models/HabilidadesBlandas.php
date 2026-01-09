@@ -23,21 +23,22 @@ class HabilidadesBlandas extends ActiveRecord
         $this->habilitado = $args['habilitado'] ?? null;
     }
 
-        public function validar() {
-        if(!$this->nombre) {
+    public function validar()
+    {
+        if (!$this->nombre) {
             self::$alertas['error'][] = 'El Nombre es Obligatorio';
         }
-        if(!$this->descripcion) {
+        if (!$this->descripcion) {
             self::$alertas['error'][] = 'La descripción es Obligatoria';
         }
-        if(!$this->tag) {
+        if (!$this->tag) {
             self::$alertas['error'][] = 'Los tags son obligatorios';
         }
-    
+
         return self::$alertas;
     }
 
-     // Busca y devuelve las habilidades que coincidan con el término de búsqueda
+    // Busca y devuelve las habilidades que coincidan con el término de búsqueda
     public static function buscarHabilidades($termino)
     { //$termino es la cadena a buscar
         // Utilizamos el método buscar de la clase ActiveRecord, enviandole la cadena a buscar y los campos donde buscar
@@ -57,18 +58,19 @@ class HabilidadesBlandas extends ActiveRecord
     }
 
     //----------------------------APRENDIZAJE----------------------------
-    public static function habilitadas() {
-    $query = "SELECT * FROM " . static::$tabla . " 
+    public static function habilitadas()
+    {
+        $query = "SELECT * FROM " . static::$tabla . " 
               WHERE habilitado = 1
               ORDER BY id ASC";
-    return self::consultarSQL($query);
+        return self::consultarSQL($query);
     }
     //----------------------------FIN APRENDIZAJE----------------------------
 
     //----------------------------RETOS----------------------------
     public static function conRetosHabilitados(): array
     {
-    $query = "
+        $query = "
         SELECT DISTINCT hb.*
         FROM habilidades_blandas hb
         INNER JOIN retos r ON r.id_habilidades = hb.id
@@ -77,7 +79,23 @@ class HabilidadesBlandas extends ActiveRecord
         ORDER BY hb.nombre ASC
     ";
 
-    return self::consultarSQL($query);
+        return self::consultarSQL($query);
     }
     //----------------------------FIN RETOS----------------------------
+
+    //----------------------------BLOG----------------------------
+    public static function conBlogs(): array
+    {
+        $sql = "SELECT DISTINCT h.id, h.nombre
+            FROM habilidades_blandas h
+            INNER JOIN blog_habilidades bh ON bh.id_habilidades = h.id
+            INNER JOIN blog b ON b.id = bh.id_blog
+            WHERE b.habilitado = 1 AND h.habilitado = 1
+            ORDER BY h.nombre ASC";
+
+        return self::consultarSQL($sql);
+    }
+
+    //----------------------------FIN BLOG----------------------------
+
 }

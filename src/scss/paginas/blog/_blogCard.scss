@@ -1,0 +1,91 @@
+@use '../../base/variables' as v;
+@use '../../base/mixins' as m;
+
+.blog-card {
+  background-color: white;
+  border-radius: 1.6rem;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+
+  display: flex;
+  flex-direction: column;
+  height: 100%; // clave para grid
+
+  &__image-wrapper {
+    width: 100%;
+    height: 18rem; // altura fija
+    overflow: hidden;
+
+    @include m.tablet {
+      height: 20rem;
+    }
+  }
+
+  &__image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  &__body {
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1; // para que el botón se pegue abajo
+    gap: 1.2rem;
+  }
+
+  &__title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin: 0;
+    color: v.$black;
+
+    // Máximo 2 líneas
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  &__description {
+    font-size: 1.4rem;
+    color: v.$p-gray;
+    line-height: 1.5;
+    margin: 0;
+
+    // Máximo 3 líneas para mantener altura estable
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  &__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .8rem;
+    margin-top: .5rem;
+  }
+
+  &__tag {
+    font-size: 1.2rem;
+    padding: .4rem .9rem;
+    border-radius: 999px;
+    background-color: v.$tags-blog;
+    color: v.$gray;
+    font-weight: v.$bold;
+  }
+
+  &__actions {
+    margin-top: auto; // empuja el botón hacia abajo
+    padding-top: 1rem;
+  }
+
+  &__button {
+    @include m.boton(v.$primary, white);
+    border-radius: .8rem;
+  }
+}

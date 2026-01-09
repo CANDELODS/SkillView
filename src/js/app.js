@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let redirectUrl = '/principal';
     if (window.location.pathname.startsWith('/admin/usuarios/editar')) {
       redirectUrl = '/admin/usuarios';
-    } else if(window.location.pathname.startsWith('/admin/habilidades/crear') || window.location.pathname.startsWith('/admin/habilidades/editar')){
+    } else if (window.location.pathname.startsWith('/admin/habilidades/crear') || window.location.pathname.startsWith('/admin/habilidades/editar')) {
       redirectUrl = '/admin/habilidades';
     }
     const REDIRECT_DELAY = 5000; // 5 segundos
@@ -64,11 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
         event.stopPropagation();
       });
     }
-      /*event.stopPropagation() detiene la propagación del evento hacia arriba en el DOM.
-      Si el usuario hace clic sobre el contenido del modal (título, texto, botón)
-      ese clic no se propaga al listener que está en modal.addEventListener('click', ...).
-      Sin esto:
-      Hacer clic en el botón podría contarse también como clic en el fondo y disparar el cierre doble.*/
+    /*event.stopPropagation() detiene la propagación del evento hacia arriba en el DOM.
+    Si el usuario hace clic sobre el contenido del modal (título, texto, botón)
+    ese clic no se propaga al listener que está en modal.addEventListener('click', ...).
+    Sin esto:
+    Hacer clic en el botón podría contarse también como clic en el fondo y disparar el cierre doble.*/
   }
 
   //---------------FIN MODAL DE REGISTRO EXITOSO CON REDIRECCIÓN AUTOMÁTICA----------------//
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
     //Leemos el atributo data-learning-modal-id="learning-modal-habilidad-3 (Por ejemplo)"
     const modalId = trigger.dataset.learningModalId;
     //Buscamos el modal en toda la página: document.getElementById("learning-modal-habilidad-3")
-    const modal   = document.getElementById(modalId);
+    const modal = document.getElementById(modalId);
     //Si no lo encuentra, salimos con return y no hacemos nada
     if (!modal) return;
     //Mostramos el modal en pantalla
@@ -128,91 +128,160 @@ document.addEventListener('DOMContentLoaded', () => {
 */
   //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN APRENDIZAJE----------------//
 
-  
+
   //---------------MODAL DE LAS CARDS DE LA SECCIÓN RETOS----------------//
   const modalChallenges = document.getElementById('sv-challenge-modal');
-  if (!modalChallenges) return;
+  if (modalChallenges) {
+    const closeTriggers = modalChallenges.querySelectorAll('[data-sv-challenge-close]');
+    const titleEl = modalChallenges.querySelector('[data-sv-challenge-title]') || modalChallenges.querySelector('#sv-challenge-modal-title');
+    const badgeEl = modalChallenges.querySelector('[data-sv-challenge-badge]');
+    const descEl = modalChallenges.querySelector('[data-sv-challenge-desc]');
+    const consisteEl = modalChallenges.querySelector('[data-sv-challenge-consiste]');
+    const tagsWrap = modalChallenges.querySelector('[data-sv-challenge-tags]');
+    const timeEl = modalChallenges.querySelector('[data-sv-challenge-time]');
+    const pointsEl = modalChallenges.querySelector('[data-sv-challenge-points]');
+    const startBtn = modalChallenges.querySelector('[data-sv-challenge-start]');
 
-  const closeTriggers = modalChallenges.querySelectorAll('[data-sv-challenge-close]');
-  const titleEl = modalChallenges.querySelector('[data-sv-challenge-title]') || modalChallenges.querySelector('#sv-challenge-modal-title');
-  const badgeEl = modalChallenges.querySelector('[data-sv-challenge-badge]');
-  const descEl = modalChallenges.querySelector('[data-sv-challenge-desc]');
-  const consisteEl = modalChallenges.querySelector('[data-sv-challenge-consiste]');
-  const tagsWrap = modalChallenges.querySelector('[data-sv-challenge-tags]');
-  const timeEl = modalChallenges.querySelector('[data-sv-challenge-time]');
-  const pointsEl = modalChallenges.querySelector('[data-sv-challenge-points]');
-  const startBtn = modalChallenges.querySelector('[data-sv-challenge-start]');
+    const openModal = () => {
+      //Agregamos la clase para mostrar el modal
+      modalChallenges.classList.add('is-open');
+      //Cambiamos la accesibilidad
+      modalChallenges.setAttribute('aria-hidden', 'false');
+      //Bloqueamos el scroll del body
+      document.body.style.overflow = 'hidden';
+    };
 
-  const openModal = () => {
-    //Agregamos la clase para mostrar el modal
-    modalChallenges.classList.add('is-open');
-    //Cambiamos la accesibilidad
-    modalChallenges.setAttribute('aria-hidden', 'false');
-    //Bloqueamos el scroll del body
-    document.body.style.overflow = 'hidden';
-  };
+    const closeModal = () => {
+      modalChallenges.classList.remove('is-open');
+      modalChallenges.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    };
 
-  const closeModal = () => {
-    modalChallenges.classList.remove('is-open');
-    modalChallenges.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-  };
+    // Cerrar (X, backdrop, Cancelar)
+    //Recorremos todos los botones de cierre y les agregamos el evento click
+    closeTriggers.forEach(btn => btn.addEventListener('click', closeModal));
 
-  // Cerrar (X, backdrop, Cancelar)
-  //Recorremos todos los botones de cierre y les agregamos el evento click
-  closeTriggers.forEach(btn => btn.addEventListener('click', closeModal));
+    // Cerrar con ESC
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modalChallenges.classList.contains('is-open')) closeModal();
+    });
 
-  // Cerrar con ESC
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modalChallenges.classList.contains('is-open')) closeModal();
-  });
+    // Abrir desde cualquier card
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-sv-challenge-open]');
+      if (!btn) return;
 
-  // Abrir desde cualquier card
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-sv-challenge-open]');
-    if (!btn) return;
+      const title = btn.dataset.title || 'Reto';
+      const desc = btn.dataset.desc || '';
+      const difficulty = btn.dataset.difficulty || '';
+      const timeMin = btn.dataset.timeMin || '';
+      const timeMax = btn.dataset.timeMax || '';
+      const points = btn.dataset.points || '';
+      const tagsStr = btn.dataset.tags || '';
+      const startUrl = btn.dataset.startUrl || '#';
 
-    const title = btn.dataset.title || 'Reto';
-    const desc = btn.dataset.desc || '';
-    const difficulty = btn.dataset.difficulty || '';
-    const timeMin = btn.dataset.timeMin || '';
-    const timeMax = btn.dataset.timeMax || '';
-    const points = btn.dataset.points || '';
-    const tagsStr = btn.dataset.tags || '';
-    const startUrl = btn.dataset.startUrl || '#';
+      // Pintar contenido
+      if (titleEl) titleEl.textContent = title;
+      if (badgeEl) badgeEl.textContent = difficulty;
+      if (descEl) descEl.textContent = desc;
 
-    // Pintar contenido
-    if (titleEl) titleEl.textContent = title;
-    if (badgeEl) badgeEl.textContent = difficulty;
-    if (descEl) descEl.textContent = desc;
+      // Si no tienes "consiste" por BD aún, reutilizamos desc o un texto base
+      if (consisteEl) {
+        consisteEl.textContent = 'Este reto te presentará una situación realista donde deberás aplicar tus habilidades blandas. Responderás preguntas y tomarás decisiones que serán evaluadas para medir tu desempeño.';
+      }
 
-    // Si no tienes "consiste" por BD aún, reutilizamos desc o un texto base
-    if (consisteEl) {
-      consisteEl.textContent = 'Este reto te presentará una situación realista donde deberás aplicar tus habilidades blandas. Responderás preguntas y tomarás decisiones que serán evaluadas para medir tu desempeño.';
-    }
+      // Tags
+      if (tagsWrap) {
+        tagsWrap.innerHTML = '';
+        //Split separa el string en un array usando la coma como separador, con map le quitamos espacios y con filter(Boolean) eliminamos elementos vacíos
+        const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+        tags.forEach(tag => {
+          const p = document.createElement('p');
+          p.className = 'sv-challenge-modal__tag';
+          p.textContent = tag;
+          tagsWrap.appendChild(p);
+        });
+      }
 
-    // Tags
-    if (tagsWrap) {
-      tagsWrap.innerHTML = '';
-      //Split separa el string en un array usando la coma como separador, con map le quitamos espacios y con filter(Boolean) eliminamos elementos vacíos
-      const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
-      tags.forEach(tag => {
-        const p = document.createElement('p');
-        p.className = 'sv-challenge-modal__tag';
-        p.textContent = tag;
-        tagsWrap.appendChild(p);
-      });
-    }
-
-    if (timeEl) timeEl.textContent = `${timeMin}-${timeMax} minutos`;
-    if (pointsEl) pointsEl.textContent = `${points} puntos`;
-    if (startBtn) startBtn.setAttribute('href', startUrl);
-  //Cargamos todo y luego abrimos el modal
-    openModal();
-  });
-  
+      if (timeEl) timeEl.textContent = `${timeMin}-${timeMax} minutos`;
+      if (pointsEl) pointsEl.textContent = `${points} puntos`;
+      if (startBtn) startBtn.setAttribute('href', startUrl);
+      //Cargamos todo y luego abrimos el modal
+      openModal();
+    });
+  }
   //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN RETOS----------------//
 
+  //---------------MODAL DE LAS CARDS DE LA SECCIÓN BLOG----------------//
+  const blogModal = document.getElementById('sv-blog-modal');
+
+  if (blogModal) {
+    const blogCloseTriggers = blogModal.querySelectorAll('[data-sv-blog-close]');
+    const blogTitleEl = blogModal.querySelector('[data-sv-blog-title]');
+    const blogDescEl = blogModal.querySelector('[data-sv-blog-desc]');
+    const blogContentEl = blogModal.querySelector('[data-sv-blog-content]');
+    const blogTagsWrap = blogModal.querySelector('[data-sv-blog-tags]');
+    const blogImg = blogModal.querySelector('#sv-blog-modal-img');
+    const blogImgWebp = blogModal.querySelector('#sv-blog-modal-img-webp');
+
+    const openBlogModal = () => {
+      blogModal.classList.add('is-open');
+      blogModal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    };
+
+    const closeBlogModal = () => {
+      blogModal.classList.remove('is-open');
+      blogModal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    };
+
+    blogCloseTriggers.forEach(btn => btn.addEventListener('click', closeBlogModal));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && blogModal.classList.contains('is-open')) closeBlogModal();
+    });
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-sv-blog-open]');
+      if (!btn) return;
+
+      const title = btn.dataset.title || 'Artículo';
+      const desc = btn.dataset.desc || '';
+      const content = btn.dataset.content || '';
+      const tagsStr = btn.dataset.tags || '';
+      const imgWebp = btn.dataset.imageWebp || '';
+      const imgJpg = btn.dataset.imageJpg || '';
+
+      if (blogTitleEl) blogTitleEl.textContent = title;
+      if (blogDescEl) blogDescEl.textContent = desc;
+
+      // Contenido: lo pintamos como texto (seguro). Si luego quieres HTML, lo controlamos.
+      if (blogContentEl) blogContentEl.textContent = content;
+
+      // Imagen
+      if (blogImgWebp) blogImgWebp.setAttribute('srcset', imgWebp);
+      if (blogImg) {
+        blogImg.setAttribute('src', imgJpg);
+        blogImg.setAttribute('alt', `Imagen del artículo ${title}`);
+      }
+
+      // Tags
+      if (blogTagsWrap) {
+        blogTagsWrap.innerHTML = '';
+        const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+        tags.forEach(tag => {
+          const span = document.createElement('span');
+          span.className = 'sv-blog-modal__tag';
+          span.textContent = tag;
+          blogTagsWrap.appendChild(span);
+        });
+      }
+
+      openBlogModal();
+    });
+  }
+  //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN BLOG----------------//
 
   //---------------OCULTAR ALERTAS DESPUES DE UNOS SEGUNDOS----------------//
   //ESTE CÓDIGO AHORA SIEMPRE SE EJECUTA EN CUALQUIER VISTA
@@ -232,9 +301,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 4000);
     });
   }
-//---------------FIN OCULTAR ALERTAS DESPUES DE UNOS SEGUNDOS----------------//
+  //---------------FIN OCULTAR ALERTAS DESPUES DE UNOS SEGUNDOS----------------//
 
-//---------------MENU MOBILE----------------//
+  //---------------MENU MOBILE----------------//
   const toggle = document.querySelector('.site-header__toggle');
   const mobileNav = document.querySelector('.site-nav--mobile');
   const closeBtn = document.querySelector('.site-nav__mobile-close');
@@ -271,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-//---------------FIN MENU MOBILE----------------//
+  //---------------FIN MENU MOBILE----------------//
 
 });
 

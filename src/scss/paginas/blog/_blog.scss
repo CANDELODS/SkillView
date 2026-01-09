@@ -38,17 +38,17 @@
         justify-content: center;
         gap: 2rem;
 
-        @include m.tablet{
+        @include m.tablet {
             flex-direction: row;
         }
     }
 
-    &__filter-p{
+    &__filter-p {
         font-size: 1.4rem;
         color: v.$p-gray;
         margin: 0;
 
-        @include m.tablet{
+        @include m.tablet {
             font-size: 1.7rem;
         }
     }
@@ -68,4 +68,27 @@
     }
 
     &__option {}
+
+    &__content {
+        margin-top: 3rem;
+    }
+
+    &__grid {
+        @include m.grid(1, 2rem);
+
+        @include m.tablet {
+            @include m.grid(2, 2.5rem);
+        }
+
+        @include m.desktop {
+            @include m.grid(3, 3rem);
+        }
+    }
+
+    &__empty {
+        text-align: center;
+        font-size: 1.6rem;
+        color: v.$p-gray;
+        margin-top: 3rem;
+    }
 }
