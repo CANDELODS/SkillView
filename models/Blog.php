@@ -30,7 +30,7 @@ class Blog extends ActiveRecord
                     )";
         }
 
-        $sql .= " ORDER BY b.id DESC"; // o por fecha si luego agregas created_at
+        $sql .= " ORDER BY b.id DESC";
         return self::consultarSQL($sql);
     }
 
