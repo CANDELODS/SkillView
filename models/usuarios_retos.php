@@ -89,14 +89,34 @@ class usuarios_retos extends ActiveRecord
 
         return $data;
 
-            /**
-     * Devuelve un array así:
-     * [
-     *   ['id_habilidad'=>1, 'nombre'=>'Comunicación', 'completados'=>3],
-     *   ['id_habilidad'=>4, 'nombre'=>'Liderazgo', 'completados'=>1],
-     * ]
-     */
+        /**
+         * Devuelve un array así:
+         * [
+         *   ['id_habilidad'=>1, 'nombre'=>'Comunicación', 'completados'=>3],
+         *   ['id_habilidad'=>4, 'nombre'=>'Liderazgo', 'completados'=>1],
+         * ]
+         */
     }
 
     // ================== FIN RETOS ================== //
+
+    // ================== PERFIL ================== //
+    // Puntos totales obtenidos por un usuario
+    public static function puntosTotalesUsuario(int $idUsuario): int
+    {
+        $idUsuario = (int)$idUsuario;
+
+        $sql = "SELECT IFNULL(SUM(puntaje_obtenido), 0) AS puntos
+            FROM usuarios_retos
+            WHERE id_usuarios = {$idUsuario}
+              AND completado = 1";
+
+        $resultado = self::$db->query($sql);
+        $row = $resultado->fetch_assoc();
+        $resultado->free();
+
+        return (int)($row['puntos'] ?? 0);
+    }
+
+    // ================== FIN PERFIL ================== //
 }

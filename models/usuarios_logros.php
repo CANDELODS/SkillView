@@ -34,5 +34,25 @@ class usuarios_logros extends ActiveRecord
 
     //----------------------------FIN RETOS----------------------------//
 
+    //---------------------------- PERFIL ----------------------------//
+    public static function lookupLogrosUsuario(int $idUsuario): array
+    {
+        $idUsuario = (int)$idUsuario;
+
+        $sql = "SELECT id_logros, fecha_obtenido
+            FROM usuarios_logros
+            WHERE id_usuarios = {$idUsuario}";
+
+        $resultado = self::$db->query($sql);
+
+        $lookup = [];
+        while ($row = $resultado->fetch_assoc()) {
+            $lookup[(int)$row['id_logros']] = $row['fecha_obtenido'];
+        }
+
+        $resultado->free();
+        return $lookup; // [id_logro => 'YYYY-MM-DD']
+    }
+    //---------------------------- FIN PERFIL ----------------------------//
 
 }

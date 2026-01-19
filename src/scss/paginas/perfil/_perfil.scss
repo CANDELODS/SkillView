@@ -1,0 +1,514 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+.profile {
+    &__wrapper {
+        @include m.contenedor-xl;
+        padding: 3rem 0 5rem 0;
+    }
+
+    &__header {
+        display: grid;
+        gap: 2rem;
+
+        @include m.tablet {
+            grid-template-columns: 2fr 1fr;
+            align-items: stretch;
+        }
+    }
+}
+
+/* =======================
+   Tarjeta de usuario
+======================= */
+.profile-card {
+    background-color: white;
+    border-radius: v.$radius;
+    border: 1px solid v.$table-border;
+    padding: 2rem;
+    display: grid;
+    gap: 2rem;
+    align-items: start;
+    @include m.sombra;
+
+    @include m.tablet {
+        grid-template-columns: 9rem 1fr;
+        gap: 2.5rem;
+    }
+
+    &__avatar {
+        width: 8.5rem;
+        height: 8.5rem;
+        border-radius: 50%;
+        background: v.$primary;
+        display: grid;
+        place-items: center;
+        color: white;
+        @include m.sombra;
+    }
+
+    &__initials {
+        font-weight: v.$black;
+        font-size: 3rem;
+        letter-spacing: .1rem;
+    }
+
+    &__content {
+        min-width: 0;
+    }
+
+    &__name {
+        margin: 0;
+        font-size: 3rem;
+        color: v.$grisOscuro;
+        font-weight: v.$black;
+    }
+
+    &__role {
+        margin: .3rem 0 1.2rem 0;
+        color: v.$p-gray;
+        font-size: 1.8rem;
+    }
+
+    &__info {
+        @include m.reset-list;
+        display: grid;
+        gap: .8rem;
+        margin: 0 0 1.8rem 0;
+    }
+
+    &__info-item {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        color: v.$grisOscuro;
+        font-size: 1.4rem;
+
+        i {
+            //   color: v.$grisTr;
+            width: 2rem;
+            text-align: center;
+        }
+
+        span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+
+    &__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    &__logout {
+        margin: 0;
+    }
+
+    &__btn {
+        @include m.boton(v.$primary, white);
+        border-radius: .8rem;
+        width: auto;
+        padding: 1rem 1.4rem;
+        font-size: 1.4rem;
+        border: 1px solid transparent;
+        transition: .2s ease;
+
+        &:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        &--primary {
+            background: v.$primary;
+            color: white;
+
+            &:hover {
+                filter: brightness(0.95);
+            }
+        }
+
+        &--outline {
+            background: white;
+            color: v.$primary;
+            border-color: v.$ca-border;
+
+            &:hover {
+                background: v.$background-ca;
+                filter: brightness(0.95);
+            }
+        }
+    }
+}
+
+/* =======================
+   Progreso general
+======================= */
+.profile-progress {
+    background: v.$background;
+    border-radius: v.$radius;
+    border: 1px solid v.$table-border;
+    padding: 2rem;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+
+    &__container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    @include m.sombra;
+
+    &__header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+
+        i {
+            color: v.$primary;
+        }
+    }
+
+    &__title {
+        margin: 0;
+        font-size: 1.6rem;
+        color: v.$grisOscuro;
+        font-weight: v.$bold;
+    }
+
+    &__value {
+        margin: 1.6rem 0 1rem 0;
+        font-size: 4rem;
+        font-weight: v.$black;
+        color: v.$primary;
+        text-align: center;
+    }
+
+    &__bar {
+        background: v.$background-ca;
+        border-radius: 99rem;
+        height: 1.5rem;
+        overflow: hidden;
+        border: 1px solid v.$ca-border;
+    }
+
+    &__fill {
+        display: block;
+        height: 100%;
+        background: v.$primary;
+        border-radius: 99rem;
+    }
+
+    &__hint {
+        margin: 1rem 0 0 0;
+        text-align: center;
+        color: v.$p-gray;
+        font-size: 1.4rem;
+    }
+}
+
+/* =======================
+   Puntos totales
+======================= */
+.profile-points {
+    margin-top: 2rem;
+    background-color: oklch(0.96 0.1 101.18);
+    /* similar al mockup */
+    border-radius: 1.4rem;
+    border: 1px solid oklch(0.91 0.22 99.69);
+    padding: 2.4rem;
+    display: flex;
+    align-items: center;
+    gap: 1.6rem;
+
+    &__icon {
+        width: 4.4rem;
+        height: 4.4rem;
+        border-radius: 50%;
+        background: rgb(240 177 0);
+        display: grid;
+        place-items: center;
+
+        i {
+            color: v.$yellow;
+            font-size: 2rem;
+        }
+    }
+
+    &__label {
+        margin: 0;
+        color: v.$p-gray;
+        font-size: 1.4rem;
+    }
+
+    &__value {
+        margin: .2rem 0 0 0;
+        font-size: 3.6rem;
+        font-weight: v.$bold;
+        color: black;
+    }
+}
+
+/* =======================
+   Secciones (bloques)
+======================= */
+.profile-section {
+    margin-top: 2.5rem;
+    background: white;
+    border-radius: v.$radius;
+    border: 1px solid v.$table-border;
+    padding: 2rem;
+    @include m.sombra;
+
+    &__header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    &__header--between {
+        justify-content: space-between;
+        gap: 2rem;
+    }
+
+    &__title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+
+        i {
+            color: v.$primary;
+        }
+
+        h3 {
+            margin: 0;
+            font-size: 1.8rem;
+            color: v.$grisOscuro;
+            font-weight: v.$black;
+        }
+    }
+
+    &__link {
+        background: v.$primary;
+        color: white;
+        padding: .9rem 1.2rem;
+        border-radius: .8rem;
+        font-size: 1.3rem;
+        font-weight: v.$bold;
+
+        &:hover {
+            filter: brightness(1.05);
+        }
+    }
+}
+
+/* =======================
+   Tabla progreso por habilidad
+======================= */
+.profile-table {
+    width: 100%;
+
+    &__head {
+        display: none;
+
+        @include m.tablet {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
+            gap: 1rem;
+            padding: 1.2rem 1rem;
+            border-bottom: 1px solid v.$table-border;
+            color: v.$grisTr;
+            font-size: 1.3rem;
+            font-weight: v.$bold;
+            text-transform: uppercase;
+            letter-spacing: .05rem;
+        }
+    }
+
+    &__body {
+        display: grid;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    &__row {
+        border: 1px solid v.$table-border;
+        border-radius: .9rem;
+        padding: 1.2rem 1rem;
+        display: grid;
+        gap: 1rem;
+
+        @include m.tablet {
+            grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
+            align-items: center;
+            gap: 1rem;
+        }
+    }
+
+    &__cell {
+        color: v.$grisOscuro;
+        font-size: 1.5rem;
+
+        &--date {
+            display: flex;
+            gap: .8rem;
+            align-items: center;
+            color: v.$p-gray;
+
+            i {
+                color: v.$grisTr;
+            }
+        }
+    }
+}
+
+.profile-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .4rem .9rem;
+    border-radius: 99rem;
+    font-size: 1.2rem;
+    font-weight: v.$bold;
+    border: 1px solid transparent;
+
+    &--basic {
+        background: rgba(65, 60, 60, .08);
+        color: v.$grisOscuro;
+        border-color: rgba(65, 60, 60, .15);
+    }
+
+    &--mid {
+        background: rgba(43, 127, 255, .10);
+        color: v.$blue;
+        border-color: rgba(43, 127, 255, .25);
+    }
+
+    &--adv {
+        background: rgba(0, 201, 81, .12);
+        color: v.$green;
+        border-color: rgba(0, 201, 81, .25);
+    }
+}
+
+.profile-mini-progress {
+    height: .8rem;
+    background: v.$background-ca;
+    border-radius: 99rem;
+    overflow: hidden;
+    border: 1px solid v.$ca-border;
+
+    &__fill {
+        display: block;
+        height: 100%;
+        background: v.$primary;
+        border-radius: 99rem;
+    }
+
+    &__text {
+        margin-left: 1rem;
+        font-size: 1.3rem;
+        color: v.$p-gray;
+        font-weight: v.$bold;
+    }
+}
+
+/* =======================
+   Logros y medallas
+======================= */
+.profile-achievements {
+    display: grid;
+    gap: 1.2rem;
+
+    @include m.tablet {
+        @include m.grid(2, 1.2rem);
+    }
+
+    @include m.desktop {
+        @include m.grid(3, 1.2rem);
+    }
+}
+
+.profile-achievement {
+    border: 1px solid v.$table-border;
+    border-radius: .9rem;
+    padding: 1.4rem;
+    display: grid;
+    grid-template-columns: 4.4rem 1fr;
+    gap: 1.2rem;
+    align-items: start;
+
+    &__icon {
+        width: 4.4rem;
+        height: 4.4rem;
+        border-radius: .9rem;
+        background: v.$background-ca;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+
+        img {
+            width: 2.6rem;
+            height: 2.6rem;
+            object-fit: contain;
+        }
+    }
+
+    &__title {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: v.$black;
+        color: v.$grisOscuro;
+    }
+
+    &__desc {
+        margin: .4rem 0 .8rem 0;
+        color: v.$p-gray;
+        font-size: 1.3rem;
+        line-height: 1.4;
+    }
+
+    &__date {
+        margin: 0;
+        display: flex;
+        gap: .8rem;
+        align-items: center;
+        color: v.$p-gray;
+        font-size: 1.2rem;
+
+        i {
+            color: v.$grisTr;
+        }
+    }
+
+    &__date--muted {
+        opacity: .8;
+    }
+
+    &--locked {
+        opacity: .55;
+
+        .profile-achievement__icon {
+            background: rgba(210, 210, 210, .35);
+
+            img {
+                filter: grayscale(1);
+            }
+        }
+    }
+}
+
+/* =======================
+   Estado vacío
+======================= */
+.profile-empty {
+    margin: 1rem 0 0 0;
+    color: v.$p-gray;
+    font-size: 1.5rem;
+    line-height: 1.5;
+}

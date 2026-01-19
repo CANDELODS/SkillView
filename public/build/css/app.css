@@ -1211,6 +1211,486 @@ h3 {
   filter: brightness(0.9);
 }
 
+.profile__wrapper {
+  width: min(95%, 170rem);
+  margin: 0 auto;
+  padding: 3rem 0 5rem 0;
+}
+.profile__header {
+  display: grid;
+  gap: 2rem;
+}
+@media (min-width: 768px) {
+  .profile__header {
+    grid-template-columns: 2fr 1fr;
+    align-items: stretch;
+  }
+}
+
+/* =======================
+   Tarjeta de usuario
+======================= */
+.profile-card {
+  background-color: white;
+  border-radius: 10px;
+  border: 1px solid oklch(90% 0 0deg);
+  padding: 2rem;
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+  box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+}
+@media (min-width: 768px) {
+  .profile-card {
+    grid-template-columns: 9rem 1fr;
+    gap: 2.5rem;
+  }
+}
+.profile-card__avatar {
+  width: 8.5rem;
+  height: 8.5rem;
+  border-radius: 50%;
+  background: #EB4328;
+  display: grid;
+  place-items: center;
+  color: white;
+  box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+}
+.profile-card__initials {
+  font-weight: 900;
+  font-size: 3rem;
+  letter-spacing: 0.1rem;
+}
+.profile-card__content {
+  min-width: 0;
+}
+.profile-card__name {
+  margin: 0;
+  font-size: 3rem;
+  color: #1E293B;
+  font-weight: 900;
+}
+.profile-card__role {
+  margin: 0.3rem 0 1.2rem 0;
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.8rem;
+}
+.profile-card__info {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.8rem;
+  margin: 0 0 1.8rem 0;
+}
+.profile-card__info-item {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  color: #1E293B;
+  font-size: 1.4rem;
+}
+.profile-card__info-item i {
+  width: 2rem;
+  text-align: center;
+}
+.profile-card__info-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.profile-card__logout {
+  margin: 0;
+}
+.profile-card__btn {
+  background-color: #EB4328;
+  padding: 1.5rem 4rem;
+  color: white;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.profile-card__btn:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.profile-card__btn {
+  border-radius: 0.8rem;
+  width: auto;
+  padding: 1rem 1.4rem;
+  font-size: 1.4rem;
+  border: 1px solid transparent;
+  transition: 0.2s ease;
+}
+.profile-card__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.profile-card__btn--primary {
+  background: #EB4328;
+  color: white;
+}
+.profile-card__btn--primary:hover {
+  filter: brightness(0.95);
+}
+.profile-card__btn--outline {
+  background: white;
+  color: #EB4328;
+  border-color: #EFC7BD;
+}
+.profile-card__btn--outline:hover {
+  background: #FBEBE8;
+  filter: brightness(0.95);
+}
+
+/* =======================
+   Progreso general
+======================= */
+.profile-progress {
+  background: #FEF5F4;
+  border-radius: 10px;
+  border: 1px solid oklch(90% 0 0deg);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+}
+.profile-progress__container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.profile-progress {
+  box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+}
+.profile-progress__header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.profile-progress__header i {
+  color: #EB4328;
+}
+.profile-progress__title {
+  margin: 0;
+  font-size: 1.6rem;
+  color: #1E293B;
+  font-weight: 700;
+}
+.profile-progress__value {
+  margin: 1.6rem 0 1rem 0;
+  font-size: 4rem;
+  font-weight: 900;
+  color: #EB4328;
+  text-align: center;
+}
+.profile-progress__bar {
+  background: #FBEBE8;
+  border-radius: 99rem;
+  height: 1.5rem;
+  overflow: hidden;
+  border: 1px solid #EFC7BD;
+}
+.profile-progress__fill {
+  display: block;
+  height: 100%;
+  background: #EB4328;
+  border-radius: 99rem;
+}
+.profile-progress__hint {
+  margin: 1rem 0 0 0;
+  text-align: center;
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.4rem;
+}
+
+/* =======================
+   Puntos totales
+======================= */
+.profile-points {
+  margin-top: 2rem;
+  background-color: oklch(96% 0.1 101.18deg);
+  /* similar al mockup */
+  border-radius: 1.4rem;
+  border: 1px solid oklch(91% 0.22 99.69deg);
+  padding: 2.4rem;
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+}
+.profile-points__icon {
+  width: 4.4rem;
+  height: 4.4rem;
+  border-radius: 50%;
+  background: rgb(240, 177, 0);
+  display: grid;
+  place-items: center;
+}
+.profile-points__icon i {
+  color: #F0B100;
+  font-size: 2rem;
+}
+.profile-points__label {
+  margin: 0;
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.4rem;
+}
+.profile-points__value {
+  margin: 0.2rem 0 0 0;
+  font-size: 3.6rem;
+  font-weight: 700;
+  color: black;
+}
+
+/* =======================
+   Secciones (bloques)
+======================= */
+.profile-section {
+  margin-top: 2.5rem;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid oklch(90% 0 0deg);
+  padding: 2rem;
+  box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+}
+.profile-section__header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.profile-section__header--between {
+  justify-content: space-between;
+  gap: 2rem;
+}
+.profile-section__title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.profile-section__title i {
+  color: #EB4328;
+}
+.profile-section__title h3 {
+  margin: 0;
+  font-size: 1.8rem;
+  color: #1E293B;
+  font-weight: 900;
+}
+.profile-section__link {
+  background: #EB4328;
+  color: white;
+  padding: 0.9rem 1.2rem;
+  border-radius: 0.8rem;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.profile-section__link:hover {
+  filter: brightness(1.05);
+}
+
+/* =======================
+   Tabla progreso por habilidad
+======================= */
+.profile-table {
+  width: 100%;
+}
+.profile-table__head {
+  display: none;
+}
+@media (min-width: 768px) {
+  .profile-table__head {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
+    gap: 1rem;
+    padding: 1.2rem 1rem;
+    border-bottom: 1px solid oklch(90% 0 0deg);
+    color: #919191;
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05rem;
+  }
+}
+.profile-table__body {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.profile-table__row {
+  border: 1px solid oklch(90% 0 0deg);
+  border-radius: 0.9rem;
+  padding: 1.2rem 1rem;
+  display: grid;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .profile-table__row {
+    grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
+    align-items: center;
+    gap: 1rem;
+  }
+}
+.profile-table__cell {
+  color: #1E293B;
+  font-size: 1.5rem;
+}
+.profile-table__cell--date {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  color: oklch(50% 0.01 30deg);
+}
+.profile-table__cell--date i {
+  color: #919191;
+}
+
+.profile-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.9rem;
+  border-radius: 99rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.profile-badge--basic {
+  background: rgba(65, 60, 60, 0.08);
+  color: #1E293B;
+  border-color: rgba(65, 60, 60, 0.15);
+}
+.profile-badge--mid {
+  background: rgba(43, 127, 255, 0.1);
+  color: #2B7FFF;
+  border-color: rgba(43, 127, 255, 0.25);
+}
+.profile-badge--adv {
+  background: rgba(0, 201, 81, 0.12);
+  color: #00C951;
+  border-color: rgba(0, 201, 81, 0.25);
+}
+
+.profile-mini-progress {
+  height: 0.8rem;
+  background: #FBEBE8;
+  border-radius: 99rem;
+  overflow: hidden;
+  border: 1px solid #EFC7BD;
+}
+.profile-mini-progress__fill {
+  display: block;
+  height: 100%;
+  background: #EB4328;
+  border-radius: 99rem;
+}
+.profile-mini-progress__text {
+  margin-left: 1rem;
+  font-size: 1.3rem;
+  color: oklch(50% 0.01 30deg);
+  font-weight: 700;
+}
+
+/* =======================
+   Logros y medallas
+======================= */
+.profile-achievements {
+  display: grid;
+  gap: 1.2rem;
+}
+@media (min-width: 768px) {
+  .profile-achievements {
+    display: grid;
+    gap: 1.2rem;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1024px) {
+  .profile-achievements {
+    display: grid;
+    gap: 1.2rem;
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.profile-achievement {
+  border: 1px solid oklch(90% 0 0deg);
+  border-radius: 0.9rem;
+  padding: 1.4rem;
+  display: grid;
+  grid-template-columns: 4.4rem 1fr;
+  gap: 1.2rem;
+  align-items: start;
+}
+.profile-achievement__icon {
+  width: 4.4rem;
+  height: 4.4rem;
+  border-radius: 0.9rem;
+  background: #FBEBE8;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.profile-achievement__icon img {
+  width: 2.6rem;
+  height: 2.6rem;
+  object-fit: contain;
+}
+.profile-achievement__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #1E293B;
+}
+.profile-achievement__desc {
+  margin: 0.4rem 0 0.8rem 0;
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.3rem;
+  line-height: 1.4;
+}
+.profile-achievement__date {
+  margin: 0;
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.2rem;
+}
+.profile-achievement__date i {
+  color: #919191;
+}
+.profile-achievement__date--muted {
+  opacity: 0.8;
+}
+.profile-achievement--locked {
+  opacity: 0.55;
+}
+.profile-achievement--locked .profile-achievement__icon {
+  background: rgba(210, 210, 210, 0.35);
+}
+.profile-achievement--locked .profile-achievement__icon img {
+  filter: grayscale(1);
+}
+
+/* =======================
+   Estado vacío
+======================= */
+.profile-empty {
+  margin: 1rem 0 0 0;
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.5rem;
+  line-height: 1.5;
+}
+
 .challenges {
   background: #FEF5F4;
   padding: 4rem 0 6rem;
