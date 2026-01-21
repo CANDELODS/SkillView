@@ -163,7 +163,7 @@
                     <h3>Logros y Medallas</h3>
                 </div>
 
-                <a class="profile-section__link" href="<?php echo $_ENV['HOST'] . '/logros'; ?>">
+                <a class="profile-section__link" href="/logros">
                     Ver Todo
                 </a>
             </header>

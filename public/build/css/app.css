@@ -1238,12 +1238,14 @@ h3 {
   display: grid;
   gap: 2rem;
   align-items: start;
+  justify-items: center;
   box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
 }
 @media (min-width: 768px) {
   .profile-card {
     grid-template-columns: 9rem 1fr;
     gap: 2.5rem;
+    justify-items: start;
   }
 }
 .profile-card__avatar {
@@ -1419,7 +1421,7 @@ h3 {
 ======================= */
 .profile-points {
   margin-top: 2rem;
-  background-color: oklch(96% 0.1 101.18deg);
+  background-color: oklch(96% 0.1 101.18deg / 0.42);
   /* similar al mockup */
   border-radius: 1.4rem;
   border: 1px solid oklch(91% 0.22 99.69deg);
@@ -1473,6 +1475,8 @@ h3 {
   gap: 2rem;
 }
 .profile-section__title {
+  font-size: 2.4rem;
+  font-weight: 700;
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -1482,16 +1486,32 @@ h3 {
 }
 .profile-section__title h3 {
   margin: 0;
-  font-size: 1.8rem;
-  color: #1E293B;
-  font-weight: 900;
+  font-size: 2.4rem;
+  color: black;
+  font-weight: 700;
 }
 .profile-section__link {
-  background: #EB4328;
+  background-color: #EB4328;
+  padding: 1.5rem 4rem;
   color: white;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.profile-section__link:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.profile-section__link {
+  width: auto;
   padding: 0.9rem 1.2rem;
   border-radius: 0.8rem;
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   font-weight: 700;
 }
 .profile-section__link:hover {
@@ -1499,50 +1519,62 @@ h3 {
 }
 
 /* =======================
-   Tabla progreso por habilidad
+   Tabla progreso por habilidad (estilo tabla limpia + responsive)
 ======================= */
 .profile-table {
   width: 100%;
+  /* HEAD: en móvil mostramos solo 2 columnas */
 }
 .profile-table__head {
-  display: none;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  padding: 1.2rem 0;
+  border-bottom: 1px solid oklch(90% 0 0deg);
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.5rem;
+  font-weight: 600;
 }
-@media (min-width: 768px) {
-  .profile-table__head {
-    display: grid;
-    grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
-    gap: 1rem;
-    padding: 1.2rem 1rem;
-    border-bottom: 1px solid oklch(90% 0 0deg);
-    color: #919191;
-    font-size: 1.3rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05rem;
-  }
+.profile-table {
+  /* Ocultamos columnas de progreso/fecha en móvil */
+}
+.profile-table__col--progress, .profile-table__col--date {
+  display: none;
 }
 .profile-table__body {
   display: grid;
-  gap: 1rem;
-  margin-top: 1rem;
+  gap: 0; /* sin separación tipo card */
+  margin-top: 0;
+}
+.profile-table {
+  /* ROW: en móvil solo 2 columnas, con líneas divisorias */
 }
 .profile-table__row {
-  border: 1px solid oklch(90% 0 0deg);
-  border-radius: 0.9rem;
-  padding: 1.2rem 1rem;
   display: grid;
+  grid-template-columns: 2fr 1fr;
   gap: 1rem;
+  align-items: center;
+  padding: 1.6rem 0;
+  border-bottom: 1px solid oklch(90% 0 0deg);
+  /* Quitamos estilo "card" */
+  border-radius: 0;
+  border: none;
 }
-@media (min-width: 768px) {
-  .profile-table__row {
-    grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
-    align-items: center;
-    gap: 1rem;
-  }
+.profile-table {
+  /* Ocultamos celdas de progreso/fecha en móvil */
+}
+.profile-table__cell--progress, .profile-table__cell--date {
+  display: none;
 }
 .profile-table__cell {
-  color: #1E293B;
-  font-size: 1.5rem;
+  color: black;
+  font-size: 1.6rem;
+}
+.profile-table__cell--skill {
+  font-weight: 700;
+}
+.profile-table__cell--level {
+  justify-self: start;
 }
 .profile-table__cell--date {
   display: flex;
@@ -1553,39 +1585,67 @@ h3 {
 .profile-table__cell--date i {
   color: #919191;
 }
+.profile-table {
+  /* TABLET+: 4 columnas como Imagen 2 */
+}
+@media (min-width: 768px) {
+  .profile-table__head {
+    grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
+  }
+  .profile-table__col--progress, .profile-table__col--date {
+    display: block;
+  }
+  .profile-table__row {
+    grid-template-columns: 2fr 1fr 1.5fr 1.5fr;
+    padding: 1.8rem 0;
+  }
+  .profile-table__cell--progress, .profile-table__cell--date {
+    display: block;
+  }
+  .profile-table {
+    /* Progreso alineado como Imagen 2 (barra + % al lado) */
+  }
+  .profile-table__cell--progress {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+}
 
+/* Badge igual, solo un ajuste para que no “baile” */
 .profile-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4rem 0.9rem;
+  padding: 0.35rem 1rem;
   border-radius: 99rem;
   font-size: 1.2rem;
   font-weight: 700;
   border: 1px solid transparent;
+  line-height: 1;
 }
 .profile-badge--basic {
-  background: rgba(65, 60, 60, 0.08);
+  background: rgba(65, 60, 60, 0.05);
   color: #1E293B;
-  border-color: rgba(65, 60, 60, 0.15);
 }
 .profile-badge--mid {
   background: rgba(43, 127, 255, 0.1);
   color: #2B7FFF;
-  border-color: rgba(43, 127, 255, 0.25);
 }
 .profile-badge--adv {
   background: rgba(0, 201, 81, 0.12);
   color: #00C951;
-  border-color: rgba(0, 201, 81, 0.25);
 }
 
+/* Barra progreso: le damos ancho para que se vea como Imagen 2 */
 .profile-mini-progress {
   height: 0.8rem;
   background: #FBEBE8;
   border-radius: 99rem;
   overflow: hidden;
   border: 1px solid #EFC7BD;
+  /* para que no sea 100% y quede “cortita” como en el mock */
+  width: 14rem;
 }
 .profile-mini-progress__fill {
   display: block;
@@ -1594,12 +1654,19 @@ h3 {
   border-radius: 99rem;
 }
 .profile-mini-progress__text {
-  margin-left: 1rem;
-  font-size: 1.3rem;
+  margin-left: 0; /* ya usamos gap en el flex */
+  font-size: 1.4rem;
   color: oklch(50% 0.01 30deg);
   font-weight: 700;
+  white-space: nowrap;
 }
 
+/* En pantallas grandes le damos un poquito más de ancho a la barra */
+@media (min-width: 1024px) {
+  .profile-mini-progress {
+    width: 18rem;
+  }
+}
 /* =======================
    Logros y medallas
 ======================= */
@@ -1625,15 +1692,15 @@ h3 {
 .profile-achievement {
   border: 1px solid oklch(90% 0 0deg);
   border-radius: 0.9rem;
-  padding: 1.4rem;
+  padding: 2rem;
   display: grid;
   grid-template-columns: 4.4rem 1fr;
-  gap: 1.2rem;
+  gap: 2rem;
   align-items: start;
 }
 .profile-achievement__icon {
-  width: 4.4rem;
-  height: 4.4rem;
+  width: 5.4rem;
+  height: 5.4rem;
   border-radius: 0.9rem;
   background: #FBEBE8;
   display: grid;
@@ -1641,20 +1708,20 @@ h3 {
   overflow: hidden;
 }
 .profile-achievement__icon img {
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 3.6rem;
+  height: 3.6rem;
   object-fit: contain;
 }
 .profile-achievement__title {
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 900;
+  font-size: 1.6rem;
+  font-weight: 700;
   color: #1E293B;
 }
 .profile-achievement__desc {
   margin: 0.4rem 0 0.8rem 0;
   color: oklch(50% 0.01 30deg);
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   line-height: 1.4;
 }
 .profile-achievement__date {
@@ -1663,7 +1730,7 @@ h3 {
   gap: 0.8rem;
   align-items: center;
   color: oklch(50% 0.01 30deg);
-  font-size: 1.2rem;
+  font-size: 1.4rem;
 }
 .profile-achievement__date i {
   color: #919191;
