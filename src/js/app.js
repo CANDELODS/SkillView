@@ -283,6 +283,70 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN BLOG----------------//
 
+  //---------------MODAL EDITAR PERFIL----------------//
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('.js-profile-modal-open');
+    if (!trigger) return;
+
+    e.preventDefault();
+
+    const modalId = trigger.dataset.profileModalId;
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+
+    modal.classList.add('profile-modal--visible');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('no-scroll');
+  });
+
+  document.addEventListener('click', (e) => {
+    const closeTrigger = e.target.closest('[data-profile-modal-close]');
+    if (!closeTrigger) return;
+
+    const modal = closeTrigger.closest('.profile-modal');
+    if (!modal) return;
+
+    modal.classList.remove('profile-modal--visible');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('no-scroll');
+  });
+
+  // Cerrar con ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+
+    const modal = document.querySelector('.profile-modal.profile-modal--visible');
+    if (!modal) return;
+
+    modal.classList.remove('profile-modal--visible');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('no-scroll');
+  });
+
+  // ---------- Cerrar modal en éxito (cuando venimos de redirect) ----------
+  document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+
+    // Si el perfil se actualizó, nos aseguramos de que el modal esté cerrado
+    if (params.get('actualizado') === '1') {
+      const modal = document.getElementById('profile-edit-modal');
+      if (modal) {
+        modal.classList.remove('profile-modal--visible');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('no-scroll');
+      }
+
+      // Opcional: limpiar el query param para que al refrescar no vuelva a quedar "actualizado=1"
+      // Mantiene la alerta (ya se renderiza) solo en esa carga
+      const url = new URL(window.location.href);
+      url.searchParams.delete('actualizado');
+      window.history.replaceState({}, '', url.toString());
+    }
+  });
+
+  //---------------FIN MODAL EDITAR PERFIL----------------//
+
+
   //---------------OCULTAR ALERTAS DESPUES DE UNOS SEGUNDOS----------------//
   //ESTE CÓDIGO AHORA SIEMPRE SE EJECUTA EN CUALQUIER VISTA
 

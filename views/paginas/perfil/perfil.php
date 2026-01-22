@@ -38,7 +38,10 @@
 
                     <div class="profile-card__actions">
                         <!-- A futuro puedes convertir esto en link /perfil/editar -->
-                        <button class="profile-card__btn profile-card__btn--primary" type="button">
+                        <button
+                            class="profile-card__btn profile-card__btn--primary js-profile-modal-open"
+                            type="button"
+                            data-profile-modal-id="profile-edit-modal">
                             <i class="fa-solid fa-pen-to-square"></i>
                             Editar perfil
                         </button>
@@ -62,14 +65,14 @@
 
                 <div class="profile-progress__container">
                     <p class="profile-progress__value"><?php echo (int)$progresoGeneral; ?>%</p>
-    
+
                     <div class="profile-progress__bar" role="progressbar"
                         aria-valuenow="<?php echo (int)$progresoGeneral; ?>"
                         aria-valuemin="0"
                         aria-valuemax="100">
                         <span class="profile-progress__fill" style="width: <?php echo (int)$progresoGeneral; ?>%"></span>
                     </div>
-    
+
                     <p class="profile-progress__hint">¡Sigue así! Estás progresando muy bien</p>
                 </div>
             </aside>
@@ -214,6 +217,90 @@
                 <?php endif; ?>
             </div>
         </section>
+
+        <!-- Modal editar perfil -->
+        <div
+            id="profile-edit-modal"
+            class="profile-modal <?php echo (!empty($mostrarModalEditar)) ? 'profile-modal--visible' : ''; ?>"
+            aria-hidden="<?php echo (!empty($mostrarModalEditar)) ? 'false' : 'true'; ?>">
+
+            <div class="profile-modal__backdrop" data-profile-modal-close></div>
+
+            <div class="profile-modal__content" role="dialog" aria-modal="true" aria-labelledby="profile-edit-title">
+                <!-- Alertas (éxito / error) -->
+                <?php if (isset($alertas) && !empty($alertas)) : ?>
+                    <?php include __DIR__ . '/../../templates/alertas.php'; ?>
+                <?php endif; ?>
+                <header class="profile-modal__header">
+                    <div>
+                        <h2 id="profile-edit-title" class="profile-modal__title">Editar perfil</h2>
+                        <p class="profile-modal__subtitle">Actualiza tu información personal</p>
+                    </div>
+
+                    <button type="button" class="profile-modal__close" data-profile-modal-close aria-label="Cerrar">
+                        &times;
+                    </button>
+                </header>
+
+                <form class="profile-form" method="POST" action="<?php echo $_ENV['HOST'] . '/perfil'; ?>">
+
+                    <div class="profile-form__field">
+                        <label class="profile-form__label" for="nombres">Nombres</label>
+                        <input
+                            class="profile-form__input"
+                            type="text"
+                            id="nombres"
+                            name="nombres"
+                            value="<?php echo s($usuarioForm->nombres ?? ''); ?>"
+                            placeholder="Ej. Juan">
+                    </div>
+
+                    <div class="profile-form__field">
+                        <label class="profile-form__label" for="apellidos">Apellidos</label>
+                        <input
+                            class="profile-form__input"
+                            type="text"
+                            id="apellidos"
+                            name="apellidos"
+                            value="<?php echo s($usuarioForm->apellidos ?? ''); ?>"
+                            placeholder="Ej. Candelo">
+                    </div>
+
+                    <div class="profile-form__field">
+                        <label class="profile-form__label" for="universidad">Universidad</label>
+                        <input
+                            class="profile-form__input"
+                            type="text"
+                            id="universidad"
+                            name="universidad"
+                            value="<?php echo s($usuarioForm->universidad ?? ''); ?>"
+                            placeholder="Ej. Unicomfacauca">
+                    </div>
+
+                    <div class="profile-form__field">
+                        <label class="profile-form__label" for="carrera">Carrera</label>
+                        <input
+                            class="profile-form__input"
+                            type="text"
+                            id="carrera"
+                            name="carrera"
+                            value="<?php echo s($usuarioForm->carrera ?? ''); ?>"
+                            placeholder="Ej. Ingeniería de Sistemas">
+                    </div>
+
+                    <div class="profile-form__actions">
+                        <button type="button" class="profile-form__btn profile-form__btn--ghost" data-profile-modal-close>
+                            Cancelar
+                        </button>
+
+                        <button type="submit" class="profile-form__btn profile-form__btn--primary">
+                            Guardar cambios
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
 
     </section>
 </main>

@@ -1211,6 +1211,129 @@ h3 {
   filter: brightness(0.9);
 }
 
+/* =======================
+   Modal editar perfil
+======================= */
+.profile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: none;
+}
+.profile-modal--visible {
+  display: grid;
+  place-items: center;
+}
+.profile-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+.profile-modal__content {
+  position: relative;
+  width: min(92%, 56rem);
+  background: #FEF5F4;
+  border-radius: 1.2rem;
+  border: 1px solid oklch(90% 0 0deg);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  animation: profileModalIn 0.18s ease-out;
+}
+.profile-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+.profile-modal__title {
+  margin: 0;
+  font-size: 1.8rem;
+  color: #1E293B;
+}
+.profile-modal__subtitle {
+  margin: 0.3rem 0 0;
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.4rem;
+}
+.profile-modal__close {
+  border: none;
+  background: transparent;
+  font-size: 2.6rem;
+  line-height: 1;
+  color: #919191;
+}
+.profile-modal__close:hover {
+  cursor: pointer;
+}
+
+@keyframes profileModalIn {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+/* =======================
+   Formulario perfil
+======================= */
+.profile-form {
+  display: grid;
+  gap: 1.4rem;
+}
+.profile-form__field {
+  display: grid;
+  gap: 0.6rem;
+}
+.profile-form__label {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1E293B;
+}
+.profile-form__input {
+  width: 100%;
+  color: #413c3c;
+  background-color: #FEF5F4;
+  border: 1px solid oklch(90% 0 0deg);
+  border-radius: 0.9rem;
+  padding: 1.2rem 1.2rem;
+  font-size: 1.5rem;
+  outline: none;
+}
+.profile-form__input:focus {
+  border-color: #EB4328;
+  box-shadow: 0 0 0 3px rgba(235, 67, 40, 0.12);
+}
+.profile-form__actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+.profile-form__btn {
+  border-radius: 0.9rem;
+  padding: 1.1rem 1.6rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+  border: 1px solid oklch(90% 0 0deg);
+  background: white;
+}
+.profile-form__btn:hover {
+  cursor: pointer;
+}
+.profile-form__btn--ghost {
+  color: #1E293B;
+  background: #fff;
+}
+.profile-form__btn--primary {
+  border-color: #EB4328;
+  background: #EB4328;
+  color: #fff;
+}
+
 .profile__wrapper {
   width: min(95%, 170rem);
   margin: 0 auto;

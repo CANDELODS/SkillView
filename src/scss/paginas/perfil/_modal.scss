@@ -1,0 +1,133 @@
+@use 'base/mixins' as m;
+@use 'base/variables' as v;
+
+/* =======================
+   Modal editar perfil
+======================= */
+.profile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: none;
+
+  &--visible {
+    display: grid;
+    place-items: center;
+  }
+
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+  }
+
+  &__content {
+    position: relative;
+    width: min(92%, 56rem);
+    background: v.$background;
+    border-radius: 1.2rem;
+    border: 1px solid v.$table-border;
+    @include m.shadowForm;
+    padding: 2rem;
+    animation: profileModalIn .18s ease-out;
+  }
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 3rem;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 1.8rem;
+    color: v.$grisOscuro;
+  }
+
+  &__subtitle {
+    margin: .3rem 0 0;
+    color: v.$p-gray;
+    font-size: 1.4rem;
+  }
+
+  &__close {
+    border: none;
+    background: transparent;
+    font-size: 2.6rem;
+    line-height: 1;
+    color: v.$grisTr;
+
+    &:hover { cursor: pointer; }
+  }
+}
+
+@keyframes profileModalIn {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+/* =======================
+   Formulario perfil
+======================= */
+.profile-form {
+  display: grid;
+  gap: 1.4rem;
+
+  &__field {
+    display: grid;
+    gap: .6rem;
+  }
+
+  &__label {
+    font-size: 1.4rem;
+    font-weight: v.$bold;
+    color: v.$grisOscuro;
+  }
+
+  &__input {
+    width: 100%;
+    color: v.$gray;
+    background-color: v.$background;
+    border: 1px solid v.$table-border;
+    border-radius: .9rem;
+    padding: 1.2rem 1.2rem;
+    font-size: 1.5rem;
+    outline: none;
+
+    &:focus {
+      border-color: v.$primary;
+      box-shadow: 0 0 0 3px rgba(235, 67, 40, .12);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+  }
+
+  &__btn {
+    border-radius: .9rem;
+    padding: 1.1rem 1.6rem;
+    font-size: 1.4rem;
+    font-weight: v.$bold;
+    border: 1px solid v.$table-border;
+    background: white;
+
+    &:hover { cursor: pointer; }
+
+    &--ghost {
+      color: v.$grisOscuro;
+      background: #fff;
+    }
+
+    &--primary {
+      border-color: v.$primary;
+      background: v.$primary;
+      color: #fff;
+    }
+  }
+}

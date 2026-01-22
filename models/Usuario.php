@@ -200,4 +200,47 @@ class Usuario extends ActiveRecord
     {
         return static::paginarBusqueda($termino, ['nombres', 'apellidos', 'correo'], $ordenar, $porPagina, $offset);
     }
+
+    //Editar perfil usuario (sin password)
+    public function validar_edicion_perfil(): array
+    {
+        // Normalizamos valores (eliminamos espacios en blanco)
+        $this->nombres     = trim($this->nombres ?? '');
+        $this->apellidos   = trim($this->apellidos ?? '');
+        $this->universidad = trim($this->universidad ?? '');
+        $this->carrera     = trim($this->carrera ?? '');
+
+        // Validaciones de campos obligatorios
+        if ($this->nombres === '') {
+            self::setAlerta('error', 'El nombre es obligatorio y no puede estar vacío');
+        }
+
+        if ($this->apellidos === '') {
+            self::setAlerta('error', 'Los apellidos son obligatorios y no pueden estar vacíos');
+        }
+
+        if ($this->universidad === '') {
+            self::setAlerta('error', 'La universidad es obligatoria y no puede estar vacía');
+        }
+
+        if ($this->carrera === '') {
+            self::setAlerta('error', 'La carrera es obligatoria y no puede estar vacía');
+        }
+
+        // Opcional: límites simples (La BD tiene 25/45/45)
+        if (strlen($this->nombres) > 25) {
+            self::setAlerta('error', 'El nombre no puede superar 25 caracteres');
+        }
+        if (strlen($this->apellidos) > 25) {
+            self::setAlerta('error', 'Los apellidos no pueden superar 25 caracteres');
+        }
+        if (strlen($this->universidad) > 45) {
+            self::setAlerta('error', 'La universidad no puede superar 45 caracteres');
+        }
+        if (strlen($this->carrera) > 45) {
+            self::setAlerta('error', 'La carrera no puede superar 45 caracteres');
+        }
+
+        return self::$alertas;
+    }
 }
