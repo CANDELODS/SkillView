@@ -56,11 +56,16 @@ class Usuario extends ActiveRecord
     // Validación para cuentas nuevas
     public function validar_cuenta()
     {
-        if (!$this->nombres) {
-            self::$alertas['error'][] = 'El nombre es Obligatorio';
+        // Normalizamos valores (eliminamos espacios en blanco)
+        $this->nombres     = trim($this->nombres ?? '');
+        $this->apellidos   = trim($this->apellidos ?? '');
+        $this->universidad = trim($this->universidad ?? '');
+        $this->carrera     = trim($this->carrera ?? '');
+        if ($this->nombres === '') {
+            self::setAlerta('error', 'El nombre es obligatorio y no puede estar vacío');
         }
-        if (!$this->apellidos) {
-            self::$alertas['error'][] = 'El apellido es Obligatorio';
+        if ($this->apellidos === '') {
+            self::$alertas['error'][] = 'El apellido es Obligatorio y no puede estar vacío';
         }
         if ($this->edad < 0 || $this->edad > 30) {
             self::$alertas['error'][] = 'La edad debe ser mayor a 0 y menor o igual a 30';
@@ -68,11 +73,11 @@ class Usuario extends ActiveRecord
         if ($this->sexo !== '0' && $this->sexo !== '1') {
             self::$alertas['error'][] = 'El sexo es Obligatorio';
         }
-        if (!$this->universidad) {
-            self::$alertas['error'][] = 'La universidad es Obligatoria';
+        if ($this->universidad === '') {
+            self::$alertas['error'][] = 'La universidad es Obligatoria y no puede estar vacía';
         }
-        if (!$this->carrera) {
-            self::$alertas['error'][] = 'La carrera es Obligatoria';
+        if ($this->carrera === '') {
+            self::$alertas['error'][] = 'La carrera es Obligatoria y no puede estar vacía';
         }
         if (!$this->correo) {
             self::$alertas['error'][] = 'El correo es Obligatorio';
@@ -91,13 +96,18 @@ class Usuario extends ActiveRecord
 
     public function validar_edicion()
     {
+        // Normalizamos valores (eliminamos espacios en blanco)
+        $this->nombres     = trim($this->nombres ?? '');
+        $this->apellidos   = trim($this->apellidos ?? '');
+        $this->universidad = trim($this->universidad ?? '');
+        $this->carrera     = trim($this->carrera ?? '');
         self::$alertas = [];
 
-        if (!$this->nombres) {
-            self::$alertas['error'][] = 'El nombre es Obligatorio';
+        if ($this->nombres === '') {
+            self::$alertas['error'][] = 'El nombre es Obligatorio y no puede estar vacío';
         }
-        if (!$this->apellidos) {
-            self::$alertas['error'][] = 'El apellido es Obligatorio';
+        if ($this->apellidos === '') {
+            self::$alertas['error'][] = 'El apellido es Obligatorio y no puede estar vacío';
         }
         if ($this->edad < 0 || $this->edad > 30) {
             self::$alertas['error'][] = 'La edad debe ser mayor a 0 y menor o igual a 30';
@@ -105,11 +115,11 @@ class Usuario extends ActiveRecord
         if ($this->sexo !== '0' && $this->sexo !== '1') {
             self::$alertas['error'][] = 'El sexo es Obligatorio';
         }
-        if (!$this->universidad) {
-            self::$alertas['error'][] = 'La universidad es Obligatoria';
+        if ($this->universidad === '') {
+            self::$alertas['error'][] = 'La universidad es Obligatoria y no puede estar vacía';
         }
-        if (!$this->carrera) {
-            self::$alertas['error'][] = 'La carrera es Obligatoria';
+        if ($this->carrera === '') {
+            self::$alertas['error'][] = 'La carrera es Obligatoria y no puede estar vacía';
         }
         if (!$this->correo) {
             self::$alertas['error'][] = 'El correo es Obligatorio';
