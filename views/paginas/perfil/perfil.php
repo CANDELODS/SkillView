@@ -37,7 +37,6 @@
                     </ul>
 
                     <div class="profile-card__actions">
-                        <!-- A futuro puedes convertir esto en link /perfil/editar -->
                         <button
                             class="profile-card__btn profile-card__btn--primary js-profile-modal-open"
                             type="button"

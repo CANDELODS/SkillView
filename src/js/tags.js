@@ -62,4 +62,4 @@
             tagsInputHidden.value = tags.toString();
         }
     }
-})() //Este Parentecis Manda A Llamar A La Función
+})(); //Este Parentecis Manda A Llamar A La Función

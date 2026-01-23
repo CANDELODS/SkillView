@@ -325,6 +325,10 @@ img {
   height: auto;
 }
 
+.no-scroll {
+  overflow: hidden;
+}
+
 h1 {
   font-size: 4rem;
 }

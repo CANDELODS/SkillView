@@ -1,5 +1,72 @@
 //Esperamos a que el DOM esté completamente cargado
 document.addEventListener('DOMContentLoaded', () => {
+
+  // =========================
+  // Helpers globales (SkillView)
+  // =========================
+  // Creamos un namespace global para reutilizar utilidades en otros archivos (aprendizaje, retos, blog, perfil, etc.)
+  // Así evitamos variables globales sueltas y estandarizamos comportamientos como bloquear scroll.
+  window.SV = window.SV || {};
+
+  window.SV.lockScroll = () => {
+    document.body.classList.add('no-scroll');
+  };
+
+  window.SV.unlockScroll = () => {
+    document.body.classList.remove('no-scroll');
+  };
+  // =========================
+  // FIN Helpers globales (SkillView)
+  // =========================
+
+  // =========================
+  // Cierre global de modales con ESC
+  // =========================
+  // Este listener se encarga de cerrar cualquier modal abierto
+  // Evita duplicar lógica de ESC en cada archivo por sección
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+
+    // 1) Modal de Retos
+    const retosModal = document.getElementById('sv-challenge-modal');
+    if (retosModal && retosModal.classList.contains('is-open')) {
+      retosModal.classList.remove('is-open');
+      retosModal.setAttribute('aria-hidden', 'true');
+      window.SV.unlockScroll();
+      return;
+    }
+
+    // 2) Modal de Blog
+    const blogModal = document.getElementById('sv-blog-modal');
+    if (blogModal && blogModal.classList.contains('is-open')) {
+      blogModal.classList.remove('is-open');
+      blogModal.setAttribute('aria-hidden', 'true');
+      window.SV.unlockScroll();
+      return;
+    }
+
+    // 3) Modal de Perfil
+    const profileModal = document.querySelector('.profile-modal.profile-modal--visible');
+    if (profileModal) {
+      profileModal.classList.remove('profile-modal--visible');
+      profileModal.setAttribute('aria-hidden', 'true');
+      window.SV.unlockScroll();
+      return;
+    }
+
+    // 4) Modales de Aprendizaje (pueden existir varios)
+    const learningModal = document.querySelector('.learning-modal.learning-modal--visible');
+    if (learningModal) {
+      learningModal.classList.remove('learning-modal--visible');
+      window.SV.unlockScroll();
+      return;
+    }
+  });
+  // =========================
+  // FIN Cierre global de modales con ESC
+  // =========================
+
   //---------------MODAL DE REGISTRO EXITOSO CON REDIRECCIÓN AUTOMÁTICA----------------//
 
   //Detectamos si el registro fue exitoso buscando el atributo data-registro-exitoso en el contenedor .register
@@ -23,12 +90,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const showModal = () => {
       //Agregamos la clase modal--visible para mostrar el modal
       modal.classList.add('modal--visible');
+      //Bloqueamos el scroll usando el helper global
+      window.SV.lockScroll();
     };
 
     // Cerrar el modal
     const hideModal = () => {
       //Quitamos la clase modal--visible para ocultar el modal
       modal.classList.remove('modal--visible');
+      //Desbloqueamos el scroll usando el helper global
+      window.SV.unlockScroll();
     };
 
     // Mostrar el modal inmediatamente cuando se cargue esta vista
@@ -73,280 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   //---------------FIN MODAL DE REGISTRO EXITOSO CON REDIRECCIÓN AUTOMÁTICA----------------//
 
-  //---------------MODAL DE LAS CARDS DE LA SECCIÓN APRENDIZAJE----------------//
-  const body = document.body;
-  // Abrir modal
-  //“Escucha cualquier click en TODA la página”. No escuchamos solo cada botón ya que el DOM puede
-  //Cambiar dinámicamente, por lo cual esta técnica "event delegation" garantiza que funcione siempre
-  document.addEventListener('click', (e) => {
-    //¿El elemento en el que hicieron click tiene la clase .js-learning-modal-open
-    //O está dentro de un elemento con esa clase?
-    const trigger = e.target.closest('.js-learning-modal-open');
-    //Si no, salimos con return y no hacemos nada, esto nos ayuda a evitar que cada click en la página
-    //Active algo
-    if (!trigger) return;
-    //Evitamos que el navegador ejecute su acción normal
-    e.preventDefault();
-    //Leemos el atributo data-learning-modal-id="learning-modal-habilidad-3 (Por ejemplo)"
-    const modalId = trigger.dataset.learningModalId;
-    //Buscamos el modal en toda la página: document.getElementById("learning-modal-habilidad-3")
-    const modal = document.getElementById(modalId);
-    //Si no lo encuentra, salimos con return y no hacemos nada
-    if (!modal) return;
-    //Mostramos el modal en pantalla
-    modal.classList.add('learning-modal--visible');
-    body.classList.add('no-scroll');
-  });
-
-  // Cerrar modal (botón X, botón Volver, backdrop)
-  document.addEventListener('click', (e) => {
-    //Todo lo que tenga data-modal-close cierra el modal
-    //Seleccionamos los objetos del DOM que tiene el atributo data-learning-modal-close
-    const closeTrigger = e.target.closest('[data-learning-modal-close]');
-    if (!closeTrigger) return;
-
-    const modal = closeTrigger.closest('.learning-modal');
-    if (!modal) return;
-    //Quitamos las clases que permiten mostrar el modal
-    modal.classList.remove('learning-modal--visible');
-    body.classList.remove('no-scroll');
-  });
-
-  //"El motodo closest busca el elemento padre mas cercano (Incluyendose a si mismo) que coincida con un selector"
-  /*<div class="learning-modal">           ← closest(".learning-modal") devuelve este
-   <div class="content">
-      <button data-learning-modal-close>Volver</button>  ← usuario hace click aquí
-   </div>
-  </div>
-  Al escribir: const modal = closeTrigger.closest('.learning-modal'); JS pregunta:
-  ¿El botón tiene la clase .learning-modal? NO
-  ¿Su padre <div class="content"> la tiene? NO
-  ¿Su abuelo <div class="learning-modal"> la tiene? SI : Nos devuelve el elemento
-  
-  El método closest es muy útil ya que como tenemos varios modales normalmente tendríamos que identificar
-  El modal con id específico para cerrarlo, pero con closest el botón ya "vive" deontro de su propio modal
-*/
-  //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN APRENDIZAJE----------------//
-
-
-  //---------------MODAL DE LAS CARDS DE LA SECCIÓN RETOS----------------//
-  const modalChallenges = document.getElementById('sv-challenge-modal');
-  if (modalChallenges) {
-    const closeTriggers = modalChallenges.querySelectorAll('[data-sv-challenge-close]');
-    const titleEl = modalChallenges.querySelector('[data-sv-challenge-title]') || modalChallenges.querySelector('#sv-challenge-modal-title');
-    const badgeEl = modalChallenges.querySelector('[data-sv-challenge-badge]');
-    const descEl = modalChallenges.querySelector('[data-sv-challenge-desc]');
-    const consisteEl = modalChallenges.querySelector('[data-sv-challenge-consiste]');
-    const tagsWrap = modalChallenges.querySelector('[data-sv-challenge-tags]');
-    const timeEl = modalChallenges.querySelector('[data-sv-challenge-time]');
-    const pointsEl = modalChallenges.querySelector('[data-sv-challenge-points]');
-    const startBtn = modalChallenges.querySelector('[data-sv-challenge-start]');
-
-    const openModal = () => {
-      //Agregamos la clase para mostrar el modal
-      modalChallenges.classList.add('is-open');
-      //Cambiamos la accesibilidad
-      modalChallenges.setAttribute('aria-hidden', 'false');
-      //Bloqueamos el scroll del body
-      document.body.style.overflow = 'hidden';
-    };
-
-    const closeModal = () => {
-      modalChallenges.classList.remove('is-open');
-      modalChallenges.setAttribute('aria-hidden', 'true');
-      document.body.style.overflow = '';
-    };
-
-    // Cerrar (X, backdrop, Cancelar)
-    //Recorremos todos los botones de cierre y les agregamos el evento click
-    closeTriggers.forEach(btn => btn.addEventListener('click', closeModal));
-
-    // Cerrar con ESC
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && modalChallenges.classList.contains('is-open')) closeModal();
-    });
-
-    // Abrir desde cualquier card
-    document.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-sv-challenge-open]');
-      if (!btn) return;
-
-      const title = btn.dataset.title || 'Reto';
-      const desc = btn.dataset.desc || '';
-      const difficulty = btn.dataset.difficulty || '';
-      const timeMin = btn.dataset.timeMin || '';
-      const timeMax = btn.dataset.timeMax || '';
-      const points = btn.dataset.points || '';
-      const tagsStr = btn.dataset.tags || '';
-      const startUrl = btn.dataset.startUrl || '#';
-
-      // Pintar contenido
-      if (titleEl) titleEl.textContent = title;
-      if (badgeEl) badgeEl.textContent = difficulty;
-      if (descEl) descEl.textContent = desc;
-
-      // Si no tienes "consiste" por BD aún, reutilizamos desc o un texto base
-      if (consisteEl) {
-        consisteEl.textContent = 'Este reto te presentará una situación realista donde deberás aplicar tus habilidades blandas. Responderás preguntas y tomarás decisiones que serán evaluadas para medir tu desempeño.';
-      }
-
-      // Tags
-      if (tagsWrap) {
-        tagsWrap.innerHTML = '';
-        //Split separa el string en un array usando la coma como separador, con map le quitamos espacios y con filter(Boolean) eliminamos elementos vacíos
-        const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
-        tags.forEach(tag => {
-          const p = document.createElement('p');
-          p.className = 'sv-challenge-modal__tag';
-          p.textContent = tag;
-          tagsWrap.appendChild(p);
-        });
-      }
-
-      if (timeEl) timeEl.textContent = `${timeMin}-${timeMax} minutos`;
-      if (pointsEl) pointsEl.textContent = `${points} puntos`;
-      if (startBtn) startBtn.setAttribute('href', startUrl);
-      //Cargamos todo y luego abrimos el modal
-      openModal();
-    });
-  }
-  //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN RETOS----------------//
-
-  //---------------MODAL DE LAS CARDS DE LA SECCIÓN BLOG----------------//
-  const blogModal = document.getElementById('sv-blog-modal');
-
-  if (blogModal) {
-    const blogCloseTriggers = blogModal.querySelectorAll('[data-sv-blog-close]');
-    const blogTitleEl = blogModal.querySelector('[data-sv-blog-title]');
-    const blogDescEl = blogModal.querySelector('[data-sv-blog-desc]');
-    const blogContentEl = blogModal.querySelector('[data-sv-blog-content]');
-    const blogTagsWrap = blogModal.querySelector('[data-sv-blog-tags]');
-    const blogImg = blogModal.querySelector('#sv-blog-modal-img');
-    const blogImgWebp = blogModal.querySelector('#sv-blog-modal-img-webp');
-
-    const openBlogModal = () => {
-      blogModal.classList.add('is-open');
-      blogModal.setAttribute('aria-hidden', 'false');
-      document.body.style.overflow = 'hidden';
-    };
-
-    const closeBlogModal = () => {
-      blogModal.classList.remove('is-open');
-      blogModal.setAttribute('aria-hidden', 'true');
-      document.body.style.overflow = '';
-    };
-
-    blogCloseTriggers.forEach(btn => btn.addEventListener('click', closeBlogModal));
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && blogModal.classList.contains('is-open')) closeBlogModal();
-    });
-
-    document.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-sv-blog-open]');
-      if (!btn) return;
-
-      const title = btn.dataset.title || 'Artículo';
-      const desc = btn.dataset.desc || '';
-      const content = btn.dataset.content || '';
-      const tagsStr = btn.dataset.tags || '';
-      const imgWebp = btn.dataset.imageWebp || '';
-      const imgJpg = btn.dataset.imageJpg || '';
-
-      if (blogTitleEl) blogTitleEl.textContent = title;
-      if (blogDescEl) blogDescEl.textContent = desc;
-
-      // Contenido: lo pintamos como texto (seguro). Si luego quieres HTML, lo controlamos.
-      if (blogContentEl) blogContentEl.textContent = content;
-
-      // Imagen
-      if (blogImgWebp) blogImgWebp.setAttribute('srcset', imgWebp);
-      if (blogImg) {
-        blogImg.setAttribute('src', imgJpg);
-        blogImg.setAttribute('alt', `Imagen del artículo ${title}`);
-      }
-
-      // Tags
-      if (blogTagsWrap) {
-        blogTagsWrap.innerHTML = '';
-        const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
-        tags.forEach(tag => {
-          const span = document.createElement('span');
-          span.className = 'sv-blog-modal__tag';
-          span.textContent = tag;
-          blogTagsWrap.appendChild(span);
-        });
-      }
-
-      openBlogModal();
-    });
-  }
-  //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN BLOG----------------//
-
-  //---------------MODAL EDITAR PERFIL----------------//
-  document.addEventListener('click', (e) => {
-    const trigger = e.target.closest('.js-profile-modal-open');
-    if (!trigger) return;
-
-    e.preventDefault();
-
-    const modalId = trigger.dataset.profileModalId;
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-
-    modal.classList.add('profile-modal--visible');
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('no-scroll');
-  });
-
-  document.addEventListener('click', (e) => {
-    const closeTrigger = e.target.closest('[data-profile-modal-close]');
-    if (!closeTrigger) return;
-
-    const modal = closeTrigger.closest('.profile-modal');
-    if (!modal) return;
-
-    modal.classList.remove('profile-modal--visible');
-    modal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('no-scroll');
-  });
-
-  // Cerrar con ESC
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-
-    const modal = document.querySelector('.profile-modal.profile-modal--visible');
-    if (!modal) return;
-
-    modal.classList.remove('profile-modal--visible');
-    modal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('no-scroll');
-  });
-
-  // ---------- Cerrar modal en éxito (cuando venimos de redirect) ----------
-  document.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(window.location.search);
-
-    // Si el perfil se actualizó, nos aseguramos de que el modal esté cerrado
-    if (params.get('actualizado') === '1') {
-      const modal = document.getElementById('profile-edit-modal');
-      if (modal) {
-        modal.classList.remove('profile-modal--visible');
-        modal.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('no-scroll');
-      }
-
-      // Opcional: limpiar el query param para que al refrescar no vuelva a quedar "actualizado=1"
-      // Mantiene la alerta (ya se renderiza) solo en esa carga
-      const url = new URL(window.location.href);
-      url.searchParams.delete('actualizado');
-      window.history.replaceState({}, '', url.toString());
-    }
-  });
-
-  //---------------FIN MODAL EDITAR PERFIL----------------//
-
-
   //---------------OCULTAR ALERTAS DESPUES DE UNOS SEGUNDOS----------------//
   //ESTE CÓDIGO AHORA SIEMPRE SE EJECUTA EN CUALQUIER VISTA
 
@@ -372,37 +169,45 @@ document.addEventListener('DOMContentLoaded', () => {
   const mobileNav = document.querySelector('.site-nav--mobile');
   const closeBtn = document.querySelector('.site-nav__mobile-close');
 
-  if (!toggle || !mobileNav) return;
+  // Antes tenías: if (!toggle || !mobileNav) return;
+  // Eso "cortaba" el resto de lógicas dentro del DOMContentLoaded.
+  // Ahora solo ejecutamos el bloque del menú si existe en el DOM.
+  if (toggle && mobileNav) {
 
-  const openMenu = () => {
-    mobileNav.classList.add('site-nav--mobile-open');
-    toggle.setAttribute('aria-expanded', 'true');
-  };
+    const openMenu = () => {
+      mobileNav.classList.add('site-nav--mobile-open');
+      toggle.setAttribute('aria-expanded', 'true');
+      //Si quieres bloquear scroll cuando el menú esté abierto, puedes hacerlo aquí:
+      //window.SV.lockScroll();
+    };
 
-  const closeMenu = () => {
-    mobileNav.classList.remove('site-nav--mobile-open');
-    toggle.setAttribute('aria-expanded', 'false');
-  };
+    const closeMenu = () => {
+      mobileNav.classList.remove('site-nav--mobile-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      //Si bloqueas scroll al abrir, desbloquea al cerrar:
+      //window.SV.unlockScroll();
+    };
 
-  toggle.addEventListener('click', () => {
-    const isOpen = mobileNav.classList.contains('site-nav--mobile-open');
-    if (isOpen) {
-      closeMenu();
-    } else {
-      openMenu();
+    toggle.addEventListener('click', () => {
+      const isOpen = mobileNav.classList.contains('site-nav--mobile-open');
+      if (isOpen) {
+        closeMenu();
+      } else {
+        openMenu();
+      }
+    });
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', closeMenu);
     }
-  });
 
-  if (closeBtn) {
-    closeBtn.addEventListener('click', closeMenu);
+    // Opcional: cerrar menú al hacer click en un enlace
+    mobileNav.addEventListener('click', (e) => {
+      if (e.target.closest('.site-nav__link')) {
+        closeMenu();
+      }
+    });
   }
-
-  // Opcional: cerrar menú al hacer click en un enlace
-  mobileNav.addEventListener('click', (e) => {
-    if (e.target.closest('.site-nav__link')) {
-      closeMenu();
-    }
-  });
 
   //---------------FIN MENU MOBILE----------------//
 

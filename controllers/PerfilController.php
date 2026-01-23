@@ -46,7 +46,6 @@ class PerfilController
         $alertas = [];
 
         // Procesamos edición del perfil (POST a /perfil)
-        // Procesamos edición del perfil (POST a /perfil)
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Si hubo submit, por defecto mostramos el modal
@@ -61,12 +60,12 @@ class PerfilController
                 'carrera'     => $_POST['carrera'] ?? '',
             ];
 
-            // Actualizamos el objeto sin crear uno nuevo
+            // Actualizamos el objeto sin crear uno nuevo (Sincronizamos el objeto del form con los datos del POST)
             // (mantiene id, correo, password, etc.)
             $usuarioForm->sincronizar($data);
 
             // Validación dedicada para edición de perfil
-            // (debe existir en Usuario.php)
+            // (La función se encuentra en: Usuario.php)
             // -> validar_edicion_perfil()
             $alertas = $usuarioForm->validar_edicion_perfil();
 
