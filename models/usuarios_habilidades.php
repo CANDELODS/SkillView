@@ -13,6 +13,32 @@ class usuarios_habilidades extends ActiveRecord
 
     public $id, $id_usuarios, $id_habilidades, $nivel, $progreso, $ultima_actualización;
 
+    // ================== REGISTRO (Inicializar Tabla Para /Perfil) ================== //
+    public static function inicializarHabilidadesUsuario(int $idUsuario, ?string $fecha = null): bool
+    {
+        // Si no nos pasan fecha, usamos la fecha actual (columna DATE)
+        $fecha = $fecha ?: date('Y-m-d');
+
+        // Insert masivo de todas las habilidades habilitadas para el usuario
+        // Usamos NOT EXISTS para evitar duplicados si por alguna razón ya existen filas
+        $query = "INSERT INTO usuarios_habilidades (id_usuarios, id_habilidades, nivel, progreso, ultima_actualizacion)
+              SELECT {$idUsuario}, hb.id, 1, 0.00, '{$fecha}'
+              FROM habilidades_blandas hb
+              WHERE hb.habilitado = 1
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM usuarios_habilidades uh
+                    WHERE uh.id_usuarios = {$idUsuario}
+                    AND uh.id_habilidades = hb.id
+              )";
+
+        $resultado = self::$db->query($query);
+
+        return (bool)$resultado;
+    }
+    // ================== FIN REGISTRO (Inicializar Tabla Para /Perfil) ================== //
+
+
     // ================== PERFIL ================== //
 
     // Promedio del progreso del usuario en todas las habilidades habilitadas
