@@ -7,6 +7,7 @@ use MVC\Router;
 use Controllers\AuthController;
 use Controllers\BlogController;
 use Controllers\DashboardController;
+use Controllers\LogrosController;
 use Controllers\PerfilController;
 use Controllers\PrincipalController;
 use Controllers\RetosController;
@@ -62,6 +63,12 @@ $router->post('/blog', [BlogController::class, 'index']);
 $router->get('/perfil', [PerfilController::class, 'index']);
 $router->post('/perfil', [PerfilController::class, 'index']);
 //--------------------FIN PERFIL--------------------
+
+//--------------------LOGROS--------------------
+$router->get('/logros', [LogrosController::class, 'index']);
+$router->post('/logros', [LogrosController::class, 'index']);
+//--------------------FIN LOGROS--------------------
+
 
 
 $router->comprobarRutas();

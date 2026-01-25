@@ -1,0 +1,125 @@
+@use 'base/variables' as v;
+@use 'base/mixins' as m;
+
+.achievement-card {
+    background: white;
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 1.2rem;
+    padding: 1.8rem;
+    box-shadow: 0 10px 25px rgba(0,0,0,.05);
+    transition: transform .2s ease, box-shadow .2s ease;
+
+    &:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 14px 35px rgba(0,0,0,.07);
+        outline: 2px solid v.$primary;
+    }
+
+    &__header {
+        display: flex;
+        gap: 1.2rem;
+        align-items: flex-start;
+        margin-bottom: 1.2rem;
+    }
+
+    &__icon {
+        width: 4.4rem;
+        height: 4.4rem;
+        border-radius: 1rem;
+        display: grid;
+        place-items: center;
+        // background: rgba(235, 67, 40, .08);
+        flex: 0 0 4.4rem;
+    }
+
+    &__icon-img {
+        width: 5rem;
+        height: 5rem;
+        object-fit: contain;
+        display: block;
+    }
+
+    &__meta {
+        flex: 1;
+    }
+
+    &__title {
+        margin: 0;
+        font-size: 1.8rem;
+        font-weight: v.$bold;
+        color: black;
+    }
+
+    &__tag {
+        margin: .25rem 0 0 0;
+        font-size: 1.2rem;
+        color: v.$p-gray;
+    }
+
+    &__description {
+        margin: 0 0 1.4rem 0;
+        color: v.$p-gray;
+        font-size: 1.4rem;
+        line-height: 1.6;
+        min-height: 4.2rem;
+    }
+
+    &__objective {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    &__objective-label {
+        font-size: 1.2rem;
+        color: v.$p-gray;
+    }
+
+    &__objective-value {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: v.$primary;
+    }
+
+    &__footer {
+        margin-top: 1.3rem;
+        display: flex;
+        justify-content: flex-start;
+        padding-top: 1.2rem;
+        border-top: 1px solid rgba(0, 0, 0, .06);
+    }
+
+    &__date {
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+        font-size: 1.2rem;
+        color: v.$p-gray;
+    }
+
+    &__date-icon {
+        font-size: 1.2rem;
+    }
+
+    /* Estados */
+    &--locked {
+        opacity: .55;
+        filter: grayscale(1);
+
+        .achievement-card__icon {
+            // background: rgba(0, 0, 0, .06);
+        }
+
+        &:hover {
+            transform: none;
+            box-shadow: 0 10px 25px rgba(0,0,0,.05);
+        }
+    }
+
+    &--unlocked {
+        .achievement-card__icon {
+            // background: rgba(235, 67, 40, .12);
+        }
+    }
+}

@@ -26,4 +26,18 @@ class Logros extends ActiveRecord
 
     //----------------------------FIN RETOS----------------------------//
 
+    //----------------------------LOGROS----------------------------//
+    //Obtener todos los logros habilitados
+    public static function habilitados(): array
+    {
+        $query = "
+        SELECT *
+        FROM " . static::$tabla . "
+        WHERE habilitado = 1
+        ORDER BY id ASC
+    ";
+        return self::consultarSQL($query);
+    }
+    //----------------------------FIN LOGROS----------------------------//
+
 }

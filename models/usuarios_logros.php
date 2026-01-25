@@ -34,7 +34,7 @@ class usuarios_logros extends ActiveRecord
 
     //----------------------------FIN RETOS----------------------------//
 
-    //---------------------------- PERFIL ----------------------------//
+    //---------------------------- PERFIL / LOGROS ----------------------------//
     public static function lookupLogrosUsuario(int $idUsuario): array
     {
         $idUsuario = (int)$idUsuario;
@@ -53,6 +53,6 @@ class usuarios_logros extends ActiveRecord
         $resultado->free();
         return $lookup; // [id_logro => 'YYYY-MM-DD']
     }
-    //---------------------------- FIN PERFIL ----------------------------//
+    //---------------------------- FIN PERFIL / LOGROS ----------------------------//
 
 }
