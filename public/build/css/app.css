@@ -1918,9 +1918,16 @@ h3 {
 }
 .challenges__filter-flex {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2rem;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .challenges__filter-flex {
+    flex-direction: row;
+    gap: 2rem;
+  }
 }
 .challenges__select, .challenges__select--difficults, .challenges__select--skills {
   padding: 0.8rem 1.2rem;
@@ -2442,9 +2449,14 @@ h3 {
 }
 .sv-challenge-modal__footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 1rem;
   margin-top: 0.4rem;
+}
+@media (min-width: 768px) {
+  .sv-challenge-modal__footer {
+    justify-content: flex-end;
+  }
 }
 .sv-challenge-modal__btn {
   padding: 0.9rem 1.4rem;
