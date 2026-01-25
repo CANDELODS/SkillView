@@ -94,7 +94,7 @@
         </div>
         <ul class="site-nav__list site-nav__list--mobile">
             <li class="site-nav__item">
-                <a href="/inicio"
+                <a href="/principal"
                    class="site-nav__link <?php echo pagina_actual('/principal') ? 'site-nav__link--active' : ''; ?>">
                     <i class="fa-solid fa-house site-nav__icon" aria-hidden="true"></i>
                     <span>Inicio</span>
