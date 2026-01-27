@@ -62,6 +62,16 @@ document.addEventListener('DOMContentLoaded', () => {
       window.SV.unlockScroll();
       return;
     }
+
+    // 5) Modal de Logros
+    const achievementModal = document.getElementById('sv-achievement-modal');
+    if (achievementModal && achievementModal.classList.contains('is-open')) {
+      achievementModal.classList.remove('is-open');
+      achievementModal.setAttribute('aria-hidden', 'true');
+      window.SV.unlockScroll();
+      return;
+    }
+
   });
   // =========================
   // FIN Cierre global de modales con ESC

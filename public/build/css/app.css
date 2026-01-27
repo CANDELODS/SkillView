@@ -1326,13 +1326,21 @@ h3 {
 }
 .achievements__grid {
   display: grid;
-  grid-template-columns: 1fr;
   gap: 1.6rem;
+  grid-template-columns: repeat(1, 1fr);
 }
 @media (min-width: 768px) {
   .achievements__grid {
-    grid-template-columns: repeat(3, 1fr);
+    display: grid;
     gap: 2rem;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1024px) {
+  .achievements__grid {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 .achievements__grid--locked {
@@ -1435,6 +1443,171 @@ h3 {
 .achievement-card--locked:hover {
   transform: none;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+.achievement-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.22s ease, visibility 0s linear 0.22s;
+}
+.achievement-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+.achievement-modal__content {
+  position: relative;
+  width: min(52rem, 92%);
+  margin: 0;
+  background: #fff;
+  border-radius: 1.2rem;
+  padding: 2.5rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  text-align: center;
+  z-index: 1;
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.achievement-modal.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.22s ease, visibility 0s;
+}
+.achievement-modal.is-open .achievement-modal__overlay {
+  opacity: 1;
+}
+.achievement-modal.is-open .achievement-modal__content {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.achievement-modal.is-open .achievement-modal__icon img {
+  animation: achievement-bounce 0.6s ease-out both;
+}
+.achievement-modal__close {
+  position: absolute;
+  top: 1rem;
+  right: 1.2rem;
+  border: none;
+  background: transparent;
+  font-size: 2.2rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+}
+.achievement-modal__icon {
+  width: 9rem;
+  height: 9rem;
+  margin: 0 auto 1.5rem auto;
+  display: grid;
+  place-items: center;
+}
+.achievement-modal__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: center;
+}
+.achievement-modal__title {
+  margin: 0 0 0.5rem 0;
+  font-size: 3rem;
+  font-weight: 700;
+}
+.achievement-modal__tag {
+  margin: 0 0 1rem 0;
+  font-weight: 600;
+  letter-spacing: 0.1rem;
+  text-transform: uppercase;
+  color: #eb4328;
+  font-size: 1.4rem;
+}
+.achievement-modal__desc {
+  margin: 0 0 2rem 0;
+  color: #413c3c;
+  font-size: 1.6rem;
+  line-height: 1.6;
+}
+.achievement-modal__status {
+  border-radius: 1rem;
+  padding: 1.6rem;
+  margin-bottom: 1.8rem;
+  border: 1px solid rgba(235, 67, 40, 0.25);
+  background: rgba(235, 67, 40, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+@media (min-width: 768px) {
+  .achievement-modal__status {
+    gap: 1rem;
+  }
+}
+.achievement-modal__status.is-locked {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+}
+.achievement-modal__status-label {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #413c3c;
+}
+.achievement-modal__status-date {
+  margin: 0.6rem 0 0 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #EB4328;
+}
+.achievement-modal__btn {
+  background-color: #EB4328;
+  padding: 1.5rem 4rem;
+  color: white;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border: none;
+  transition-property: filter;
+  transition-duration: 0.3s;
+  text-align: center;
+  width: 100%;
+  display: inline-block;
+}
+.achievement-modal__btn:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+.achievement-modal__btn {
+  border-radius: 0.8rem;
+  padding: 1.2rem;
+}
+.achievement-modal__btn:hover {
+  filter: brightness(0.9);
+}
+
+@keyframes achievement-bounce {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 /* =======================
    Modal editar perfil

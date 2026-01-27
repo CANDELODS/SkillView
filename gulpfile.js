@@ -30,6 +30,7 @@ const paths = {
         'src/js/retos.js',
         'src/js/blog.js',
         'src/js/perfil.js',
+        'src/js/logros.js',
         'src/js/tags.js'
     ],
     imagenes: 'src/img/**/*'

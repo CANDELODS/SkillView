@@ -63,17 +63,14 @@
         }
 
         &--unlocked {
-            // background: rgba(235, 67, 40, .06);
             background-image: linear-gradient(to right bottom, oklab(0.6 0.194248 0.103284 / 0.1) 0px, oklab(0.6 0.194248 0.103284 / 0.05) 100%);
         }
 
         &--locked {
-            // background: rgba(0, 0, 0, .03);
             background-image: linear-gradient(to right bottom, oklch(0.967 0.003 264.542) 0px, oklch(0.985 0.002 247.839) 100%);
         }
 
         &--total {
-            // background: rgba(255, 193, 7, .18);
             background-image: linear-gradient(to right bottom, oklch(0.973 0.071 103.193) 0px, oklch(0.987 0.026 102.212) 100%);
         }
     }
@@ -118,13 +115,14 @@
 
     /* Grid de cards */
     &__grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 1.6rem;
+        @include m.grid(1, 1.6rem);
 
         @include m.tablet {
-            grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
+            @include m.grid(2, 2rem);
+        }
+
+        @include m.desktop{
+            @include m.grid(3, 2rem);
         }
     }
 

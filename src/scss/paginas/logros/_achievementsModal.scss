@@ -1,0 +1,178 @@
+@use 'base/mixins' as m;
+@use 'base/variables' as v;
+
+.achievement-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+
+    //En vez de display:none, lo dejamos como grid siempre
+    display: grid;
+    place-items: center;
+    padding: 2rem;
+
+    //Estado cerrado
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .22s ease, visibility 0s linear .22s;
+
+    &__overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, .55);
+        opacity: 0;
+        transition: opacity .22s ease;
+    }
+
+    &__content {
+        position: relative;
+        width: min(52rem, 92%);
+        margin: 0;
+        background: #fff;
+        border-radius: 1.2rem;
+        padding: 2.5rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+        text-align: center;
+        z-index: 1;
+
+        opacity: 0;
+        transform: translateY(10px) scale(.98);
+        transition: opacity .22s ease, transform .22s ease;
+    }
+
+    //Estado abierto
+    &.is-open {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition: opacity .22s ease, visibility 0s;
+
+        .achievement-modal__overlay {
+            opacity: 1;
+        }
+
+        .achievement-modal__content {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .achievement-modal__icon img {
+            animation: achievement-bounce 0.6s ease-out both;
+        }
+    }
+
+    &__close {
+        position: absolute;
+        top: 1rem;
+        right: 1.2rem;
+        border: none;
+        background: transparent;
+        font-size: 2.2rem;
+        line-height: 1;
+        cursor: pointer;
+        color: #666;
+    }
+
+    &__icon {
+        width: 9rem;
+        height: 9rem;
+        margin: 0 auto 1.5rem auto;
+        display: grid;
+        place-items: center;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transform-origin: center;
+        }
+    }
+
+    &__title {
+        margin: 0 0 .5rem 0;
+        font-size: 3rem;
+        font-weight: v.$bold;
+    }
+
+    &__tag {
+        margin: 0 0 1rem 0;
+        font-weight: 600;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: #eb4328;
+        font-size: 1.4rem;
+    }
+
+    &__desc {
+        margin: 0 0 2rem 0;
+        color: v.$gray;
+        font-size: 1.6rem;
+        line-height: 1.6;
+    }
+
+    &__status {
+        border-radius: 1rem;
+        padding: 1.6rem;
+        margin-bottom: 1.8rem;
+        border: 1px solid rgba(235, 67, 40, .25);
+        background: rgba(235, 67, 40, .08);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+
+        @include m.tablet {
+            gap: 1rem;
+        }
+
+        &.is-locked {
+            border: 1px solid rgba(0, 0, 0, .12);
+            background: rgba(0, 0, 0, .04);
+        }
+    }
+
+    &__status-label {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: v.$gray;
+    }
+
+    &__status-date {
+        margin: .6rem 0 0 0;
+        font-size: 1.8rem;
+        font-weight: v.$bold;
+        color: v.$primary;
+    }
+
+    &__btn {
+        @include m.boton(v.$primary, white);
+        border-radius: .8rem;
+        padding: 1.2rem;
+
+        &:hover {
+            filter: brightness(.9);
+        }
+    }
+}
+
+@keyframes achievement-bounce {
+    0% {
+        transform: scale(0.6);
+        opacity: 0;
+    }
+
+    60% {
+        transform: scale(1.15);
+        opacity: 1;
+    }
+
+    80% {
+        transform: scale(0.95);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}

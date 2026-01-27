@@ -5,9 +5,9 @@ namespace Model;
 class Logros extends ActiveRecord
 {
     protected static $tabla = 'logros';
-    protected static $columnasDB = ['id', 'nombre', 'descripcion', 'icono', 'valor_objetivo', 'habilitado'];
+    protected static $columnasDB = ['id', 'nombre', 'descripcion', 'icono', 'tipo', 'valor_objetivo', 'habilitado'];
 
-    public $id, $nombre, $descripcion, $icono, $valor_objetivo, $habilitado;
+    public $id, $nombre, $descripcion, $icono, $tipo, $valor_objetivo, $habilitado;
 
     //----------------------------RETOS----------------------------//
     //Obtenemos los retos destacados (los primeros N retos habilitados)

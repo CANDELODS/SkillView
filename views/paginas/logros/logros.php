@@ -34,7 +34,7 @@
         <!-- =================== DESBLOQUEADOS =================== -->
         <section class="achievements__section">
             <div class="achievements__section-head">
-                <i class="fa-solid fa-medal"></i>
+                <i class="fa-solid fa-medal" style="color: #eb4328;"></i>
                 <h2 class="achievements__section-title">
                     Logros Desbloqueados (<?php echo (int)$totalDesbloqueados; ?>)
                 </h2>
@@ -43,18 +43,27 @@
             <?php if (!empty($logrosDesbloqueados)) : ?>
                 <div class="achievements__grid">
                     <?php foreach ($logrosDesbloqueados as $logro) : ?>
-                        <article class="achievement-card achievement-card--unlocked">
+                        <article
+                            class="achievement-card achievement-card--unlocked js-achievement-modal-open"
+                            data-achievement-modal-id="sv-achievement-modal"
+                            data-achievement-nombre="<?php echo s($logro->nombre); ?>"
+                            data-achievement-descripcion="<?php echo s($logro->descripcion); ?>"
+                            data-achievement-icono="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
+                            data-achievement-tipo="<?php echo s($logro->tag_texto); ?>"
+                            data-achievement-objetivo="<?php echo (int)$logro->valor_objetivo; ?>"
+                            data-achievement-desbloqueado="1"
+                            data-achievement-fecha="<?php echo s($logro->fecha_formateada); ?>">
                             <header class="achievement-card__header">
                                 <div class="achievement-card__icon">
                                     <img
-                                    class="achievement-card__icon-img"
-                                    src="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
-                                    alt="Icono del logro" loading="lazy" />
+                                        class="achievement-card__icon-img"
+                                        src="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
+                                        alt="Icono del logro" loading="lazy" />
                                 </div>
 
                                 <div class="achievement-card__meta">
                                     <h3 class="achievement-card__title"><?php echo s($logro->nombre); ?></h3>
-                                    <p class="achievement-card__tag">General</p>
+                                    <p class="achievement-card__tag"><?php echo s($logro->tag_texto); ?></p>
                                 </div>
                             </header>
 
@@ -67,26 +76,11 @@
                                 <span class="achievement-card__objective-value"><?php echo (int)$logro->valor_objetivo; ?></span>
                             </div>
 
-                            <?php
-                            // Formateo tipo "10 oct 2025"
-                            $fechaFormateada = '';
-                            if (!empty($logro->fecha_obtenido)) {
-                                $timestamp = strtotime($logro->fecha_obtenido);
-                                if ($timestamp) {
-                                    $meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-                                    $dia = (int)date('d', $timestamp);
-                                    $mes = $meses[(int)date('m', $timestamp) - 1] ?? date('m', $timestamp);
-                                    $anio = date('Y', $timestamp);
-                                    $fechaFormateada = "{$dia} {$mes} {$anio}";
-                                }
-                            }
-                            ?>
-
                             <footer class="achievement-card__footer">
                                 <div class="achievement-card__date">
                                     <span class="achievement-card__date-icon" aria-hidden="true">📅</span>
                                     <span class="achievement-card__date-text">
-                                        Desbloqueado <?php echo s($fechaFormateada); ?>
+                                        Desbloqueado <?php echo s($logro->fecha_formateada); ?>
                                     </span>
                                 </div>
                             </footer>
@@ -104,6 +98,7 @@
         <!-- =================== BLOQUEADOS =================== -->
         <section class="achievements__section achievements__section--locked">
             <div class="achievements__section-head">
+                <i class="fa-solid fa-lock" style="color: #413c3c;"></i>
                 <h2 class="achievements__section-title">
                     Logros Bloqueados (<?php echo (int)$totalBloqueados; ?>)
                 </h2>
@@ -112,18 +107,27 @@
             <?php if (!empty($logrosBloqueados)) : ?>
                 <div class="achievements__grid achievements__grid--locked">
                     <?php foreach ($logrosBloqueados as $logro) : ?>
-                        <article class="achievement-card achievement-card--locked">
+                        <article
+                            class="achievement-card achievement-card--locked js-achievement-modal-open"
+                            data-achievement-modal-id="sv-achievement-modal"
+                            data-achievement-nombre="<?php echo s($logro->nombre); ?>"
+                            data-achievement-descripcion="<?php echo s($logro->descripcion); ?>"
+                            data-achievement-icono="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
+                            data-achievement-tipo="<?php echo s($logro->tag_texto); ?>"
+                            data-achievement-objetivo="<?php echo (int)$logro->valor_objetivo; ?>"
+                            data-achievement-desbloqueado="0"
+                            data-achievement-fecha="">
                             <header class="achievement-card__header">
                                 <div class="achievement-card__icon">
                                     <img
-                                    class="achievement-card__icon-img"
-                                    src="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
-                                    alt="Icono del logro" loading="lazy" />
+                                        class="achievement-card__icon-img"
+                                        src="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
+                                        alt="Icono del logro" loading="lazy" />
                                 </div>
 
                                 <div class="achievement-card__meta">
                                     <h3 class="achievement-card__title"><?php echo s($logro->nombre); ?></h3>
-                                    <p class="achievement-card__tag">General</p>
+                                    <p class="achievement-card__tag"><?php echo s($logro->tag_texto); ?></p>
                                 </div>
                             </header>
 
@@ -147,4 +151,29 @@
         <!-- =================== FIN BLOQUEADOS =================== -->
 
     </section>
+
+    <!-- =================== MODAL LOGRO =================== -->
+    <div class="achievement-modal" id="sv-achievement-modal" aria-hidden="true">
+        <div class="achievement-modal__overlay" data-achievement-modal-close></div>
+
+        <div class="achievement-modal__content" role="dialog" aria-modal="true" aria-labelledby="sv-achievement-modal-title">
+            <button class="achievement-modal__close" type="button" aria-label="Cerrar" data-achievement-modal-close>&times;</button>
+
+            <div class="achievement-modal__icon">
+                <img id="sv-achievement-modal-icon" src="" alt="Icono del logro" loading="lazy">
+            </div>
+
+            <h3 class="achievement-modal__title" id="sv-achievement-modal-title"></h3>
+            <p class="achievement-modal__tag" id="sv-achievement-modal-tag"></p>
+            <p class="achievement-modal__desc" id="sv-achievement-modal-desc"></p>
+
+            <div class="achievement-modal__status" id="sv-achievement-modal-status">
+                <!-- Se llena por JS -->
+            </div>
+
+            <button class="achievement-modal__btn" type="button" data-achievement-modal-close>Continuar</button>
+        </div>
+    </div>
+    <!-- =================== FIN MODAL LOGRO =================== -->
+
 </main>
