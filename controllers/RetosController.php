@@ -115,11 +115,16 @@ class RetosController
         $habilidadesFiltro = HabilidadesBlandas::conRetosHabilitados();
 
         $iconosHabilidades = [
+            'Actitud Positiva'           => 'fa-regular fa-heart',
+            'Adaptabilidad'              => 'fa-solid fa-people-group',
+            'Autoconfianza'              => 'fa-regular fa-star',
             'Comunicación Asertiva'      => 'fa-regular fa-message',
-            'Gestión del Tiempo'         => 'fa-regular fa-clock',
+            'Comunicación No Verbal'     => 'fa-solid fa-puzzle-piece',
+            'Empatía y Escucha Activa'   => 'fa-regular fa-heart',
             'Inteligencia Emocional'     => 'fa-regular fa-heart',
             'Liderazgo'                  => 'fa-regular fa-star',
-            'Resolución de Problemas'    => 'fa-solid fa-puzzle-piece',
+            'Manejo del Estrés'          => 'fa-regular fa-heart',
+            'Responsabilidad'            => 'fa-regular fa-clock',
             'Trabajo en Equipo'          => 'fa-solid fa-people-group',
         ];
 

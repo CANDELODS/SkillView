@@ -42,14 +42,14 @@
                             <div class="blog-card__image-wrapper">
                                 <picture>
                                     <source srcset="<?php
-                                                    echo $_ENV['HOST'] . '/build/img/blog/' . $blog->imagen . '.webp'; ?>"
+                                                    echo $_ENV['HOST'] . '/build/img/' . $blog->imagen . '.webp'; ?>"
                                         type="image/webp">
                                     <source srcset="<?php
-                                                    echo $_ENV['HOST'] . '/build/img/blog/' . $blog->imagen . '.webp'; ?>"
+                                                    echo $_ENV['HOST'] . '/build/img/' . $blog->imagen . '.webp'; ?>"
                                         type="image/webp">
                                     <img class="blog-card__image"
                                         src="<?php
-                                                echo $_ENV['HOST'] . '/build/img/blog/' . $blog->imagen . '.jpg';
+                                                echo $_ENV['HOST'] . '/build/img/' . $blog->imagen . '.jpg';
                                                 ?>"
                                         alt="Imagen del artículo <?php echo htmlspecialchars($blog->titulo); ?>"
                                         loading="lazy">
@@ -82,8 +82,8 @@
                                         data-desc="<?php echo htmlspecialchars($blog->descripcion_corta); ?>"
                                         data-content="<?php echo htmlspecialchars($blog->contenido); ?>"
                                         data-tags="<?php echo htmlspecialchars($tagsStr); ?>"
-                                        data-image-webp="<?php echo $_ENV['HOST'] . '/build/img/blog/' . $blog->imagen . '.webp'; ?>"
-                                        data-image-jpg="<?php echo $_ENV['HOST'] . '/build/img/blog/' . $blog->imagen . '.jpg'; ?>">
+                                        data-image-webp="<?php echo $_ENV['HOST'] . '/build/img/' . $blog->imagen . '.webp'; ?>"
+                                        data-image-jpg="<?php echo $_ENV['HOST'] . '/build/img/' . $blog->imagen . '.jpg'; ?>">
                                         Leer más
                                     </button>
                                 </div>

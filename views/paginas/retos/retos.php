@@ -184,7 +184,7 @@
                             <div class="challenges__pa-medalIcon">
                                 <img
                                     src="<?php
-                                            echo $_ENV['HOST'] . '/build/img/logros/' . $m->icono . '.svg';
+                                            echo $_ENV['HOST'] . '/build/img/' . $m->icono . '.svg';
                                             ?>"
                                     alt="Ícono logro <?php echo htmlspecialchars($m->nombre); ?>"
                                     loading="lazy">

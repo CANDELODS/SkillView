@@ -26,7 +26,7 @@
                         </li>
 
                         <li class="profile-card__info-item">
-                            <i class="fa-solid fa-building-columns" style="color: #9a7e7e;"></i>
+                            <i class="fa-solid fa-building-columns"></i>
                             <span><?php echo s($usuario->universidad); ?></span>
                         </li>
 
@@ -187,7 +187,7 @@
                             <div class="profile-achievement__icon" aria-hidden="true">
                                 <!-- Tu icono SVG dinámico (nombre en BD) -->
                                 <img
-                                    src="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($medalla->icono) . '.svg'; ?>"
+                                    src="<?php echo $_ENV['HOST'] . '/build/img/' . s($medalla->icono) . '.svg'; ?>"
                                     alt="" loading="lazy" />
                             </div>
 

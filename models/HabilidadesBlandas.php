@@ -23,6 +23,7 @@ class HabilidadesBlandas extends ActiveRecord
         $this->habilitado = $args['habilitado'] ?? null;
     }
 
+    //----------------------------ADMIN----------------------------
     public function validar()
     {
         if (!$this->nombre) {
@@ -56,6 +57,7 @@ class HabilidadesBlandas extends ActiveRecord
     {
         return static::paginarBusqueda($termino, ['nombre'], $ordenar, $porPagina, $offset);
     }
+    //----------------------------FIN ADMIN----------------------------
 
     //----------------------------APRENDIZAJE----------------------------
     public static function habilitadas()

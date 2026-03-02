@@ -196,7 +196,7 @@
           <?php else: ?>
 
             <?php if ($habilidad->leccion_actual): ?>
-              <h3 class="learning-modal__subtitle">Lección <?= $habilidad->leccion_actual->orden; ?></h3>
+              <h3 class="learning-modal__subtitle">Lección <?= $habilidad->leccion_actual->orden; ?> - <?= $habilidad->leccion_actual->titulo; ?></h3>
               <p class="learning-modal__text">
                 <?= nl2br(htmlspecialchars($habilidad->leccion_actual->descripcion)); ?>
               </p>

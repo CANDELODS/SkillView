@@ -48,7 +48,7 @@
                             data-achievement-modal-id="sv-achievement-modal"
                             data-achievement-nombre="<?php echo s($logro->nombre); ?>"
                             data-achievement-descripcion="<?php echo s($logro->descripcion); ?>"
-                            data-achievement-icono="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
+                            data-achievement-icono="<?php echo $_ENV['HOST'] . '/build/img/' . s($logro->icono) . '.svg'; ?>"
                             data-achievement-tipo="<?php echo s($logro->tag_texto); ?>"
                             data-achievement-objetivo="<?php echo (int)$logro->valor_objetivo; ?>"
                             data-achievement-desbloqueado="1"
@@ -57,7 +57,7 @@
                                 <div class="achievement-card__icon">
                                     <img
                                         class="achievement-card__icon-img"
-                                        src="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
+                                        src="<?php echo $_ENV['HOST'] . '/build/img/' . s($logro->icono) . '.svg'; ?>"
                                         alt="Icono del logro" loading="lazy" />
                                 </div>
 
@@ -112,7 +112,7 @@
                             data-achievement-modal-id="sv-achievement-modal"
                             data-achievement-nombre="<?php echo s($logro->nombre); ?>"
                             data-achievement-descripcion="<?php echo s($logro->descripcion); ?>"
-                            data-achievement-icono="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
+                            data-achievement-icono="<?php echo $_ENV['HOST'] . '/build/img/' . s($logro->icono) . '.svg'; ?>"
                             data-achievement-tipo="<?php echo s($logro->tag_texto); ?>"
                             data-achievement-objetivo="<?php echo (int)$logro->valor_objetivo; ?>"
                             data-achievement-desbloqueado="0"
@@ -121,7 +121,7 @@
                                 <div class="achievement-card__icon">
                                     <img
                                         class="achievement-card__icon-img"
-                                        src="<?php echo $_ENV['HOST'] . '/build/img/logros/' . s($logro->icono) . '.svg'; ?>"
+                                        src="<?php echo $_ENV['HOST'] . '/build/img/' . s($logro->icono) . '.svg'; ?>"
                                         alt="Icono del logro" loading="lazy" />
                                 </div>
 

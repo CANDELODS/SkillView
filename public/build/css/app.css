@@ -516,6 +516,7 @@ h3 {
   font-size: 1.4rem;
   color: oklch(50% 0.01 30deg);
   margin-bottom: 2.4rem;
+  line-height: 1.3;
 }
 .learning-modal__footer {
   margin-top: 1rem;
