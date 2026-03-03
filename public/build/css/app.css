@@ -2948,6 +2948,10 @@ body:not(.login) {
   background-color: #FEF5F4;
 }
 
+body:is(.leccion-layout) {
+  background-color: #413c3c;
+}
+
 /* HERO */
 .home {
   padding-bottom: 4rem;

@@ -47,6 +47,8 @@ $router->get('/404', [PrincipalController::class, 'notFound']);
 //--------------------APRENDIZAJE--------------------
 $router->get('/aprendizaje', [AprendizajeController::class, 'index']);
 $router->post('/aprendizaje', [AprendizajeController::class, 'index']);
+$router->get('/aprendizaje/leccion', [AprendizajeController::class, 'leccion']);
+$router->post('/aprendizaje/leccion', [AprendizajeController::class, 'leccion']);
 //--------------------FIN APRENDIZAJE--------------------
 
 //--------------------RETOS--------------------
