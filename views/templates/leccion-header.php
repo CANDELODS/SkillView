@@ -1,7 +1,10 @@
 <header class="site-header">
     <!-- Barra superior -->
     <div class="site-header__top">
-        <div class="site-header__brand">
+        <div class="site-header__brand--lesson">
+            <a href="/aprendizaje" class="site-header__back">
+             &larr;
+            </a>
             <a class="site-header__brand-link">
                 <span class="site-header__logo" aria-hidden="true">
                     <svg fill="none" stroke="white" viewBox="0 0 24 24">
@@ -10,13 +13,13 @@
                     </svg>
                 </span>
                 <span class="site-header__brand-text">
-                    <span class="site-header__brand-name">SkillView</span>
-                    <span class="site-header__brand-slogan">Desarrolla tus habilidades blandas</span>
+                    <span class="site-header__brand-name"><?php echo $leccion->nombreHabilidad ?? 'Habilidad no encontrada'; ?></span>
+                    <span class="site-header__brand-slogan">Lección <?php echo $leccion->orden;?>: <?php echo $leccion->titulo ?? 'Lección no encontrada'; ?></span>
                 </span>
             </a>
         </div>
 
-        <div class="site-header__right">
+        <div class="site-header__right site-header__right--lesson">
             <!-- Info usuario -->
             <div class="site-header__user">
                 <div class="site-header__user-info">

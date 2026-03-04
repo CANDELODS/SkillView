@@ -5,10 +5,6 @@ body:not(.login) {
     background-color: v.$background;
 }
 
-body:is(.leccion-layout){
-    background-color: v.$gray;
-}
-
 /* HERO */
 
 .home {

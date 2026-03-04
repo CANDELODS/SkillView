@@ -1,6 +1,340 @@
 @use 'base/variables' as v;
 @use 'base/mixins' as m;
 
-// .leccion-layout{
-//     background-color: v.$gray;
-// }
+.lesson {
+    padding: 2.5rem 0;
+
+    &__wrap {
+        @include m.contenedor-xl;
+    }
+
+    &__stage {
+        @include m.grid(1, 2rem);
+        grid-template-areas:
+            "avatar"
+            "chat";
+
+        grid-template-columns: 1fr;
+
+        @include m.tablet {
+            @include m.grid(3, 2rem);
+
+            grid-template-areas:
+                "avatar chat chat";
+
+            grid-template-columns: 32rem 1fr 1fr;
+
+            align-items: stretch;
+        }
+    }
+
+    // ---------- ASISTENTE / AVATAR ----------
+    &__assistant {
+        grid-area: avatar;
+        height: 100%;
+    }
+
+    &__assistantCard {
+        background: #fff;
+        border: 1px solid v.$ca-border;
+        border-radius: 1.6rem;
+        padding: 2rem;
+
+        @include m.sombra;
+
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    &__avatar {
+        width: 24rem;
+        height: 24rem;
+
+        margin: 0 auto 2rem auto;
+
+        position: relative;
+        border-radius: 999px;
+        border: 5px solid v.$primary;
+        box-shadow:
+            0 0 0 6px rgb(235 67 40 / 10%),
+            0 20px 50px rgb(0 0 0 / 10%);
+
+        background: v.$background-ca;
+
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+
+        @include m.tablet {
+            width: 28rem;
+            height: 28rem;
+        }
+    }
+
+    &__avatarImg {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    &__status {
+        position: absolute;
+        width: 1.4rem;
+        height: 1.4rem;
+        right: 1.1rem;
+        bottom: 1.1rem;
+        border-radius: 999px;
+        background: v.$green;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 3px rgb(0 0 0 / 6%);
+    }
+
+    &__assistantInfo {
+        text-align: center;
+        margin-bottom: 1.2rem;
+    }
+
+    &__assistantName {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: v.$bold;
+        color: v.$gray;
+    }
+
+    &__assistantRole {
+        margin: .3rem 0 0 0;
+        font-size: 1.4rem;
+        color: v.$grisTr;
+    }
+
+    &__prompt {
+        margin-top: 1.5rem;
+        background: v.$background;
+        border: 1px solid v.$ca-border;
+        border-radius: 1.4rem;
+        padding: 1.4rem 1.5rem;
+        position: relative;
+
+        &:before {
+            content: "";
+            position: absolute;
+            top: -9px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 16px;
+            height: 16px;
+            background: v.$background;
+            border-left: 1px solid v.$ca-border;
+            border-top: 1px solid v.$ca-border;
+            transform: translateX(-50%) rotate(45deg);
+        }
+    }
+
+    &__promptText {
+        margin: 0;
+        font-size: 1.5rem;
+        color: v.$gray;
+        line-height: 1.5;
+    }
+
+    // ---------- CHAT ----------
+    &__chat {
+        grid-area: chat;
+        background: #fff;
+        border: 1px solid v.$ca-border;
+        border-radius: 1.6rem;
+        overflow: hidden;
+        @include m.sombra;
+
+        display: grid;
+        grid-template-rows: 1fr auto;
+        min-height: 58vh;
+
+        @include m.tablet {
+            min-height: 72vh;
+        }
+    }
+
+    &__messages {
+        padding: 2rem;
+        overflow-y: auto;
+        background: linear-gradient(to bottom,
+                rgb(254 245 244 / 45%),
+                rgb(254 245 244 / 20%));
+
+        // scroll suave visual
+        scrollbar-width: thin;
+        scrollbar-color: v.$primary rgb(0 0 0 / 0%);
+
+        &::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+            background: rgb(235 67 40 / 35%);
+            border-radius: 999px;
+            border: 3px solid rgb(255 255 255 / 60%);
+        }
+    }
+
+    &__msg {
+        display: flex;
+        margin-bottom: 1.2rem;
+
+        &--assistant {
+            justify-content: flex-start;
+        }
+
+        &--user {
+            justify-content: flex-end;
+        }
+    }
+
+    &__bubble {
+        max-width: min(64rem, 92%);
+        padding: 1.2rem 1.4rem;
+        border-radius: 1.4rem;
+        border: 1px solid v.$ca-border;
+        line-height: 1.55;
+
+        &--assistant {
+            background: #fff;
+            color: v.$gray;
+            border-top-left-radius: .8rem;
+        }
+
+        &--user {
+            background: v.$primary;
+            color: #fff;
+            border-color: transparent;
+            border-top-right-radius: .8rem;
+            box-shadow: 0 8px 20px rgb(235 67 40 / 18%);
+        }
+    }
+
+    &__text {
+        margin: 0;
+        font-size: 1.6rem;
+
+        strong {
+            font-weight: v.$bold;
+        }
+    }
+
+    // Estado “analizando…”
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: .8rem;
+        margin: .5rem 0 1.2rem 0;
+        padding: .8rem 1.2rem;
+        border-radius: 999px;
+        background: rgb(43 127 255 / 10%);
+        color: v.$gray;
+        width: fit-content;
+        border: 1px solid rgb(43 127 255 / 20%);
+    }
+
+    &__hintDot {
+        width: .9rem;
+        height: .9rem;
+        border-radius: 999px;
+        background: v.$blue;
+        animation: lessonPulse 1.1s ease-in-out infinite;
+    }
+
+    &__hintText {
+        font-size: 1.3rem;
+        color: v.$grisOscuro;
+    }
+
+    // ---------- COMPOSER ----------
+    &__composer {
+        display: flex;
+        gap: 1rem;
+        padding: 1.2rem;
+        background: #fff;
+        border-top: 1px solid v.$ca-border;
+    }
+
+    &__input {
+        width: 100%;
+        border: 1px solid v.$input-gray;
+        border-radius: 999px;
+        padding: 1.2rem 1.6rem;
+        font-size: 1.6rem;
+        outline: none;
+
+        &:focus {
+            border-color: rgb(235 67 40 / 55%);
+            box-shadow: 0 0 0 4px rgb(235 67 40 / 12%);
+        }
+    }
+
+    &__iconBtn {
+        border: 1px solid v.$input-gray;
+        background: #fff;
+        padding: 1rem 1.8rem;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        transition: transform .15s ease, background .15s ease, border-color .15s ease;
+
+        i {
+            font-size: 1.7rem;
+            color: v.$gray;
+        }
+
+        &:hover {
+            background: v.$background;
+            border-color: rgb(235 67 40 / 35%);
+            transform: translateY(-1px);
+        }
+
+        &:active {
+            transform: translateY(0);
+        }
+    }
+
+    &__sendBtn {
+        @include m.boton(v.$primary, #fff);
+        width: auto;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: filter .15s ease, transform .15s ease;
+
+        i {
+            font-size: 1.7rem;
+        }
+
+        &:hover {
+            filter: brightness(1.06);
+            transform: translateY(-1px);
+        }
+
+        &:active {
+            transform: translateY(0);
+        }
+    }
+}
+
+@keyframes lessonPulse {
+    0% {
+        transform: scale(1);
+        opacity: .55;
+    }
+
+    50% {
+        transform: scale(1.35);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: .55;
+    }
+}

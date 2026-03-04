@@ -2,7 +2,7 @@
 @use 'base/mixins' as m;
 
 .site-header {
-    position: sticky;      // pegado arriba
+    position: sticky; // pegado arriba
     top: 0;
     left: 0;
     right: 0;
@@ -11,7 +11,7 @@
     // color de fondo principal
     background-color: v.$primary;
     color: #fff;
-    box-shadow: 0 1px 0 rgba(0,0,0,.1);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, .1);
 
     &__top {
         @include m.contenedor-xl;
@@ -20,6 +20,23 @@
         align-items: center;
         padding: 2rem 0;
         gap: 2rem;
+    }
+
+    &__brand {
+
+        &--lesson{
+            @extend .site-header__brand;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+    }
+
+    &__back{
+        font-size: 1.8rem;
+        color: #fff;
+        text-decoration: none;
+        transform: scale(1.5);
     }
 
     &__brand-link {
@@ -33,7 +50,7 @@
         width: 5.6rem;
         height: 5.6rem;
         border-radius: 1.2rem;
-        background-color: rgba(255,255,255,.16);
+        background-color: rgba(255, 255, 255, .16);
         display: grid;
         place-items: center;
 
@@ -64,6 +81,14 @@
         display: flex;
         align-items: center;
         gap: 1.4rem;
+
+        &--lesson{
+            @extend .site-header__right;
+            display: none;
+            @include m.tablet {
+                display: flex;
+            }
+        }
     }
 
     &__user {
@@ -199,7 +224,7 @@
         }
     }
 
-    &__item { }
+    &__item {}
 
     &__link {
         display: inline-flex;

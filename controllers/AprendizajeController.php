@@ -8,9 +8,11 @@ use Model\Usuario;
 use Model\usuarios_lecciones;
 use MVC\Router;
 
-class AprendizajeController {
+class AprendizajeController
+{
 
-    public static function index(Router $router) {
+    public static function index(Router $router)
+    {
         // Verificamos si el usuario está autenticado
         if (!isAuth()) {
             header('Location: /');
@@ -21,7 +23,7 @@ class AprendizajeController {
         $datosUsuario = obtenerDatosUsuarioHeader($_SESSION['id']);
         // Id del usuario logueado
         $idUsuario = $_SESSION['id'] ?? null;
-        
+
         // 1) Traer habilidades habilitadas
         $habilidades = HabilidadesBlandas::habilitadas();
 
@@ -33,12 +35,12 @@ class AprendizajeController {
 
             // Lecciones completadas por el usuario en esa habilidad
             $leccionesCompletadas = usuarios_lecciones::totalCompletadasPorHabilidad($idUsuario, $habilidad->id);
-            
+
             // Guardamos estos datos directamente en el objeto para que la vista los use
             $habilidad->total_lecciones = $totalLecciones;
             $habilidad->lecciones_completadas = $leccionesCompletadas;
             $habilidad->porcentaje_progreso = $totalLecciones > 0
-            ? ($leccionesCompletadas / $totalLecciones) * 100 : 0;
+                ? ($leccionesCompletadas / $totalLecciones) * 100 : 0;
         }
 
         // 3) Calcular estado de cada habilidad (completed, current, upcoming, locked)
@@ -55,8 +57,10 @@ class AprendizajeController {
         //BUSCAMOS LA PRIMERA HABILIDAD QUE NO ESTÁ COMPLETA (SERÁ LA ACTUAL)
         foreach ($habilidades as $index => $habilidad) {
             //Si la habilidad tiene lecciones y el usuario no las ha completado todas entonces...
-            if ($habilidad->total_lecciones > 0 && 
-                $habilidad->lecciones_completadas < $habilidad->total_lecciones) {
+            if (
+                $habilidad->total_lecciones > 0 &&
+                $habilidad->lecciones_completadas < $habilidad->total_lecciones
+            ) {
                 //Guardamos la posición en $indiceActual
                 $indiceActual = $index;
                 //Salimos del ForEach dado que ya tenemos la primera pendiente (En otras palabras la actual)
@@ -93,13 +97,13 @@ class AprendizajeController {
         // 5) Asignar lección actual para el modal
         foreach ($habilidades as $habilidad) {
 
-        // Solo tiene sentido buscar lección actual si la habilidad NO está completada
-        if ($habilidad->estado !== 'completed' && $habilidad->total_lecciones > 0) {
-        $habilidad->leccion_actual = Lecciones::leccionActualPorUsuarioYHabilidad($idUsuario, $habilidad->id);
-        } else {
-        $habilidad->leccion_actual = null;
+            // Solo tiene sentido buscar lección actual si la habilidad NO está completada
+            if ($habilidad->estado !== 'completed' && $habilidad->total_lecciones > 0) {
+                $habilidad->leccion_actual = Lecciones::leccionActualPorUsuarioYHabilidad($idUsuario, $habilidad->id);
+            } else {
+                $habilidad->leccion_actual = null;
+            }
         }
-    }
         // Evitamos división por cero
         $porcentajeProgreso = 0;
         if ($totalLeccionesSistema > 0) {
@@ -119,7 +123,8 @@ class AprendizajeController {
         ]);
     }
 
-    public static function leccion (Router $router) {
+    public static function leccion(Router $router)
+    {
         // Verificamos si el usuario está autenticado
         if (!isAuth()) {
             header('Location: /');
@@ -144,6 +149,7 @@ class AprendizajeController {
             header('Location: /aprendizaje');
             exit;
         }
+        $leccion->nombreHabilidad = HabilidadesBlandas::find($leccion->id_habilidades)->nombre;
 
         // $leccion->completada = usuarios_lecciones::estaCompletada($idUsuario, $idLeccion);
 
@@ -152,7 +158,8 @@ class AprendizajeController {
             'titulo' => $leccion->titulo,
             'login' => $login,
             'nombreUsuario'    => $datosUsuario['nombreUsuario'],
-            'inicialesUsuario' => $datosUsuario['inicialesUsuario']
+            'inicialesUsuario' => $datosUsuario['inicialesUsuario'],
+            'leccion' => $leccion
         ]);
     }
 }
