@@ -122,44 +122,4 @@ class AprendizajeController
             'inicialesUsuario' => $datosUsuario['inicialesUsuario']
         ]);
     }
-
-    public static function leccion(Router $router)
-    {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
-
-        $login = false;
-
-        $datosUsuario = obtenerDatosUsuarioHeader($_SESSION['id']);
-        $idUsuario = $_SESSION['id'] ?? null;
-
-        // Validamos que venga el id de la lección
-        $idLeccion = $_GET['id'] ?? null;
-        if (!$idLeccion) {
-            header('Location: /aprendizaje');
-            exit;
-        }
-
-        // Traemos la información de la lección (incluyendo si el usuario ya la completó)
-        $leccion = Lecciones::find($idLeccion);
-        if (!$leccion) {
-            header('Location: /aprendizaje');
-            exit;
-        }
-        $leccion->nombreHabilidad = HabilidadesBlandas::find($leccion->id_habilidades)->nombre;
-
-        // $leccion->completada = usuarios_lecciones::estaCompletada($idUsuario, $idLeccion);
-
-        // Render a la vista 
-        $router->render('paginas/aprendizaje/leccion', [
-            'titulo' => $leccion->titulo,
-            'login' => $login,
-            'nombreUsuario'    => $datosUsuario['nombreUsuario'],
-            'inicialesUsuario' => $datosUsuario['inicialesUsuario'],
-            'leccion' => $leccion
-        ]);
-    }
 }

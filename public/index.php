@@ -7,6 +7,7 @@ use MVC\Router;
 use Controllers\AuthController;
 use Controllers\BlogController;
 use Controllers\DashboardController;
+use Controllers\LeccionesController;
 use Controllers\LogrosController;
 use Controllers\PerfilController;
 use Controllers\PrincipalController;
@@ -47,8 +48,10 @@ $router->get('/404', [PrincipalController::class, 'notFound']);
 //--------------------APRENDIZAJE--------------------
 $router->get('/aprendizaje', [AprendizajeController::class, 'index']);
 $router->post('/aprendizaje', [AprendizajeController::class, 'index']);
-$router->get('/aprendizaje/leccion', [AprendizajeController::class, 'leccion']);
-$router->post('/aprendizaje/leccion', [AprendizajeController::class, 'leccion']);
+//LECCIONES (API)
+$router->get('/aprendizaje/leccion', [LeccionesController::class, 'leccion']);
+$router->post('/api/lecciones/start', [LeccionesController::class, 'startLeccion']);
+$router->post('/api/lecciones/turn', [LeccionesController::class, 'turnLeccion']);
 //--------------------FIN APRENDIZAJE--------------------
 
 //--------------------RETOS--------------------
