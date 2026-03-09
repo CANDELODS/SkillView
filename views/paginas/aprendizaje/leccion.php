@@ -92,3 +92,7 @@
     </div>
   </section>
 </main>
+<script>
+    const leccionId = <?= (int)$leccion->id ?>;
+    const habilidadId = <?= (int)$leccion->id_habilidades ?>;
+</script>

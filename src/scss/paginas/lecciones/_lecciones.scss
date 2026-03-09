@@ -3,6 +3,7 @@
 
 .lesson {
     padding: 2.5rem 0;
+    min-height: calc(100vh - 8rem); // ajusta según el alto real de tu header
 
     &__wrap {
         @include m.contenedor-xl;
@@ -16,22 +17,32 @@
 
         grid-template-columns: 1fr;
 
+        // En móvil TODO crece normal
+        height: auto;
+        min-height: auto;
+
         @include m.tablet {
             @include m.grid(3, 2rem);
-
-            grid-template-areas:
-                "avatar chat chat";
-
+            grid-template-areas: "avatar chat chat";
             grid-template-columns: 32rem 1fr 1fr;
-
             align-items: stretch;
+
+            // Solo desktop/tablet grande controla la altura
+            height: calc(100vh - 14rem);
+            min-height: 72rem;
         }
     }
 
     // ---------- ASISTENTE / AVATAR ----------
     &__assistant {
         grid-area: avatar;
-        height: 100%;
+        height: auto;
+        min-height: auto;
+
+        @include m.tablet {
+            height: 100%;
+            min-height: 0;
+        }
     }
 
     &__assistantCard {
@@ -39,30 +50,32 @@
         border: 1px solid v.$ca-border;
         border-radius: 1.6rem;
         padding: 2rem;
-
         @include m.sombra;
 
-        height: 100%;
+        // En móvil natural
+        height: auto;
+        min-height: auto;
         display: flex;
         flex-direction: column;
         justify-content: center;
+
+        @include m.tablet {
+            height: 100%;
+            min-height: 0;
+        }
     }
 
     &__avatar {
         width: 24rem;
         height: 24rem;
-
         margin: 0 auto 2rem auto;
-
         position: relative;
         border-radius: 999px;
         border: 5px solid v.$primary;
         box-shadow:
             0 0 0 6px rgb(235 67 40 / 10%),
             0 20px 50px rgb(0 0 0 / 10%);
-
         background: v.$background-ca;
-
         display: grid;
         place-items: center;
         overflow: hidden;
@@ -123,7 +136,6 @@
             position: absolute;
             top: -9px;
             left: 50%;
-            transform: translateX(-50%);
             width: 16px;
             height: 16px;
             background: v.$background;
@@ -151,21 +163,28 @@
 
         display: grid;
         grid-template-rows: 1fr auto;
-        min-height: 58vh;
+
+        // En móvil no fuerces altura
+        height: auto;
+        min-height: auto;
 
         @include m.tablet {
-            min-height: 72vh;
+            height: 100%;
+            min-height: 0;
         }
     }
 
     &__messages {
         padding: 2rem;
-        overflow-y: auto;
         background: linear-gradient(to bottom,
                 rgb(254 245 244 / 45%),
                 rgb(254 245 244 / 20%));
 
-        // scroll suave visual
+        // En móvil: scroll normal de página
+        overflow: visible;
+        height: auto;
+        min-height: auto;
+
         scrollbar-width: thin;
         scrollbar-color: v.$primary rgb(0 0 0 / 0%);
 
@@ -177,6 +196,13 @@
             background: rgb(235 67 40 / 35%);
             border-radius: 999px;
             border: 3px solid rgb(255 255 255 / 60%);
+        }
+
+        @include m.tablet {
+            // Solo desktop/tablet usa scroll interno
+            overflow-y: auto;
+            height: 100%;
+            min-height: 0;
         }
     }
 
@@ -238,6 +264,10 @@
         border: 1px solid rgb(43 127 255 / 20%);
     }
 
+    &__hint--typing {
+        animation: fadeInTyping .2s ease-out;
+    }
+
     &__hintDot {
         width: .9rem;
         height: .9rem;
@@ -258,6 +288,7 @@
         padding: 1.2rem;
         background: #fff;
         border-top: 1px solid v.$ca-border;
+        flex-shrink: 0;
     }
 
     &__input {
@@ -283,6 +314,7 @@
         place-items: center;
         cursor: pointer;
         transition: transform .15s ease, background .15s ease, border-color .15s ease;
+        flex-shrink: 0;
 
         i {
             font-size: 1.7rem;
@@ -306,6 +338,7 @@
         border-radius: 999px;
         cursor: pointer;
         transition: filter .15s ease, transform .15s ease;
+        flex-shrink: 0;
 
         i {
             font-size: 1.7rem;
@@ -336,5 +369,17 @@
     100% {
         transform: scale(1);
         opacity: .55;
+    }
+}
+
+@keyframes fadeInTyping {
+    from {
+        opacity: 0;
+        transform: translateY(.4rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }

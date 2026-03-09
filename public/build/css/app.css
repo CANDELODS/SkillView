@@ -1218,6 +1218,7 @@ h3 {
 
 .lesson {
   padding: 2.5rem 0;
+  min-height: calc(100vh - 8rem);
 }
 .lesson__wrap {
   width: min(95%, 170rem);
@@ -1229,6 +1230,8 @@ h3 {
   grid-template-columns: repeat(1, 1fr);
   grid-template-areas: "avatar" "chat";
   grid-template-columns: 1fr;
+  height: auto;
+  min-height: auto;
 }
 @media (min-width: 768px) {
   .lesson__stage {
@@ -1238,11 +1241,20 @@ h3 {
     grid-template-areas: "avatar chat chat";
     grid-template-columns: 32rem 1fr 1fr;
     align-items: stretch;
+    height: calc(100vh - 14rem);
+    min-height: 72rem;
   }
 }
 .lesson__assistant {
   grid-area: avatar;
-  height: 100%;
+  height: auto;
+  min-height: auto;
+}
+@media (min-width: 768px) {
+  .lesson__assistant {
+    height: 100%;
+    min-height: 0;
+  }
 }
 .lesson__assistantCard {
   background: #fff;
@@ -1250,10 +1262,17 @@ h3 {
   border-radius: 1.6rem;
   padding: 2rem;
   box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
-  height: 100%;
+  height: auto;
+  min-height: auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+@media (min-width: 768px) {
+  .lesson__assistantCard {
+    height: 100%;
+    min-height: 0;
+  }
 }
 .lesson__avatar {
   width: 24rem;
@@ -1319,7 +1338,6 @@ h3 {
   position: absolute;
   top: -9px;
   left: 50%;
-  transform: translateX(-50%);
   width: 16px;
   height: 16px;
   background: #FEF5F4;
@@ -1342,17 +1360,21 @@ h3 {
   box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
   display: grid;
   grid-template-rows: 1fr auto;
-  min-height: 58vh;
+  height: auto;
+  min-height: auto;
 }
 @media (min-width: 768px) {
   .lesson__chat {
-    min-height: 72vh;
+    height: 100%;
+    min-height: 0;
   }
 }
 .lesson__messages {
   padding: 2rem;
-  overflow-y: auto;
   background: linear-gradient(to bottom, rgba(254, 245, 244, 0.45), rgba(254, 245, 244, 0.2));
+  overflow: visible;
+  height: auto;
+  min-height: auto;
   scrollbar-width: thin;
   scrollbar-color: #EB4328 rgba(0, 0, 0, 0);
 }
@@ -1363,6 +1385,13 @@ h3 {
   background: rgba(235, 67, 40, 0.35);
   border-radius: 999px;
   border: 3px solid rgba(255, 255, 255, 0.6);
+}
+@media (min-width: 768px) {
+  .lesson__messages {
+    overflow-y: auto;
+    height: 100%;
+    min-height: 0;
+  }
 }
 .lesson__msg {
   display: flex;
@@ -1412,6 +1441,9 @@ h3 {
   width: fit-content;
   border: 1px solid rgba(43, 127, 255, 0.2);
 }
+.lesson__hint--typing {
+  animation: fadeInTyping 0.2s ease-out;
+}
 .lesson__hintDot {
   width: 0.9rem;
   height: 0.9rem;
@@ -1429,6 +1461,7 @@ h3 {
   padding: 1.2rem;
   background: #fff;
   border-top: 1px solid #EFC7BD;
+  flex-shrink: 0;
 }
 .lesson__input {
   width: 100%;
@@ -1451,6 +1484,7 @@ h3 {
   place-items: center;
   cursor: pointer;
   transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  flex-shrink: 0;
 }
 .lesson__iconBtn i {
   font-size: 1.7rem;
@@ -1486,6 +1520,7 @@ h3 {
   border-radius: 999px;
   cursor: pointer;
   transition: filter 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
 }
 .lesson__sendBtn i {
   font-size: 1.7rem;
@@ -1510,6 +1545,16 @@ h3 {
   100% {
     transform: scale(1);
     opacity: 0.55;
+  }
+}
+@keyframes fadeInTyping {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 .achievements {

@@ -54,7 +54,7 @@ class LeccionesController
                     'message' => 'Tu sesión ha expirado.'
                 ],
                 'redirectTo' => '/'
-            ], 401);
+            ], 401); // 401 = Unauthorized (El usuario no está autenticado o su sesión ha expirado)
         }
 
         $idUsuario = (int) ($_SESSION['id'] ?? 0);
@@ -70,8 +70,10 @@ class LeccionesController
         }
 
         // 2) Leer request JSON (o form-data como fallback)
+        //Traemos todos los datos que vienen del frontend en un array asociativo
         $input = self::getRequestData();
 
+        //Si existe lessonId y skillId dentro de $input, los convertimos a enteros, sino les asignamos 0
         $idLeccion = isset($input['lessonId']) ? (int) $input['lessonId'] : 0;
         $idHabilidad = isset($input['skillId']) ? (int) $input['skillId'] : 0;
 
@@ -79,7 +81,7 @@ class LeccionesController
             self::jsonResponse([
                 'ok' => false,
                 'error' => [
-                    'code' => 'INVALID_PAYLOAD',
+                    'code' => 'INVALID_PAYLOAD', //Payload es el término técnico para referirse a los datos que se envían en una petición HTTP
                     'message' => 'lessonId y skillId son obligatorios.'
                 ]
             ], 422);
@@ -226,288 +228,374 @@ class LeccionesController
         ], 200);
     }
 
-    public static function turnLeccion()
-    {
-        if (!isAuth()) {
+public static function turnLeccion()
+{
+    // -------------------- 1) VALIDAR AUTENTICACIÓN --------------------
+    // Verificamos que el usuario siga autenticado antes de procesar cualquier turno.
+    // Si no hay sesión válida, devolvemos error JSON 401.
+    if (!isAuth()) {
+        self::jsonResponse([
+            'ok' => false,
+            'error' => [
+                'code' => 'UNAUTHORIZED',
+                'message' => 'Tu sesión ha expirado.'
+            ],
+            'redirectTo' => '/'
+        ], 401);
+    }
+
+    // Obtenemos el id del usuario desde la sesión.
+    // Si no existe o no es válido, también devolvemos 401.
+    $idUsuario = (int) ($_SESSION['id'] ?? 0);
+    if ($idUsuario <= 0) {
+        self::jsonResponse([
+            'ok' => false,
+            'error' => [
+                'code' => 'UNAUTHORIZED',
+                'message' => 'No se pudo identificar al usuario.'
+            ],
+            'redirectTo' => '/'
+        ], 401);
+    }
+
+    // -------------------- 2) LEER LOS DATOS ENVIADOS POR EL FRONTEND --------------------
+    // Obtenemos el request payload (normalmente JSON enviado desde fetch).
+    $input = self::getRequestData();
+
+    // lessonId = id de la lección que el frontend dice estar trabajando
+    // action   = acción que quiere ejecutar el frontend (advance o reply)
+    // message  = texto del usuario, solo aplica cuando action = reply
+    $lessonId = isset($input['lessonId']) ? (int) $input['lessonId'] : 0;
+    $action   = isset($input['action']) ? trim((string)$input['action']) : '';
+    $message  = isset($input['message']) ? trim((string)$input['message']) : '';
+
+    // Validamos que al menos lleguen lessonId y action.
+    // Si no llegan, el request está incompleto.
+    if ($lessonId <= 0 || $action === '') {
+        self::jsonResponse([
+            'ok' => false,
+            'error' => [
+                'code' => 'INVALID_PAYLOAD',
+                'message' => 'lessonId y action son obligatorios.'
+            ]
+        ], 422);
+    }
+
+    // -------------------- 3) VALIDAR QUE EXISTA EL ESTADO TEMPORAL DE LA LECCIÓN --------------------
+    // startLeccion() creó un estado en $_SESSION['lesson_flow'].
+    // Si no existe, significa que el usuario intentó usar turnLeccion()
+    // sin haber iniciado correctamente la lección.
+    if (!isset($_SESSION['lesson_flow']) || !is_array($_SESSION['lesson_flow'])) {
+        self::jsonResponse([
+            'ok' => false,
+            'error' => [
+                'code' => 'SESSION_STATE_MISSING',
+                'message' => 'No existe una sesión activa de lección. Inicia la lección nuevamente.'
+            ]
+        ], 409);
+    }
+
+    // Guardamos una referencia al estado de la lección.
+    // Ojo: el & significa que $flow NO es una copia,
+    // sino una referencia directa a $_SESSION['lesson_flow'].
+    // Entonces, si modificamos $flow, también se modifica la sesión.
+    $flow = &$_SESSION['lesson_flow'];
+
+    // Validamos que la lección enviada por el frontend coincida
+    // con la lección guardada en la sesión activa.
+    // Esto evita que el frontend "inyecte" otro lessonId.
+    if ((int)($flow['lessonId'] ?? 0) !== $lessonId) {
+        self::jsonResponse([
+            'ok' => false,
+            'error' => [
+                'code' => 'INVALID_STAGE',
+                'message' => 'La lección enviada no coincide con la sesión activa.'
+            ]
+        ], 409);
+    }
+
+    // Si la lección ya estaba completada, no dejamos seguir procesando turnos.
+    if (!empty($flow['completed'])) {
+        self::jsonResponse([
+            'ok' => false,
+            'error' => [
+                'code' => 'LESSON_ALREADY_COMPLETED',
+                'message' => 'Esta lección ya fue completada.'
+            ],
+            'redirectTo' => '/aprendizaje'
+        ], 409);
+    }
+
+    // -------------------- 4) LEER EL ESTADO ACTUAL DE LA MÁQUINA --------------------
+    // currentStage = en qué etapa exacta va la lección
+    // content      = contenido parseado de la descripción de la lección
+    // lessonType   = tipo de lección: standard o integrator
+    $currentStage = $flow['currentStage'] ?? 'intro';
+    $content      = $flow['content'] ?? [];
+    $lessonType   = $flow['lessonType'] ?? 'standard';
+
+    // Variables auxiliares que luego devolveremos al frontend.
+    $messages = [];
+    $evaluation = null;
+    $progress = null;
+
+    // -------------------- 5) MÁQUINA DE ESTADOS --------------------
+    // Aquí definimos qué hacer dependiendo de la etapa actual.
+    switch ($currentStage) {
+
+        // ============================================================
+        // ETAPA: intro
+        // ============================================================
+        case 'intro':
+            // En intro el frontend debe pedir avanzar, no responder.
+            if ($action !== 'advance') {
+                self::invalidActionResponse($currentStage, 'advance');
+            }
+
+            // Construimos los mensajes que lanzan la micro-práctica.
+            $messages = self::buildMicroPracticePromptMessages($content, $lessonType);
+
+            // Actualizamos el estado:
+            // ahora el sistema espera una respuesta del usuario.
+            $flow['currentStage'] = 'micro_practice_answer';
+            $flow['nextExpectedAction'] = 'reply';
+            $flow['inputEnabled'] = true;
+            $flow['requiresUserResponse'] = true;
+
+            // Respondemos al frontend con el nuevo estado y los mensajes.
             self::jsonResponse([
-                'ok' => false,
-                'error' => [
-                    'code' => 'UNAUTHORIZED',
-                    'message' => 'Tu sesión ha expirado.'
-                ],
-                'redirectTo' => '/'
-            ], 401);
-        }
-
-        $idUsuario = (int) ($_SESSION['id'] ?? 0);
-        if ($idUsuario <= 0) {
-            self::jsonResponse([
-                'ok' => false,
-                'error' => [
-                    'code' => 'UNAUTHORIZED',
-                    'message' => 'No se pudo identificar al usuario.'
-                ],
-                'redirectTo' => '/'
-            ], 401);
-        }
-
-        $input = self::getRequestData();
-
-        $lessonId = isset($input['lessonId']) ? (int) $input['lessonId'] : 0;
-        $action   = isset($input['action']) ? trim((string)$input['action']) : '';
-        $message  = isset($input['message']) ? trim((string)$input['message']) : '';
-
-        if ($lessonId <= 0 || $action === '') {
-            self::jsonResponse([
-                'ok' => false,
-                'error' => [
-                    'code' => 'INVALID_PAYLOAD',
-                    'message' => 'lessonId y action son obligatorios.'
+                'ok' => true,
+                'error' => null,
+                'session' => self::sessionPayload($flow),
+                'messages' => $messages,
+                'ui' => [
+                    'showTyping' => true,
+                    'showAvatarSpeaking' => true,
+                    'composerPlaceholder' => 'Escribe tu respuesta...',
+                    'focusInput' => true,
+                    'showReturnButton' => false
                 ]
-            ], 422);
-        }
+            ]);
+            break;
 
-        if (!isset($_SESSION['lesson_flow']) || !is_array($_SESSION['lesson_flow'])) {
+        // ============================================================
+        // ETAPA: micro_practice_answer y micro_practice_answer_retry
+        // ============================================================
+        case 'micro_practice_answer':
+        case 'micro_practice_answer_retry':
+            // En esta etapa el frontend debe enviar una respuesta del usuario.
+            if ($action !== 'reply') {
+                self::invalidActionResponse($currentStage, 'reply');
+            }
+
+            // Si la respuesta viene vacía, devolvemos error.
+            if ($message === '') {
+                self::jsonResponse([
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'EMPTY_MESSAGE',
+                        'message' => 'Debes escribir una respuesta.'
+                    ]
+                ], 422);
+            }
+
+            // Validamos si la respuesta cumple con un mínimo aceptable.
+            $isValid = self::isAnswerAcceptable($message);
+
+            // Si NO es válida y todavía no ha usado su reintento...
+            if (!$isValid && (int)($flow['attempts']['microPracticeRetry'] ?? 0) < 1) {
+                // Marcamos que ya usó el reintento.
+                $flow['attempts']['microPracticeRetry'] = 1;
+
+                // Seguimos en etapa de respuesta, pero en modo retry.
+                $flow['currentStage'] = 'micro_practice_answer_retry';
+                $flow['nextExpectedAction'] = 'reply';
+                $flow['inputEnabled'] = true;
+                $flow['requiresUserResponse'] = true;
+
+                // En evaluation indicamos que la respuesta no fue aceptada
+                // y que necesita volver a intentarlo.
+                $evaluation = [
+                    'accepted' => false,
+                    'needsRetry' => true,
+                    'retryReason' => 'TOO_SHORT'
+                ];
+
+                // Devolvemos el mensaje del usuario + feedback del asistente.
+                $messages = [
+                    [
+                        'id' => 'msg_u_' . uniqid(),
+                        'role' => 'user',
+                        'type' => 'text',
+                        'text' => $message
+                    ],
+                    [
+                        'id' => 'msg_a_' . uniqid(),
+                        'role' => 'assistant',
+                        'type' => 'text',
+                        'text' => 'Vas bien, pero necesito un poco más de detalle. Responde con un ejemplo más concreto o explica mejor tu idea.'
+                    ]
+                ];
+
+                self::jsonResponse([
+                    'ok' => true,
+                    'error' => null,
+                    'session' => self::sessionPayload($flow),
+                    'evaluation' => $evaluation,
+                    'messages' => $messages,
+                    'ui' => [
+                        'showTyping' => true,
+                        'showAvatarSpeaking' => true,
+                        'composerPlaceholder' => 'Amplía tu respuesta...',
+                        'focusInput' => true,
+                        'showReturnButton' => false
+                    ]
+                ]);
+            }
+
+            // Si la respuesta es válida (o ya no habrá más reintentos),
+            // la guardamos como respuesta de micro-práctica.
+            $flow['answers']['microPractice'] = $message;
+
+            // Avanzamos a la siguiente etapa: mini evaluación.
+            $flow['currentStage'] = 'mini_eval_answer';
+            $flow['nextExpectedAction'] = 'reply';
+            $flow['inputEnabled'] = true;
+            $flow['requiresUserResponse'] = true;
+
+            // La evaluación indica que la respuesta fue aceptada.
+            $evaluation = [
+                'accepted' => true,
+                'needsRetry' => false
+            ];
+
+            // Construimos mensajes:
+            // 1. se muestra el mensaje del usuario
+            // 2. feedback breve
+            // 3. nueva pregunta de mini-evaluación
+            $messages = self::buildMiniEvaluationMessages($message, $content, $lessonType);
+
             self::jsonResponse([
-                'ok' => false,
-                'error' => [
-                    'code' => 'SESSION_STATE_MISSING',
-                    'message' => 'No existe una sesión activa de lección. Inicia la lección nuevamente.'
+                'ok' => true,
+                'error' => null,
+                'session' => self::sessionPayload($flow),
+                'evaluation' => $evaluation,
+                'messages' => $messages,
+                'ui' => [
+                    'showTyping' => true,
+                    'showAvatarSpeaking' => true,
+                    'composerPlaceholder' => 'Responde la mini-evaluación...',
+                    'focusInput' => true,
+                    'showReturnButton' => false
                 ]
-            ], 409);
-        }
+            ]);
+            break;
 
-        $flow = &$_SESSION['lesson_flow'];
+        // ============================================================
+        // ETAPA: mini_eval_answer
+        // ============================================================
+        case 'mini_eval_answer':
+            // En esta etapa el frontend también debe responder.
+            if ($action !== 'reply') {
+                self::invalidActionResponse($currentStage, 'reply');
+            }
 
-        if ((int)($flow['lessonId'] ?? 0) !== $lessonId) {
+            // Validamos que la mini-evaluación no venga vacía.
+            if ($message === '') {
+                self::jsonResponse([
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'EMPTY_MESSAGE',
+                        'message' => 'Debes responder la mini-evaluación.'
+                    ]
+                ], 422);
+            }
+
+            // Guardamos la respuesta del usuario.
+            $flow['answers']['miniEvaluation'] = $message;
+
+            // Marcamos la lección como terminada en la sesión.
+            $flow['currentStage'] = 'complete';
+            $flow['nextExpectedAction'] = null;
+            $flow['inputEnabled'] = false;
+            $flow['requiresUserResponse'] = false;
+            $flow['completed'] = true;
+
+            // Persistimos el completado en la BD.
+            self::markLessonAsCompleted($idUsuario, $lessonId);
+
+            // Generamos evaluación final estructurada.
+            $evaluation = self::buildFinalEvaluation($flow['answers'], $content);
+
+            // Generamos los mensajes finales del asistente.
+            $messages = self::buildFinalFeedbackMessages($flow['answers'], $content);
+
+            // Información de progreso para que el frontend sepa
+            // que ya debe volver a /aprendizaje.
+            $progress = [
+                'lessonCompleted' => true,
+                'completedAt' => date('Y-m-d H:i:s'),
+                'redirectTo' => '/aprendizaje'
+            ];
+
             self::jsonResponse([
-                'ok' => false,
-                'error' => [
-                    'code' => 'INVALID_STAGE',
-                    'message' => 'La lección enviada no coincide con la sesión activa.'
+                'ok' => true,
+                'error' => null,
+                'session' => self::sessionPayload($flow),
+                'evaluation' => $evaluation,
+                'messages' => $messages,
+                'progress' => $progress,
+                'ui' => [
+                    'showTyping' => true,
+                    'showAvatarSpeaking' => true,
+                    'composerPlaceholder' => 'Lección completada',
+                    'focusInput' => false,
+                    'showReturnButton' => true
                 ]
-            ], 409);
-        }
+            ]);
+            break;
 
-        if (!empty($flow['completed'])) {
+        // ============================================================
+        // ETAPA: complete
+        // ============================================================
+        case 'complete':
+            // Si el frontend intenta seguir interactuando después de completar,
+            // respondemos con error controlado.
             self::jsonResponse([
                 'ok' => false,
                 'error' => [
                     'code' => 'LESSON_ALREADY_COMPLETED',
-                    'message' => 'Esta lección ya fue completada.'
+                    'message' => 'La lección ya fue completada.'
                 ],
                 'redirectTo' => '/aprendizaje'
             ], 409);
-        }
+            break;
 
-        $currentStage = $flow['currentStage'] ?? 'intro';
-        $content      = $flow['content'] ?? [];
-        $lessonType   = $flow['lessonType'] ?? 'standard';
-
-        $messages = [];
-        $evaluation = null;
-        $progress = null;
-
-        switch ($currentStage) {
-            case 'intro':
-                if ($action !== 'advance') {
-                    self::invalidActionResponse($currentStage, 'advance');
-                }
-
-                $messages = self::buildMicroPracticePromptMessages($content, $lessonType);
-
-                $flow['currentStage'] = 'micro_practice_answer';
-                $flow['nextExpectedAction'] = 'reply';
-                $flow['inputEnabled'] = true;
-                $flow['requiresUserResponse'] = true;
-
-                self::jsonResponse([
-                    'ok' => true,
-                    'error' => null,
-                    'session' => self::sessionPayload($flow),
-                    'messages' => $messages,
-                    'ui' => [
-                        'showTyping' => true,
-                        'showAvatarSpeaking' => true,
-                        'composerPlaceholder' => 'Escribe tu respuesta...',
-                        'focusInput' => true,
-                        'showReturnButton' => false
-                    ]
-                ]);
-                break;
-
-            case 'micro_practice_answer':
-            case 'micro_practice_answer_retry':
-                if ($action !== 'reply') {
-                    self::invalidActionResponse($currentStage, 'reply');
-                }
-
-                if ($message === '') {
-                    self::jsonResponse([
-                        'ok' => false,
-                        'error' => [
-                            'code' => 'EMPTY_MESSAGE',
-                            'message' => 'Debes escribir una respuesta.'
-                        ]
-                    ], 422);
-                }
-
-                $isValid = self::isAnswerAcceptable($message);
-
-                if (!$isValid && (int)($flow['attempts']['microPracticeRetry'] ?? 0) < 1) {
-                    $flow['attempts']['microPracticeRetry'] = 1;
-                    $flow['currentStage'] = 'micro_practice_answer_retry';
-                    $flow['nextExpectedAction'] = 'reply';
-                    $flow['inputEnabled'] = true;
-                    $flow['requiresUserResponse'] = true;
-
-                    $evaluation = [
-                        'accepted' => false,
-                        'needsRetry' => true,
-                        'retryReason' => 'TOO_SHORT'
-                    ];
-
-                    $messages = [
-                        [
-                            'id' => 'msg_u_' . uniqid(),
-                            'role' => 'user',
-                            'type' => 'text',
-                            'text' => $message
-                        ],
-                        [
-                            'id' => 'msg_a_' . uniqid(),
-                            'role' => 'assistant',
-                            'type' => 'text',
-                            'text' => 'Vas bien, pero necesito un poco más de detalle. Responde con un ejemplo más concreto o explica mejor tu idea.'
-                        ]
-                    ];
-
-                    self::jsonResponse([
-                        'ok' => true,
-                        'error' => null,
-                        'session' => self::sessionPayload($flow),
-                        'evaluation' => $evaluation,
-                        'messages' => $messages,
-                        'ui' => [
-                            'showTyping' => true,
-                            'showAvatarSpeaking' => true,
-                            'composerPlaceholder' => 'Amplía tu respuesta...',
-                            'focusInput' => true,
-                            'showReturnButton' => false
-                        ]
-                    ]);
-                }
-
-                $flow['answers']['microPractice'] = $message;
-                $flow['currentStage'] = 'mini_eval_answer';
-                $flow['nextExpectedAction'] = 'reply';
-                $flow['inputEnabled'] = true;
-                $flow['requiresUserResponse'] = true;
-
-                $evaluation = [
-                    'accepted' => true,
-                    'needsRetry' => false
-                ];
-
-                $messages = self::buildMiniEvaluationMessages($message, $content, $lessonType);
-
-                self::jsonResponse([
-                    'ok' => true,
-                    'error' => null,
-                    'session' => self::sessionPayload($flow),
-                    'evaluation' => $evaluation,
-                    'messages' => $messages,
-                    'ui' => [
-                        'showTyping' => true,
-                        'showAvatarSpeaking' => true,
-                        'composerPlaceholder' => 'Responde la mini-evaluación...',
-                        'focusInput' => true,
-                        'showReturnButton' => false
-                    ]
-                ]);
-                break;
-
-            case 'mini_eval_answer':
-                if ($action !== 'reply') {
-                    self::invalidActionResponse($currentStage, 'reply');
-                }
-
-                if ($message === '') {
-                    self::jsonResponse([
-                        'ok' => false,
-                        'error' => [
-                            'code' => 'EMPTY_MESSAGE',
-                            'message' => 'Debes responder la mini-evaluación.'
-                        ]
-                    ], 422);
-                }
-
-                $flow['answers']['miniEvaluation'] = $message;
-                $flow['currentStage'] = 'complete';
-                $flow['nextExpectedAction'] = null;
-                $flow['inputEnabled'] = false;
-                $flow['requiresUserResponse'] = false;
-                $flow['completed'] = true;
-
-                self::markLessonAsCompleted($idUsuario, $lessonId);
-
-                $evaluation = self::buildFinalEvaluation($flow['answers'], $content);
-
-                $messages = self::buildFinalFeedbackMessages($flow['answers'], $content);
-
-                $progress = [
-                    'lessonCompleted' => true,
-                    'completedAt' => date('Y-m-d H:i:s'),
-                    'redirectTo' => '/aprendizaje'
-                ];
-
-                self::jsonResponse([
-                    'ok' => true,
-                    'error' => null,
-                    'session' => self::sessionPayload($flow),
-                    'evaluation' => $evaluation,
-                    'messages' => $messages,
-                    'progress' => $progress,
-                    'ui' => [
-                        'showTyping' => true,
-                        'showAvatarSpeaking' => true,
-                        'composerPlaceholder' => 'Lección completada',
-                        'focusInput' => false,
-                        'showReturnButton' => true
-                    ]
-                ]);
-                break;
-
-            case 'complete':
-                self::jsonResponse([
-                    'ok' => false,
-                    'error' => [
-                        'code' => 'LESSON_ALREADY_COMPLETED',
-                        'message' => 'La lección ya fue completada.'
-                    ],
-                    'redirectTo' => '/aprendizaje'
-                ], 409);
-                break;
-
-            default:
-                self::jsonResponse([
-                    'ok' => false,
-                    'error' => [
-                        'code' => 'INVALID_STAGE',
-                        'message' => 'El estado actual de la lección no es válido.'
-                    ]
-                ], 409);
-        }
+        // ============================================================
+        // ESTADO NO RECONOCIDO
+        // ============================================================
+        default:
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'INVALID_STAGE',
+                    'message' => 'El estado actual de la lección no es válido.'
+                ]
+            ], 409);
     }
-
+}
     //---------------------------HELPERS startLeccion---------------------------//
     /**
-     * Devuelve JSON consistente y finaliza ejecución.
+     * Esta función permite devolver una respuesta en formato JSON desde el backend.
+     * Recibe un array de datos y un código de estado HTTP opcional (por defecto 200).
      */
     private static function jsonResponse(array $data, int $statusCode = 200): void
     {
+        //Código HTTP
         http_response_code($statusCode);
+        //Encabezado para indicar que la respuesta es JSON
         header('Content-Type: application/json; charset=UTF-8');
+        //Codificar el array de datos a JSON y devolverlo
         echo json_encode($data, JSON_UNESCAPED_UNICODE);
         exit;
     }
@@ -517,8 +605,13 @@ class LeccionesController
      */
     private static function getRequestData(): array
     {
+        //Intentamos leer el cuerpo de la petición como JSON
         $raw = file_get_contents('php://input');
         if ($raw) {
+            /*Convertimos el JSON en array asociativo [
+                'lessonId' => 5,
+                'skillId' => 2
+            ]*/
             $decoded = json_decode($raw, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                 return $decoded;
@@ -529,11 +622,13 @@ class LeccionesController
     }
 
     /**
-     * Convierte la descripción de la lección en bloques estructurados.
+     * Convierte la descripción de la lección (Texto plano) en bloques estructurados (Array).
      */
     private static function parseLessonDescription(string $descripcion): array
     {
+        //Separamos el texto en un arreglo línea por línea.
         $lineas = preg_split('/\R/u', trim($descripcion));
+        //Creamos un array vacío con la estructura final, nos permitirpa que siempre exista la misma estructura aunque alguna sección no venga.
         $resultado = [
             'objective' => '',
             'keyConcepts' => [],
@@ -545,7 +640,7 @@ class LeccionesController
             'evaluationCriteria' => [],
             'resultFormat' => ''
         ];
-
+        //Definimos un mapa de etiquetas a claves del resultado para facilitar la detección de secciones.
         $mapaSecciones = [
             'Objetivo:' => 'objective',
             'Conceptos clave:' => 'keyConcepts',
@@ -558,30 +653,45 @@ class LeccionesController
             'Evaluación:' => 'evaluationCriteria',
             'Resultado:' => 'resultFormat'
         ];
-
+        //Recorremos linea por linea para detectar las secciones y llenar el resultado. Mantenemos una variable para saber cuál es la sección actual mientras recorremos las líneas.
+        //Cada linea se analiza para saber si es el inicio de una nueva sección o si es contenido que pertenece a la sección actual.
         $seccionActual = null;
 
         foreach ($lineas as $linea) {
             $linea = trim($linea);
-
+            //Si la linea está vacía, la ignoramos
             if ($linea === '') {
                 continue;
             }
-
+            //Reiniciamos el detecto de sección (Cada línea empieza suponiendo que no es una sección nueva.)
             $seccionDetectada = null;
+            //Recorremos el mapa de secciones
             foreach ($mapaSecciones as $etiqueta => $clave) {
-                if (str_starts_with($linea, $etiqueta)) {
+                //Detectar si la linea empieza con una etiqueta (Ejemplo: "Objetivo:") usando str_starts_with, esto nos dice que encontramos el inicio de una nueva sección.
+                if (str_starts_with($linea, $etiqueta)) { //Si la linea si es una etiqueta entonces...
+                    //Sirve para marcar que esta línea sí abrió una nueva sección
                     $seccionDetectada = $clave;
+                    //Actualizamos la sección actual.
                     $seccionActual = $clave;
-
+                    //Quitamos la etiqueta y devolvemos solo el contenido que viene después
+                    //mb_strlen calcula cuantos caracteres tiene la etiqueta, y mb_substr devuelve el texto a partir de esa posición, o sea, lo que viene después de la etiqueta.
                     $contenido = trim(mb_substr($linea, mb_strlen($etiqueta)));
+                    //Si había contenido en esa misma linea después de la etiqueta, lo agregamos a la sección actual. Esto es útil para casos como "Objetivo: Aprender a usar el asistente", donde el objetivo viene en la misma línea que la etiqueta.
                     if ($contenido !== '') {
                         self::appendToSection($resultado, $seccionActual, $contenido);
                     }
+                    //Rompemos el ciclo de comparación al encontrar la etiqueta
                     break;
                 }
             }
-
+            /*Esto devuelve:
+            $etiqueta = "Objetivo:"
+            $clave = "objective"
+            Luego:
+            $etiqueta = "Conceptos clave:"
+            $clave = "keyConcepts"
+            y así sucesivamente.
+            */
             if ($seccionDetectada !== null) {
                 continue;
             }
@@ -595,24 +705,25 @@ class LeccionesController
     }
 
     /**
-     * Agrega una línea a la sección correcta.
+     * Agrega una línea a la sección correcta dentro del array $resultado.
      */
     private static function appendToSection(array &$resultado, string $seccion, string $valor): void
     {
         $valor = trim($valor);
+        //Eliminamos simbolos al inicio de la línea como • - * que suelen usarse para listas, esto nos ayuda a tener el contenido más limpio. Solo se eliminan si están al inicio de la línea seguidos de un espacio.
         $valor = preg_replace('/^[•\-\*]\s*/u', '', $valor);
-
+        //¿Cómo sabe si guardar como texto o como array?
         if ($valor === '') {
             return;
         }
 
         $seccionesArray = ['keyConcepts', 'commonMistakes', 'evaluationCriteria'];
-
+        //Si la sección actual está ahí, entonces hace: $resultado[$seccion][] = $valor; (O sea, lo metemos como un elemento de array)
         if (in_array($seccion, $seccionesArray, true)) {
             $resultado[$seccion][] = $valor;
             return;
         }
-
+        //Si la sección no es de tipo array, entonces concatenamos el texto: $resultado[$seccion] .= ' ' . $valor;
         if ($resultado[$seccion] === '') {
             $resultado[$seccion] = $valor;
         } else {
@@ -622,6 +733,7 @@ class LeccionesController
 
     /**
      * Detecta si la lección es estándar o integradora.
+     * Si tiene escenario, criterios de evaluación o formato de resultado, la consideramos integradora, sino estándar.
      */
     private static function inferLessonType(array $contenido): string
     {
@@ -687,6 +799,9 @@ class LeccionesController
     //---------------------------FIN HELPERS startLeccion---------------------------//
 
     //---------------------------HELPERS turnLeccion---------------------------//
+    /**
+     * Devuelve un error cuando el frontend manda una acción que no corresponde a la etapa actual.
+     */
     private static function invalidActionResponse(string $currentStage, string $expectedAction): void
     {
         self::jsonResponse([
@@ -697,7 +812,10 @@ class LeccionesController
             ]
         ], 409);
     }
-
+    
+    /**
+     * Toma el estado interno de la sesión ($flow) y lo convierte en un array limpio para enviarlo al frontend.
+     */
     private static function sessionPayload(array $flow): array
     {
         return [
@@ -713,18 +831,24 @@ class LeccionesController
         ];
     }
 
+    /**
+     * Decide si una respuesta del usuario es suficientemente buena para seguir avanzando.
+     */
     private static function isAnswerAcceptable(string $message): bool
     {
         $message = trim($message);
-
+        //mínimo 12 caracteres
         if (mb_strlen($message) < 12) {
             return false;
         }
-
+        //mínimo 4 palabras
         $palabras = preg_split('/\s+/u', $message);
         return count($palabras) >= 4;
     }
 
+    /**
+     * Construye los mensajes que lanzan la primera actividad práctica (Genera el bloque de mensajes que abre la primera interacción del usuario.)
+     */
     private static function buildMicroPracticePromptMessages(array $content, string $lessonType): array
     {
         if ($lessonType === 'integrator' && !empty($content['scenario'])) {
@@ -768,6 +892,9 @@ class LeccionesController
         ];
     }
 
+    /**
+     * Genera los mensajes que conectan la primera respuesta del usuario con la mini evaluación.
+     */
     private static function buildMiniEvaluationMessages(string $userMessage, array $content, string $lessonType): array
     {
         $feedbackBreve = 'Bien. Lo positivo es que ya conectaste tu respuesta con una experiencia o idea concreta.';
@@ -801,6 +928,9 @@ class LeccionesController
         ];
     }
 
+    /**
+     * Crea una estructura de evaluación final que genera fortalezas, mejoras y resumen final
+     */
     private static function buildFinalEvaluation(array $answers, array $content): array
     {
         $strengths = [];
@@ -837,6 +967,10 @@ class LeccionesController
         ];
     }
 
+    /**
+     * Genera los mensajes finales que el usuario verá al terminar la lección
+     * Devolviendo el último mensaje del usuario, un mensaje del asistente diciendo que completó la parte práctica y un resumen final usando expectedSummary
+     */
     private static function buildFinalFeedbackMessages(array $answers, array $content): array
     {
         $summary = $content['expectedSummary'] ?? 'Has completado la lección correctamente.';
@@ -862,9 +996,13 @@ class LeccionesController
             ]
         ];
     }
+
+    /**
+     * Llama al modelo usuarios_lecciones para guardar en la base de datos que la lección ya fue completada.
+     */
     private static function markLessonAsCompleted(int $idUsuario, int $lessonId): void
     {
         usuarios_lecciones::marcarComoCompletada($idUsuario, $lessonId);
     }
-    //---------------------------FINHELPERS turnLeccion---------------------------//
+    //---------------------------FIN HELPERS turnLeccion---------------------------//
 }
