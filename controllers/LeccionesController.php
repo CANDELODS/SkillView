@@ -178,8 +178,14 @@ class LeccionesController
                 'miniEvaluation' => null
             ],
             'attempts' => [
-                'microPracticeRetry' => 0
+                'microPractice' => 0,
+                'miniEvaluation' => 0
             ],
+            'limits' => [
+                'microPractice' => 3,
+                'miniEvaluation' => 3
+            ],
+            'failed' => false,
             'content' => $contenido,
             'lessonType' => $tipoLeccion
         ];
@@ -229,8 +235,14 @@ class LeccionesController
                 'requiresUserResponse' => false,
                 'completed' => false,
                 'attempts' => [
-                    'microPracticeRetry' => 0
-                ]
+                    'microPractice' => 0,
+                    'miniEvaluation' => 0
+                ],
+                'limits' => [
+                    'microPractice' => 3,
+                    'miniEvaluation' => 3
+                ],
+                'failed' => false
             ],
             'content' => $contenido,
             'messages' => $messages,
@@ -355,6 +367,20 @@ class LeccionesController
         $evaluation = null;
         $progress = null;
 
+        //Datos reales de la lección y habilidad
+        $lesson = Lecciones::find($lessonId);
+        $skillName = 'Habilidad';
+        $lessonTittle = 'Lección';
+
+        if ($lesson) {
+            $lessonTittle = $lesson->titulo ?? 'Lección';
+
+            $skill = HabilidadesBlandas::find((int)$lesson->id_habilidades);
+            if ($skill) {
+                $skillName = $skill->nombre ?? 'Habilidad';
+            }
+        }
+
         // -------------------- 5) MÁQUINA DE ESTADOS --------------------
         // Aquí definimos qué hacer dependiendo de la etapa actual.
         switch ($currentStage) {
@@ -369,7 +395,23 @@ class LeccionesController
                 }
 
                 // Construimos los mensajes que lanzan la micro-práctica.
-                $messages = self::buildMicroPracticePromptMessages($content, $lessonType);
+                try {
+                    $lessonAIService = new LessonAIService();
+                    $userName = $_SESSION['nombres'] ?? 'Estudiante';
+
+                    $messages = $lessonAIService->generateMicroPracticePromptMessages(
+                        $lessonTittle,
+                        $skillName,
+                        $content,
+                        $lessonType,
+                        $userName
+                    );
+                } catch (\Exception $e) {
+                    error_log('Error IA turnLeccion intro: ' . $e->getMessage());
+
+                    // Fallback local para no romper el flujo si OpenAI falla
+                    $messages = self::buildMicroPracticePromptMessages($content, $lessonType);
+                }
 
                 // Actualizamos el estado:
                 // ahora el sistema espera una respuesta del usuario.
@@ -399,66 +441,62 @@ class LeccionesController
             // ============================================================
             case 'micro_practice_answer':
             case 'micro_practice_answer_retry':
-                // En esta etapa el frontend debe enviar una respuesta del usuario.
                 if ($action !== 'reply') {
                     self::invalidActionResponse($currentStage, 'reply');
                 }
 
-                // Si la respuesta viene vacía, devolvemos error.
-                if ($message === '') {
-                    self::jsonResponse([
-                        'ok' => false,
-                        'error' => [
-                            'code' => 'EMPTY_MESSAGE',
-                            'message' => 'Debes escribir una respuesta.'
-                        ]
-                    ], 422);
-                }
+                $basicValidation = self::validateBasicMicroPracticeAnswer($message);
 
-                // Validamos si la respuesta cumple con un mínimo aceptable.
-                $isValid = self::isAnswerAcceptable($message);
+                // Si falla el filtro local, no gastamos tokens
+                if (!$basicValidation['valid']) {
+                    $flow['attempts']['microPractice'] = (int)($flow['attempts']['microPractice'] ?? 0) + 1;
 
-                // Si NO es válida y todavía no ha usado su reintento...
-                if (!$isValid && (int)($flow['attempts']['microPracticeRetry'] ?? 0) < 1) {
-                    // Marcamos que ya usó el reintento.
-                    $flow['attempts']['microPracticeRetry'] = 1;
+                    $remainingAttempts = (int)$flow['limits']['microPractice'] - (int)$flow['attempts']['microPractice'];
 
-                    // Seguimos en etapa de respuesta, pero en modo retry.
+                    if ($remainingAttempts <= 0) {
+                        self::buildFailedLessonResponse(
+                            $flow,
+                            'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la micro-práctica. Puedes volver a intentarlo más adelante.',
+                            $message
+                        );
+                    }
+
                     $flow['currentStage'] = 'micro_practice_answer_retry';
                     $flow['nextExpectedAction'] = 'reply';
                     $flow['inputEnabled'] = true;
                     $flow['requiresUserResponse'] = true;
 
-                    // En evaluation indicamos que la respuesta no fue aceptada
-                    // y que necesita volver a intentarlo.
-                    $evaluation = [
-                        'accepted' => false,
-                        'needsRetry' => true,
-                        'retryReason' => 'TOO_SHORT'
-                    ];
-
-                    // Devolvemos el mensaje del usuario + feedback del asistente.
-                    $messages = [
-                        [
-                            'id' => 'msg_u_' . uniqid(),
-                            'role' => 'user',
-                            'type' => 'text',
-                            'text' => $message
-                        ],
-                        [
-                            'id' => 'msg_a_' . uniqid(),
-                            'role' => 'assistant',
-                            'type' => 'text',
-                            'text' => 'Vas bien, pero necesito un poco más de detalle. Responde con un ejemplo más concreto o explica mejor tu idea.'
-                        ]
-                    ];
+                    $warning = self::buildAttemptsWarningMessage($remainingAttempts);
 
                     self::jsonResponse([
                         'ok' => true,
                         'error' => null,
                         'session' => self::sessionPayload($flow),
-                        'evaluation' => $evaluation,
-                        'messages' => $messages,
+                        'evaluation' => [
+                            'accepted' => false,
+                            'needsRetry' => true,
+                            'retryReason' => $basicValidation['reason']
+                        ],
+                        'messages' => [
+                            [
+                                'id' => 'msg_u_' . uniqid(),
+                                'role' => 'user',
+                                'type' => 'text',
+                                'text' => $message
+                            ],
+                            [
+                                'id' => 'msg_a_' . uniqid(),
+                                'role' => 'assistant',
+                                'type' => 'text',
+                                'text' => 'Tu respuesta todavía no cumple con lo mínimo que necesito para continuar. Intenta responder de forma más clara y concreta.'
+                            ],
+                            [
+                                'id' => 'msg_a_' . uniqid(),
+                                'role' => 'assistant',
+                                'type' => 'text',
+                                'text' => $warning
+                            ]
+                        ],
                         'ui' => [
                             'showTyping' => true,
                             'showAvatarSpeaking' => true,
@@ -469,44 +507,164 @@ class LeccionesController
                     ]);
                 }
 
-                // Si la respuesta es válida (o ya no habrá más reintentos),
-                // la guardamos como respuesta de micro-práctica.
-                $flow['answers']['microPractice'] = $message;
+                try {
+                    $lessonAIService = new LessonAIService();
+                    $userName = $_SESSION['nombres'] ?? 'Estudiante';
 
-                // Avanzamos a la siguiente etapa: mini evaluación.
-                $flow['currentStage'] = 'mini_eval_answer';
-                $flow['nextExpectedAction'] = 'reply';
-                $flow['inputEnabled'] = true;
-                $flow['requiresUserResponse'] = true;
+                    $aiEvaluation = $lessonAIService->evaluateMicroPracticeAnswer(
+                        $lessonTittle,
+                        $skillName,
+                        $message,
+                        $content,
+                        $lessonType,
+                        $userName
+                    );
+                    if (!$aiEvaluation['accepted']) {
+                        $flow['attempts']['microPractice'] = (int)($flow['attempts']['microPractice'] ?? 0) + 1;
 
-                // La evaluación indica que la respuesta fue aceptada.
-                $evaluation = [
-                    'accepted' => true,
-                    'needsRetry' => false
-                ];
+                        $remainingAttempts = (int)$flow['limits']['microPractice'] - (int)$flow['attempts']['microPractice'];
 
-                // Construimos mensajes:
-                // 1. se muestra el mensaje del usuario
-                // 2. feedback breve
-                // 3. nueva pregunta de mini-evaluación
-                $messages = self::buildMiniEvaluationMessages($message, $content, $lessonType);
+                        if ($remainingAttempts <= 0) {
+                            self::buildFailedLessonResponse(
+                                $flow,
+                                'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la micro-práctica. Puedes volver a intentarlo más adelante.',
+                                $message
+                            );
+                        }
 
-                self::jsonResponse([
-                    'ok' => true,
-                    'error' => null,
-                    'session' => self::sessionPayload($flow),
-                    'evaluation' => $evaluation,
-                    'messages' => $messages,
-                    'ui' => [
-                        'showTyping' => true,
-                        'showAvatarSpeaking' => true,
-                        'composerPlaceholder' => 'Responde la mini-evaluación...',
-                        'focusInput' => true,
-                        'showReturnButton' => false
-                    ]
-                ]);
+                        $flow['currentStage'] = 'micro_practice_answer_retry';
+                        $flow['nextExpectedAction'] = 'reply';
+                        $flow['inputEnabled'] = true;
+                        $flow['requiresUserResponse'] = true;
+
+                        $messages = $lessonAIService->normalizeMessages($aiEvaluation['messages'], 'msg_ai_micro_retry_');
+                        $messages[] = [
+                            'id' => 'msg_a_' . uniqid(),
+                            'role' => 'assistant',
+                            'type' => 'text',
+                            'text' => self::buildAttemptsWarningMessage($remainingAttempts)
+                        ];
+
+                        self::jsonResponse([
+                            'ok' => true,
+                            'error' => null,
+                            'session' => self::sessionPayload($flow),
+                            'evaluation' => [
+                                'accepted' => false,
+                                'needsRetry' => true,
+                                'retryReason' => $aiEvaluation['retryReason'],
+                                'detectedIssues' => $aiEvaluation['detectedIssues']
+                            ],
+                            'messages' => $messages,
+                            'ui' => [
+                                'showTyping' => true,
+                                'showAvatarSpeaking' => true,
+                                'composerPlaceholder' => 'Intenta responder mejor...',
+                                'focusInput' => true,
+                                'showReturnButton' => false
+                            ]
+                        ]);
+                    }
+
+                    // Si la IA acepta la respuesta, recién ahí avanzamos
+                    $flow['answers']['microPractice'] = $message;
+                    $flow['currentStage'] = 'mini_eval_answer';
+                    $flow['nextExpectedAction'] = 'reply';
+                    $flow['inputEnabled'] = true;
+                    $flow['requiresUserResponse'] = true;
+
+                    $evaluation = [
+                        'accepted' => true,
+                        'needsRetry' => false,
+                        'retryReason' => null,
+                        'detectedIssues' => []
+                    ];
+
+                    try {
+                        $messages = $lessonAIService->generateMiniEvaluationMessages(
+                            $lessonTittle,
+                            $skillName,
+                            $message,
+                            $content,
+                            $lessonType,
+                            $userName
+                        );
+                    } catch (\Exception $e) {
+                        error_log('Error IA turnLeccion mini-evaluación: ' . $e->getMessage());
+                        $messages = self::buildMiniEvaluationMessages($message, $content, $lessonType);
+                    }
+                    self::jsonResponse([
+                        'ok' => true,
+                        'error' => null,
+                        'session' => self::sessionPayload($flow),
+                        'evaluation' => $evaluation,
+                        'messages' => $messages,
+                        'ui' => [
+                            'showTyping' => true,
+                            'showAvatarSpeaking' => true,
+                            'composerPlaceholder' => 'Responde la mini-evaluación...',
+                            'focusInput' => true,
+                            'showReturnButton' => false
+                        ]
+                    ]);
+                } catch (\Exception $e) {
+                    error_log('Error IA evaluación micro-práctica: ' . $e->getMessage());
+
+                    // fallback si falla OpenAI: usar validación local conservadora
+                    $flow['attempts']['microPractice'] = (int)($flow['attempts']['microPractice'] ?? 0) + 1;
+                    $remainingAttempts = (int)$flow['limits']['microPractice'] - (int)$flow['attempts']['microPractice'];
+
+                    if ($remainingAttempts <= 0) {
+                        self::buildFailedLessonResponse(
+                            $flow,
+                            'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la micro-práctica. Puedes volver a intentarlo más adelante.',
+                            $message
+                        );
+                    }
+                    $flow['currentStage'] = 'micro_practice_answer_retry';
+                    $flow['nextExpectedAction'] = 'reply';
+                    $flow['inputEnabled'] = true;
+                    $flow['requiresUserResponse'] = true;
+
+                    self::jsonResponse([
+                        'ok' => true,
+                        'error' => null,
+                        'session' => self::sessionPayload($flow),
+                        'evaluation' => [
+                            'accepted' => false,
+                            'needsRetry' => true,
+                            'retryReason' => 'EVALUATION_ERROR'
+                        ],
+                        'messages' => [
+                            [
+                                'id' => 'msg_u_' . uniqid(),
+                                'role' => 'user',
+                                'type' => 'text',
+                                'text' => $message
+                            ],
+                            [
+                                'id' => 'msg_a_' . uniqid(),
+                                'role' => 'assistant',
+                                'type' => 'text',
+                                'text' => 'No pude evaluar correctamente tu respuesta en este momento. Intenta reformularla de manera más clara y concreta.'
+                            ],
+                            [
+                                'id' => 'msg_a_' . uniqid(),
+                                'role' => 'assistant',
+                                'type' => 'text',
+                                'text' => self::buildAttemptsWarningMessage($remainingAttempts)
+                            ]
+                        ],
+                        'ui' => [
+                            'showTyping' => true,
+                            'showAvatarSpeaking' => true,
+                            'composerPlaceholder' => 'Reformula tu respuesta...',
+                            'focusInput' => true,
+                            'showReturnButton' => false
+                        ]
+                    ]);
+                }
                 break;
-
             // ============================================================
             // ETAPA: mini_eval_answer
             // ============================================================
@@ -527,48 +685,260 @@ class LeccionesController
                     ], 422);
                 }
 
-                // Guardamos la respuesta del usuario.
-                $flow['answers']['miniEvaluation'] = $message;
+                // -------------------- VALIDACIÓN BÁSICA (SIN IA) --------------------
+                // Esto evita gastar tokens si la respuesta es demasiado corta o inválida.
+                if (strlen($message) < 8) {
 
-                // Marcamos la lección como terminada en la sesión.
-                $flow['currentStage'] = 'complete';
-                $flow['nextExpectedAction'] = null;
-                $flow['inputEnabled'] = false;
-                $flow['requiresUserResponse'] = false;
-                $flow['completed'] = true;
+                    $flow['attempts']['miniEvaluation'] = (int)($flow['attempts']['miniEvaluation'] ?? 0) + 1;
 
-                // Persistimos el completado en la BD.
-                self::markLessonAsCompleted($idUsuario, $lessonId);
+                    $remainingAttempts =
+                        (int)$flow['limits']['miniEvaluation'] -
+                        (int)$flow['attempts']['miniEvaluation'];
 
-                // Generamos evaluación final estructurada.
-                $evaluation = self::buildFinalEvaluation($flow['answers'], $content);
+                    if ($remainingAttempts <= 0) {
 
-                // Generamos los mensajes finales del asistente.
-                $messages = self::buildFinalFeedbackMessages($flow['answers'], $content);
+                        self::buildFailedLessonResponse(
+                            $flow,
+                            'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la mini-evaluación.',
+                            $message
+                        );
+                    }
 
-                // Información de progreso para que el frontend sepa
-                // que ya debe volver a /aprendizaje.
-                $progress = [
-                    'lessonCompleted' => true,
-                    'completedAt' => date('Y-m-d H:i:s'),
-                    'redirectTo' => '/aprendizaje'
-                ];
+                    $warning = self::buildAttemptsWarningMessage($remainingAttempts);
 
-                self::jsonResponse([
-                    'ok' => true,
-                    'error' => null,
-                    'session' => self::sessionPayload($flow),
-                    'evaluation' => $evaluation,
-                    'messages' => $messages,
-                    'progress' => $progress,
-                    'ui' => [
-                        'showTyping' => true,
-                        'showAvatarSpeaking' => true,
-                        'composerPlaceholder' => 'Lección completada',
-                        'focusInput' => false,
-                        'showReturnButton' => true
-                    ]
-                ]);
+                    self::jsonResponse([
+                        'ok' => true,
+                        'error' => null,
+                        'session' => self::sessionPayload($flow),
+                        'evaluation' => [
+                            'accepted' => false,
+                            'needsRetry' => true,
+                            'retryReason' => 'ANSWER_TOO_SHORT'
+                        ],
+                        'messages' => [
+                            [
+                                'id' => 'msg_u_' . uniqid(),
+                                'role' => 'user',
+                                'type' => 'text',
+                                'text' => $message
+                            ],
+                            [
+                                'id' => 'msg_a_' . uniqid(),
+                                'role' => 'assistant',
+                                'type' => 'text',
+                                'text' => 'Tu respuesta es demasiado breve. Intenta explicar mejor tu idea.'
+                            ],
+                            [
+                                'id' => 'msg_a_' . uniqid(),
+                                'role' => 'assistant',
+                                'type' => 'text',
+                                'text' => $warning
+                            ]
+                        ],
+                        'ui' => [
+                            'showTyping' => true,
+                            'showAvatarSpeaking' => true,
+                            'composerPlaceholder' => 'Amplía tu respuesta...',
+                            'focusInput' => true,
+                            'showReturnButton' => false
+                        ]
+                    ]);
+                }
+
+                // -------------------- EVALUACIÓN CON IA --------------------
+                try {
+
+                    $lessonAIService = new LessonAIService();
+                    $userName = $_SESSION['nombres'] ?? 'Estudiante';
+
+                    $aiEvaluation = $lessonAIService->evaluateMiniEvaluationAnswer(
+                        $lessonTittle,
+                        $skillName,
+                        $message,
+                        $content,
+                        $flow['answers'],
+                        $lessonType,
+                        $userName
+                    );
+
+                    // Si la IA dice que NO es válida
+                    if (!$aiEvaluation['accepted']) {
+
+                        $flow['attempts']['miniEvaluation'] =
+                            (int)($flow['attempts']['miniEvaluation'] ?? 0) + 1;
+
+                        $remainingAttempts =
+                            (int)$flow['limits']['miniEvaluation'] -
+                            (int)$flow['attempts']['miniEvaluation'];
+
+                        if ($remainingAttempts <= 0) {
+
+                            self::buildFailedLessonResponse(
+                                $flow,
+                                'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la mini-evaluación.',
+                                $message
+                            );
+                        }
+
+                        $messages = $lessonAIService->normalizeMessages(
+                            $aiEvaluation['messages'],
+                            'msg_ai_mini_retry_'
+                        );
+
+                        $messages[] = [
+                            'id' => 'msg_a_' . uniqid(),
+                            'role' => 'assistant',
+                            'type' => 'text',
+                            'text' => self::buildAttemptsWarningMessage($remainingAttempts)
+                        ];
+
+                        self::jsonResponse([
+                            'ok' => true,
+                            'error' => null,
+                            'session' => self::sessionPayload($flow),
+                            'evaluation' => [
+                                'accepted' => false,
+                                'needsRetry' => true,
+                                'retryReason' => $aiEvaluation['retryReason'] ?? null,
+                                'detectedIssues' => $aiEvaluation['detectedIssues'] ?? []
+                            ],
+                            'messages' => $messages,
+                            'ui' => [
+                                'showTyping' => true,
+                                'showAvatarSpeaking' => true,
+                                'composerPlaceholder' => 'Intenta responder mejor...',
+                                'focusInput' => true,
+                                'showReturnButton' => false
+                            ]
+                        ]);
+                    }
+
+                    // -------------------- RESPUESTA ACEPTADA --------------------
+                    // Guardamos la respuesta del usuario.
+                    $flow['answers']['miniEvaluation'] = $message;
+
+                    // Marcamos la lección como terminada en la sesión.
+                    $flow['currentStage'] = 'complete';
+                    $flow['nextExpectedAction'] = null;
+                    $flow['inputEnabled'] = false;
+                    $flow['requiresUserResponse'] = false;
+                    $flow['completed'] = true;
+
+                    // Persistimos el completado en la BD.
+                    self::markLessonAsCompleted($idUsuario, $lessonId);
+
+                    // Generamos evaluación final estructurada.
+                    $evaluation = self::buildFinalEvaluation($flow['answers'], $content);
+
+                    // Mensaje real del usuario para que se vea en el chat
+                    $userFinalMessage = [
+                        [
+                            'id' => 'msg_u_' . uniqid(),
+                            'role' => 'user',
+                            'type' => 'text',
+                            'text' => $message
+                        ]
+                    ];
+
+                    // Generamos los mensajes finales del asistente.
+                    try {
+
+                        $finalAssistantMessages = $lessonAIService->generateFinalFeedbackMessages(
+                            $lessonTittle,
+                            $skillName,
+                            $flow['answers'],
+                            $content,
+                            $lessonType,
+                            $userName
+                        );
+                    } catch (\Exception $e) {
+
+                        error_log('Error IA turnLeccion feedback final: ' . $e->getMessage());
+
+                        // Fallback local para no romper el flujo si OpenAI falla
+                        $finalAssistantMessages = self::buildFinalFeedbackMessages($flow['answers'], $content);
+                    }
+
+                    // Unimos primero el mensaje real del usuario y luego el cierre del asistente
+                    $messages = array_merge($userFinalMessage, $finalAssistantMessages);
+
+                    // Información de progreso para que el frontend sepa
+                    // que ya debe volver a /aprendizaje.
+                    $progress = [
+                        'lessonCompleted' => true,
+                        'completedAt' => date('Y-m-d H:i:s'),
+                        'redirectTo' => '/aprendizaje'
+                    ];
+
+                    self::jsonResponse([
+                        'ok' => true,
+                        'error' => null,
+                        'session' => self::sessionPayload($flow),
+                        'evaluation' => $evaluation,
+                        'messages' => $messages,
+                        'progress' => $progress,
+                        'ui' => [
+                            'showTyping' => true,
+                            'showAvatarSpeaking' => true,
+                            'composerPlaceholder' => 'Lección completada',
+                            'focusInput' => false,
+                            'showReturnButton' => true
+                        ]
+                    ]);
+                } catch (\Exception $e) {
+
+                    error_log('Error IA evaluación mini-evaluación: ' . $e->getMessage());
+
+                    $flow['attempts']['miniEvaluation'] =
+                        (int)($flow['attempts']['miniEvaluation'] ?? 0) + 1;
+
+                    $remainingAttempts =
+                        (int)$flow['limits']['miniEvaluation'] -
+                        (int)$flow['attempts']['miniEvaluation'];
+
+                    if ($remainingAttempts <= 0) {
+
+                        self::buildFailedLessonResponse(
+                            $flow,
+                            'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la mini-evaluación.',
+                            $message
+                        );
+                    }
+
+                    self::jsonResponse([
+                        'ok' => true,
+                        'error' => null,
+                        'session' => self::sessionPayload($flow),
+                        'messages' => [
+                            [
+                                'id' => 'msg_u_' . uniqid(),
+                                'role' => 'user',
+                                'type' => 'text',
+                                'text' => $message
+                            ],
+                            [
+                                'id' => 'msg_a_' . uniqid(),
+                                'role' => 'assistant',
+                                'type' => 'text',
+                                'text' => 'No pude evaluar correctamente tu respuesta. Intenta reformularla.'
+                            ],
+                            [
+                                'id' => 'msg_a_' . uniqid(),
+                                'role' => 'assistant',
+                                'type' => 'text',
+                                'text' => self::buildAttemptsWarningMessage($remainingAttempts)
+                            ]
+                        ],
+                        'ui' => [
+                            'showTyping' => true,
+                            'showAvatarSpeaking' => true,
+                            'composerPlaceholder' => 'Reformula tu respuesta...',
+                            'focusInput' => true,
+                            'showReturnButton' => false
+                        ]
+                    ]);
+                }
+
                 break;
 
             // ============================================================
@@ -862,6 +1232,120 @@ class LeccionesController
         return count($palabras) >= 4;
     }
 
+
+    private static function validateBasicMicroPracticeAnswer(string $message): array
+    {
+        $message = trim(mb_strtolower($message));
+
+        $invalidShortAnswers = [
+            'no',
+            'si',
+            'sí',
+            'nose',
+            'no se',
+            'no sé',
+            'xd',
+            'asdf',
+            '123',
+            'ok',
+            'idk'
+        ];
+
+        if ($message === '') {
+            return [
+                'valid' => false,
+                'reason' => 'EMPTY'
+            ];
+        }
+
+        if (in_array($message, $invalidShortAnswers, true)) {
+            return [
+                'valid' => false,
+                'reason' => 'TOO_GENERIC'
+            ];
+        }
+
+        if (mb_strlen($message) < 12) {
+            return [
+                'valid' => false,
+                'reason' => 'TOO_SHORT'
+            ];
+        }
+
+        $words = preg_split('/\s+/u', $message);
+        if (count($words) < 4) {
+            return [
+                'valid' => false,
+                'reason' => 'TOO_SHORT'
+            ];
+        }
+
+        return [
+            'valid' => true,
+            'reason' => null
+        ];
+    }
+
+    private static function buildAttemptsWarningMessage(int $remainingAttempts): string
+    {
+        if ($remainingAttempts <= 0) {
+            return 'Has agotado los intentos disponibles para esta fase de la lección.';
+        }
+
+        if ($remainingAttempts === 1) {
+            return 'Te queda 1 intento más para responder correctamente esta parte.';
+        }
+
+        return "Te quedan {$remainingAttempts} intentos más para responder correctamente esta parte.";
+    }
+
+    private static function buildFailedLessonResponse(array $flow, string $assistantMessage, string $userMessage = ''): void
+    {
+        $flow['currentStage'] = 'failed';
+        $flow['nextExpectedAction'] = null;
+        $flow['inputEnabled'] = false;
+        $flow['requiresUserResponse'] = false;
+        $flow['completed'] = false;
+        $flow['failed'] = true;
+
+        $messages = [];
+
+        if ($userMessage !== '') {
+            $messages[] = [
+                'id' => 'msg_u_' . uniqid(),
+                'role' => 'user',
+                'type' => 'text',
+                'text' => $userMessage
+            ];
+        }
+
+        $messages[] = [
+            'id' => 'msg_a_' . uniqid(),
+            'role' => 'assistant',
+            'type' => 'text',
+            'text' => $assistantMessage
+        ];
+
+        self::jsonResponse([
+            'ok' => true,
+            'error' => null,
+            'session' => self::sessionPayload($flow),
+            'messages' => $messages,
+            'progress' => [
+                'lessonCompleted' => false,
+                'failed' => true,
+                'redirectTo' => '/aprendizaje'
+            ],
+            'ui' => [
+                'showTyping' => true,
+                'showAvatarSpeaking' => true,
+                'composerPlaceholder' => 'Lección no completada',
+                'focusInput' => false,
+                'showReturnButton' => true
+            ]
+        ]);
+    }
+
     /**
      * Construye los mensajes que lanzan la primera actividad práctica (Genera el bloque de mensajes que abre la primera interacción del usuario.)
      */
@@ -992,12 +1476,6 @@ class LeccionesController
         $summary = $content['expectedSummary'] ?? 'Has completado la lección correctamente.';
 
         return [
-            [
-                'id' => 'msg_u_' . uniqid(),
-                'role' => 'user',
-                'type' => 'text',
-                'text' => $answers['miniEvaluation'] ?? ''
-            ],
             [
                 'id' => 'msg_a_' . uniqid(),
                 'role' => 'assistant',

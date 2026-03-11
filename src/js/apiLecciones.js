@@ -313,10 +313,10 @@
     }
 
     function delay(ms) {
-    return new Promise(function (resolve) {
-        setTimeout(resolve, ms);
-    });
-}
+        return new Promise(function (resolve) {
+            setTimeout(resolve, ms);
+        });
+    }
 
     // -------------------- ESTADO DE UI --------------------
     function applySessionState(session) {
@@ -365,20 +365,29 @@
 
     // -------------------- COMPLETADO --------------------
     function handleCompletion(data) {
-        if (!data) return;
+        if (!data || !data.progress) return;
 
-        if (data.progress && data.progress.lessonCompleted) {
+        // Caso lección completada
+        if (data.progress.lessonCompleted) {
             state.completed = true;
             textInput.disabled = true;
             sendButton.disabled = true;
             if (micButton) micButton.disabled = true;
+        }
 
-            // Redirección suave opcional
-            if (data.progress.redirectTo) {
-                setTimeout(() => {
-                    window.location.href = data.progress.redirectTo;
-                }, 2500);
-            }
+        // Caso lección fallida
+        if (data.progress.failed) {
+            state.completed = true;
+            textInput.disabled = true;
+            sendButton.disabled = true;
+            if (micButton) micButton.disabled = true;
+        }
+
+        // Redirección para ambos casos
+        if (data.progress.redirectTo) {
+            setTimeout(() => {
+                window.location.href = data.progress.redirectTo;
+            }, 5000);
         }
     }
 
