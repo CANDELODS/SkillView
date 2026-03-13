@@ -3,7 +3,8 @@
 
 .lesson {
     padding: 2.5rem 0;
-    min-height: calc(100vh - 8rem); // ajusta según el alto real de tu header
+    min-height: calc(100vh - 8rem); 
+    position: relative; //Por el Loader
 
     &__wrap {
         @include m.contenedor-xl;

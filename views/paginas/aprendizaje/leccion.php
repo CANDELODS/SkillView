@@ -1,4 +1,24 @@
 <main class="lesson" data-leccion-id="<?php echo (int)$leccion->id; ?>" data-habilidad-id="<?php echo (int)$leccion->id_habilidades; ?>">
+  <!--Loader-->
+  <div class="lesson-loader" id="lesson-loader" aria-hidden="false">
+    <div class="lesson-loader__backdrop"></div>
+
+    <div class="lesson-loader__content">
+      <div class="lesson-loader__avatar">
+        <img src="/build/img/blog/responsabilidad-1.webp" alt="Asistente SkillView">
+      </div>
+
+      <h2 class="lesson-loader__title">Asistente SkillView</h2>
+      <p class="lesson-loader__text">Preparando tu lección...</p>
+
+      <div class="lesson-loader__dots">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+  </div>
+  <!--FIN Loader-->
   <section class="lesson__wrap">
 
     <!-- Escenario -->

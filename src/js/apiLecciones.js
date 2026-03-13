@@ -5,6 +5,8 @@
     let sendButton = null;
     let micButton = null;
 
+    let lessonLoader = null;
+
     let lessonResultModal = null;
     let lessonResultModalBody = null;
     let lessonResultModalTitle = null;
@@ -34,6 +36,8 @@
         textInput = document.querySelector('.lesson__input');
         sendButton = document.querySelector('.lesson__sendBtn');
         micButton = document.querySelector('.lesson__iconBtn');
+
+        lessonLoader = document.getElementById('lesson-loader');
 
         lessonResultModal = document.getElementById('sv-lesson-result-modal');
         lessonResultModalBody = lessonResultModal
@@ -69,6 +73,7 @@
             return;
         }
 
+        showLessonLoader();
         bindEvents();
         startLesson();
     }
@@ -160,6 +165,20 @@
     }
     // --------------------- FIN MODAL ------------------------------------
 
+    // --------------------- LOADER ------------------------------------
+    function showLessonLoader() {
+        if (!lessonLoader) return;
+        lessonLoader.classList.add('is-visible');
+        lessonLoader.setAttribute('aria-hidden', 'false');
+    }
+
+    function hideLessonLoader() {
+        if (!lessonLoader) return;
+        lessonLoader.classList.remove('is-visible');
+        lessonLoader.setAttribute('aria-hidden', 'true');
+    }
+    // --------------------- FIN LOADER ------------------------------------
+
     async function startLesson() {
         setLoading(true);
         clearMessages();
@@ -190,6 +209,7 @@
         } catch (error) {
             console.error('Error al iniciar la lección:', error);
             renderSystemMessage('Ocurrió un error al iniciar la lección.');
+            hideLessonLoader();
             return;
         } finally {
             setLoading(false);
@@ -233,11 +253,13 @@
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
             handleCompletion(data);
+            hideLessonLoader();
 
         } catch (error) {
             removeTypingIndicator();
             console.error('Error en advance:', error);
             renderSystemMessage('No se pudo avanzar en la lección.');
+            hideLessonLoader();
         } finally {
             setLoading(false);
         }
@@ -479,6 +501,7 @@
     }
 
     function handleApiError(data) {
+        hideLessonLoader();
         removeTypingIndicator();
         console.error('Error API:', data);
 
