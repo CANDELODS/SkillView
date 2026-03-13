@@ -1,9 +1,9 @@
-<main class="lesson">
+<main class="lesson" data-leccion-id="<?php echo (int)$leccion->id; ?>" data-habilidad-id="<?php echo (int)$leccion->id_habilidades; ?>">
   <section class="lesson__wrap">
-    
+
     <!-- Escenario -->
     <div class="lesson__stage">
-      
+
       <!-- Avatar / Asistente -->
       <aside class="lesson__assistant" aria-label="Asistente SkillView">
         <div class="lesson__assistantCard">
@@ -21,7 +21,7 @@
           <!-- Bubble destacada (tipo “pregunta actual”) -->
           <div class="lesson__prompt">
             <p class="lesson__promptText">
-              Hola <?php echo $nombreUsuario ?? 'Juan Candelo'; ?> bienvenido a la lección <?php echo $leccion->orden;?>: <?php echo $leccion->titulo ?? 'Lección no encontrada'; ?>
+              Hola <?php echo $nombreUsuario ?? 'Juan Candelo'; ?> bienvenido a la lección <?php echo $leccion->orden; ?>: <?php echo $leccion->titulo ?? 'Lección no encontrada'; ?>
             </p>
           </div>
         </div>
@@ -29,44 +29,9 @@
 
       <!-- Chat -->
       <section class="lesson__chat" aria-label="Conversación de la lección">
-        
+
         <!-- Mensajes -->
-        <div class="lesson__messages" id="lesson-messages">
-          
-          <!-- Mensaje del asistente -->
-          <article class="lesson__msg lesson__msg--assistant">
-            <div class="lesson__bubble lesson__bubble--assistant">
-              <p class="lesson__text">
-                Hola, bienvenido a la lección <strong><?php echo $leccion->titulo ?? 'Lección' ?></strong>.
-                Hoy vamos a trabajar la habilidad <strong><?php echo $leccion->nombreHabilidad ?? 'Habilidad' ?></strong>.
-              </p>
-            </div>
-          </article>
-
-          <!-- <article class="lesson__msg lesson__msg--assistant">
-            <div class="lesson__bubble lesson__bubble--assistant">
-              <p class="lesson__text">
-                La autoconfianza no es “sentirse invencible”, es confiar en que puedes manejar lo que venga.
-              </p>
-            </div>
-          </article> -->
-
-          <!-- Mensaje del usuario -->
-          <article class="lesson__msg lesson__msg--user">
-            <div class="lesson__bubble lesson__bubble--user">
-              <p class="lesson__text">
-                Para mí es creer en mis capacidades incluso cuando tengo dudas.
-              </p>
-            </div>
-          </article>
-
-          <!-- Tip (estado) -->
-          <div class="lesson__hint" aria-live="polite">
-            <span class="lesson__hintDot"></span>
-            <span class="lesson__hintText">El asistente está analizando tu respuesta…</span>
-          </div>
-
-        </div>
+        <div class="lesson__messages" id="lesson-messages"></div>
 
         <!-- Composer -->
         <form class="lesson__composer" autocomplete="off">
@@ -79,8 +44,7 @@
             type="text"
             name="message"
             placeholder="Escribe tu respuesta..."
-            aria-label="Escribe tu respuesta"
-          />
+            aria-label="Escribe tu respuesta" />
 
           <button class="lesson__sendBtn" type="submit" aria-label="Enviar respuesta">
             <i class="fa-solid fa-paper-plane"></i>
@@ -92,7 +56,33 @@
     </div>
   </section>
 </main>
-<script>
-    const leccionId = <?= (int)$leccion->id ?>;
-    const habilidadId = <?= (int)$leccion->id_habilidades ?>;
-</script>
+<section class="sv-lesson-result-modal" id="sv-lesson-result-modal" aria-hidden="true">
+  <div class="sv-lesson-result-modal__backdrop"></div>
+
+  <div
+    class="sv-lesson-result-modal__dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="sv-lesson-result-modal-title">
+    <header class="sv-lesson-result-modal__header">
+      <div class="sv-lesson-result-modal__heading">
+        <h2 class="sv-lesson-result-modal__title" id="sv-lesson-result-modal-title">
+          Resultado de la lección
+        </h2>
+      </div>
+    </header>
+
+    <div class="sv-lesson-result-modal__body" data-sv-lesson-result-body>
+      <!-- Aquí se inyectan los mensajes -->
+    </div>
+
+    <footer class="sv-lesson-result-modal__footer">
+      <button
+        type="button"
+        class="sv-lesson-result-modal__btn sv-lesson-result-modal__btn--primary"
+        data-sv-lesson-result-continue>
+        Continuar
+      </button>
+    </footer>
+  </div>
+</section>

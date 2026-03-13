@@ -1,50 +1,165 @@
 (function () {
-    // -------------------- SELECTORES BASE --------------------
-    const messagesContainer = document.querySelector('.lesson__messages');
-    const composerForm = document.querySelector('.lesson__composer');
-    const textInput = document.querySelector('.lesson__input');
-    const sendButton = document.querySelector('.lesson__sendBtn');
-    const micButton = document.querySelector('.lesson__iconBtn');
+    let messagesContainer = null;
+    let composerForm = null;
+    let textInput = null;
+    let sendButton = null;
+    let micButton = null;
 
-    // Si no estamos en la vista de lección, no hacemos nada
-    if (!messagesContainer || !composerForm || !textInput || !sendButton) return;
+    let lessonResultModal = null;
+    let lessonResultModalBody = null;
+    let lessonResultModalTitle = null;
+    let lessonResultModalContinue = null;
 
-    // Validamos que las variables globales existan
-    if (typeof leccionId === 'undefined' || typeof habilidadId === 'undefined') {
-        console.error('leccionId o habilidadId no están definidos en la vista.');
-        return;
-    }
+    let lessonRoot = null;
 
-    // -------------------- ESTADO LOCAL DEL FRONTEND --------------------
     const state = {
-        lessonId: Number(leccionId),
-        skillId: Number(habilidadId),
+        lessonId: 0,
+        skillId: 0,
         currentStage: null,
         nextExpectedAction: null,
         inputEnabled: false,
         requiresUserResponse: false,
         completed: false,
-        isLoading: false
+        isLoading: false,
+        modalRedirectTo: null
     };
 
-    // -------------------- INIT --------------------
-    document.addEventListener('DOMContentLoaded', init);
+    function cacheDom() {
+        lessonRoot = document.querySelector('.lesson');
+
+        if (!lessonRoot) return false;
+
+        messagesContainer = document.querySelector('.lesson__messages');
+        composerForm = document.querySelector('.lesson__composer');
+        textInput = document.querySelector('.lesson__input');
+        sendButton = document.querySelector('.lesson__sendBtn');
+        micButton = document.querySelector('.lesson__iconBtn');
+
+        lessonResultModal = document.getElementById('sv-lesson-result-modal');
+        lessonResultModalBody = lessonResultModal
+            ? lessonResultModal.querySelector('[data-sv-lesson-result-body]')
+            : null;
+        lessonResultModalTitle = lessonResultModal
+            ? lessonResultModal.querySelector('#sv-lesson-result-modal-title')
+            : null;
+        lessonResultModalContinue = lessonResultModal
+            ? lessonResultModal.querySelector('[data-sv-lesson-result-continue]')
+            : null;
+
+        if (!messagesContainer || !composerForm || !textInput || !sendButton) {
+            return false;
+        }
+
+        state.lessonId = Number(lessonRoot.dataset.leccionId || 0);
+        state.skillId = Number(lessonRoot.dataset.habilidadId || 0);
+
+        if (!state.lessonId || !state.skillId) {
+            console.error('No se pudieron leer leccionId o habilidadId desde data attributes.');
+            return false;
+        }
+
+        return true;
+    }
 
     function init() {
+        const ready = cacheDom();
+
+        if (!ready) {
+            console.error('La vista de lección aún no está lista o faltan elementos del DOM.');
+            return;
+        }
+
         bindEvents();
         startLesson();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
     }
 
     function bindEvents() {
         composerForm.addEventListener('submit', onSubmit);
 
-        // Enter ya lo maneja submit, pero por claridad dejamos el comportamiento natural
         textInput.addEventListener('input', () => {
-            // Si quieres luego puedes poner contador, validación visual, etc.
+            // reservado para mejoras futuras
         });
+
+        if (lessonResultModalContinue) {
+            lessonResultModalContinue.addEventListener('click', handleLessonResultContinue);
+        }
     }
 
-    // -------------------- API: START --------------------
+    // --------------------- MODAL ----------------------------------------
+    function openLessonResultModal() {
+        if (!lessonResultModal) return;
+
+        lessonResultModal.classList.add('is-open');
+        lessonResultModal.setAttribute('aria-hidden', 'false');
+
+        if (window.SV && typeof window.SV.lockScroll === 'function') {
+            window.SV.lockScroll();
+        } else {
+            document.body.classList.add('no-scroll');
+        }
+    }
+
+    function closeLessonResultModal() {
+        if (!lessonResultModal) return;
+
+        lessonResultModal.classList.remove('is-open');
+        lessonResultModal.setAttribute('aria-hidden', 'true');
+
+        if (window.SV && typeof window.SV.unlockScroll === 'function') {
+            window.SV.unlockScroll();
+        } else {
+            document.body.classList.remove('no-scroll');
+        }
+    }
+
+    function renderLessonResultModal(modalData) {
+        if (!lessonResultModal || !lessonResultModalBody) return;
+
+        lessonResultModalBody.innerHTML = '';
+
+        if (lessonResultModalTitle) {
+            lessonResultModalTitle.textContent = modalData && modalData.title
+                ? modalData.title
+                : 'Resultado de la lección';
+        }
+
+        if (lessonResultModalContinue) {
+            lessonResultModalContinue.textContent = modalData && modalData.buttonText
+                ? modalData.buttonText
+                : 'Continuar';
+        }
+
+        const messages = modalData && Array.isArray(modalData.messages)
+            ? modalData.messages
+            : [];
+
+        messages.forEach(function (msg) {
+            const p = document.createElement('p');
+            p.className = 'sv-lesson-result-modal__text';
+            p.textContent = msg.text || '';
+            lessonResultModalBody.appendChild(p);
+        });
+
+        state.modalRedirectTo = modalData && modalData.redirectTo
+            ? modalData.redirectTo
+            : '/aprendizaje';
+
+        openLessonResultModal();
+    }
+
+    function handleLessonResultContinue() {
+        const redirectTo = state.modalRedirectTo || '/aprendizaje';
+        closeLessonResultModal();
+        window.location.href = redirectTo;
+    }
+    // --------------------- FIN MODAL ------------------------------------
+
     async function startLesson() {
         setLoading(true);
         clearMessages();
@@ -72,7 +187,6 @@
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
-
         } catch (error) {
             console.error('Error al iniciar la lección:', error);
             renderSystemMessage('Ocurrió un error al iniciar la lección.');
@@ -81,13 +195,11 @@
             setLoading(false);
         }
 
-        // Hacemos el advance automático DESPUÉS de liberar loading
         if (state.nextExpectedAction === 'advance' && !state.requiresUserResponse) {
             await sendAdvanceTurn();
         }
     }
 
-    // -------------------- API: TURN / ADVANCE --------------------
     async function sendAdvanceTurn() {
         if (state.isLoading || state.completed) return;
 
@@ -108,7 +220,7 @@
 
             const data = await response.json();
             console.log('Respuesta /api/lecciones/turn (advance):', data);
-            await delay(500); // SOLO PARA PRUEBAS VISUALES
+            await delay(500);
 
             removeTypingIndicator();
 
@@ -131,7 +243,6 @@
         }
     }
 
-    // -------------------- API: TURN / REPLY --------------------
     async function sendReplyTurn(userMessage) {
         if (state.isLoading || state.completed) return;
 
@@ -154,7 +265,7 @@
 
             const data = await response.json();
             console.log('Respuesta /api/lecciones/turn (reply):', data);
-            await delay(500); // SOLO PARA PRUEBAS VISUALES
+            await delay(500);
 
             removeTypingIndicator();
 
@@ -177,7 +288,6 @@
         }
     }
 
-    // -------------------- SUBMIT DEL FORM --------------------
     async function onSubmit(event) {
         event.preventDefault();
 
@@ -190,7 +300,6 @@
         await sendReplyTurn(message);
     }
 
-    // -------------------- RENDER DE MENSAJES --------------------
     function renderMessages(messages) {
         if (!Array.isArray(messages) || messages.length === 0) return;
 
@@ -206,15 +315,8 @@
         const role = message.role || 'assistant';
         const text = message.text || '';
 
-        // Si quieres diferenciar system luego, aquí puedes hacerlo distinto
-        if (role === 'user') {
-            return buildUserMessage(text);
-        }
-
-        if (role === 'system') {
-            return buildSystemMessageElement(text);
-        }
-
+        if (role === 'user') return buildUserMessage(text);
+        if (role === 'system') return buildSystemMessageElement(text);
         return buildAssistantMessage(text);
     }
 
@@ -283,7 +385,6 @@
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // -------------------- TYPING INDICATOR --------------------
     function renderTypingIndicator() {
         removeTypingIndicator();
 
@@ -318,7 +419,6 @@
         });
     }
 
-    // -------------------- ESTADO DE UI --------------------
     function applySessionState(session) {
         if (!session) return;
 
@@ -363,35 +463,21 @@
         }
     }
 
-    // -------------------- COMPLETADO --------------------
     function handleCompletion(data) {
         if (!data || !data.progress) return;
 
-        // Caso lección completada
-        if (data.progress.lessonCompleted) {
+        if (data.progress.lessonCompleted || data.progress.failed) {
             state.completed = true;
             textInput.disabled = true;
             sendButton.disabled = true;
             if (micButton) micButton.disabled = true;
         }
 
-        // Caso lección fallida
-        if (data.progress.failed) {
-            state.completed = true;
-            textInput.disabled = true;
-            sendButton.disabled = true;
-            if (micButton) micButton.disabled = true;
-        }
-
-        // Redirección para ambos casos
-        if (data.progress.redirectTo) {
-            setTimeout(() => {
-                window.location.href = data.progress.redirectTo;
-            }, 5000);
+        if (data.completionModal) {
+            renderLessonResultModal(data.completionModal);
         }
     }
 
-    // -------------------- ERRORES API --------------------
     function handleApiError(data) {
         removeTypingIndicator();
         console.error('Error API:', data);

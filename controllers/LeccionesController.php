@@ -858,12 +858,10 @@ class LeccionesController
                         // Fallback local para no romper el flujo si OpenAI falla
                         $finalAssistantMessages = self::buildFinalFeedbackMessages($flow['answers'], $content);
                     }
+                    // El chat solo mostrará el último mensaje real del usuario.
+                    // El feedback final se mostrará en el modal.
+                    $messages = $userFinalMessage;
 
-                    // Unimos primero el mensaje real del usuario y luego el cierre del asistente
-                    $messages = array_merge($userFinalMessage, $finalAssistantMessages);
-
-                    // Información de progreso para que el frontend sepa
-                    // que ya debe volver a /aprendizaje.
                     $progress = [
                         'lessonCompleted' => true,
                         'completedAt' => date('Y-m-d H:i:s'),
@@ -876,6 +874,13 @@ class LeccionesController
                         'session' => self::sessionPayload($flow),
                         'evaluation' => $evaluation,
                         'messages' => $messages,
+                        'completionModal' => [
+                            'type' => 'success',
+                            'title' => 'Lección completada',
+                            'messages' => $finalAssistantMessages,
+                            'buttonText' => 'Continuar',
+                            'redirectTo' => '/aprendizaje'
+                        ],
                         'progress' => $progress,
                         'ui' => [
                             'showTyping' => true,
@@ -1319,18 +1324,25 @@ class LeccionesController
             ];
         }
 
-        $messages[] = [
-            'id' => 'msg_a_' . uniqid(),
-            'role' => 'assistant',
-            'type' => 'text',
-            'text' => $assistantMessage
-        ];
-
         self::jsonResponse([
             'ok' => true,
             'error' => null,
             'session' => self::sessionPayload($flow),
             'messages' => $messages,
+            'completionModal' => [
+                'type' => 'failed',
+                'title' => 'Lección no completada',
+                'messages' => [
+                    [
+                        'id' => 'msg_a_' . uniqid(),
+                        'role' => 'assistant',
+                        'type' => 'text',
+                        'text' => $assistantMessage
+                    ]
+                ],
+                'buttonText' => 'Continuar',
+                'redirectTo' => '/aprendizaje'
+            ],
             'progress' => [
                 'lessonCompleted' => false,
                 'failed' => true,
