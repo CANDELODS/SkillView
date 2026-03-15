@@ -5,6 +5,7 @@ namespace Controllers;
 use Classes\LessonAIService;
 use Model\HabilidadesBlandas;
 use Model\Lecciones;
+use Model\usuarios_habilidades;
 use Model\usuarios_lecciones;
 use MVC\Router;
 
@@ -1508,7 +1509,18 @@ class LeccionesController
      */
     private static function markLessonAsCompleted(int $idUsuario, int $lessonId): void
     {
+        // 1) Marcar la lección como completada
         usuarios_lecciones::marcarComoCompletada($idUsuario, $lessonId);
+
+        // 2) Obtener la habilidad de esa lección
+        $lesson = Lecciones::find($lessonId);
+        if(!$lesson){
+            return;
+        }
+        $idHabilidad = (int)$lesson->id_habilidades;
+
+        // 3) Recalcular progreso de habilidad
+        usuarios_habilidades::recalcularProgresoHabilidad($idUsuario, $idHabilidad);
     }
     //---------------------------FIN HELPERS turnLeccion---------------------------//
 }
