@@ -67,4 +67,108 @@
     El modal con id específico para cerrarlo, pero con closest el botón ya "vive" deontro de su propio modal
   */
     //---------------FIN MODAL DE LAS CARDS DE LA SECCIÓN APRENDIZAJE----------------//
+
+    //---------------MODAL AUTOMÁTICO DE LOGROS RECIENTES----------------//
+    const achievementModal = document.getElementById('sv-achievement-modal');
+
+    if (achievementModal && Array.isArray(window.logrosRecientes) && window.logrosRecientes.length > 0) {
+        const achievementIcon = achievementModal.querySelector('#sv-achievement-modal-icon');
+        const achievementTitle = achievementModal.querySelector('#sv-achievement-modal-title');
+        const achievementTag = achievementModal.querySelector('#sv-achievement-modal-tag');
+        const achievementDesc = achievementModal.querySelector('#sv-achievement-modal-desc');
+        const achievementStatus = achievementModal.querySelector('#sv-achievement-modal-status');
+
+        // Cola de logros a mostrar
+        const queue = [...window.logrosRecientes];
+        let currentAchievement = null;
+
+        const traducirTipo = (tipo) => {
+            const tipos = {
+                1: 'Habilidad',
+                2: 'Puntaje',
+                3: 'Retos',
+                4: 'Desempeño'
+            };
+            return tipos[Number(tipo)] || 'Logro';
+        };
+
+        const fillAchievementModal = (logro) => {
+            currentAchievement = logro;
+
+            if (achievementIcon) {
+                // Se asume que icono llega como "logros/habilidad_autoconfianza.svg"
+                achievementIcon.src = `/build/img/${logro.icono}.svg`;
+            }
+
+            if (achievementTitle) {
+                achievementTitle.textContent = logro.nombre || '';
+            }
+
+            if (achievementTag) {
+                achievementTag.textContent = traducirTipo(logro.tipo);
+            }
+
+            if (achievementDesc) {
+                achievementDesc.textContent = logro.descripcion || '';
+            }
+
+            if (achievementStatus) {
+                achievementStatus.classList.remove('is-locked');
+                achievementStatus.innerHTML = `
+                    <p class="achievement-modal__status-label">Desbloqueado</p>
+                    <p class="achievement-modal__status-date">${logro.fecha_obtenido || ''}</p>
+                `;
+            }
+        };
+
+        const openAchievementModal = () => {
+            if (!queue.length) return;
+
+            const nextAchievement = queue.shift();
+            fillAchievementModal(nextAchievement);
+
+            achievementModal.classList.add('is-open');
+            achievementModal.setAttribute('aria-hidden', 'false');
+
+            if (window.SV && typeof window.SV.lockScroll === 'function') {
+                window.SV.lockScroll();
+            } else {
+                body.classList.add('no-scroll');
+            }
+        };
+
+        const closeAchievementModal = () => {
+            achievementModal.classList.remove('is-open');
+            achievementModal.setAttribute('aria-hidden', 'true');
+
+            if (window.SV && typeof window.SV.unlockScroll === 'function') {
+                window.SV.unlockScroll();
+            } else {
+                body.classList.remove('no-scroll');
+            }
+
+            currentAchievement = null;
+
+            // Mostrar el siguiente logro si existe
+            if (queue.length > 0) {
+                setTimeout(() => {
+                    openAchievementModal();
+                }, 250);
+            }
+        };
+
+        // Cerrar modal de logros
+        document.addEventListener('click', (e) => {
+            const closeTrigger = e.target.closest('[data-achievement-modal-close]');
+            if (!closeTrigger) return;
+
+            if (!achievementModal.classList.contains('is-open')) return;
+
+            closeAchievementModal();
+        });
+
+        // Mostrar el primer logro automáticamente al cargar la vista
+        openAchievementModal();
+    }
+    //---------------FIN MODAL AUTOMÁTICO DE LOGROS RECIENTES----------------//
 })();

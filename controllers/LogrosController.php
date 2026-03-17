@@ -52,9 +52,10 @@ class LogrosController
 
         // 4) Definir etiquetas para tipos de logros
         $tags = [
-            1 => 'Reto',
-            2 => 'Nivel',
-            3 => 'Puntaje'
+            1 => 'Habilidad',
+            2 => 'Puntaje',
+            3 => 'Retos',
+            4 => 'Desempeño'
         ];
 
         foreach ($logros as $logro) {

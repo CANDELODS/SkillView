@@ -110,6 +110,10 @@ class AprendizajeController
             $porcentajeProgreso = ($leccionesCompletadasUsuario / $totalLeccionesSistema) * 100;
         }
 
+        // Evaluar logros nuevos tipo 1 (habilidad completada) y asignarlos si el usuario los alcanzó
+        $logrosRecientes = $_SESSION['logros_recientes'] ?? [];
+        unset($_SESSION['logros_recientes']);
+
         // Render a la vista 
         $router->render('paginas/aprendizaje/aprendizaje', [
             'titulo' => 'Desarrolla tus habilidades paso a paso',
@@ -119,7 +123,8 @@ class AprendizajeController
             'leccionesCompletadasUsuario' => $leccionesCompletadasUsuario,
             'porcentajeProgreso' => $porcentajeProgreso,
             'nombreUsuario'    => $datosUsuario['nombreUsuario'],
-            'inicialesUsuario' => $datosUsuario['inicialesUsuario']
+            'inicialesUsuario' => $datosUsuario['inicialesUsuario'],
+            'logrosRecientes' => $logrosRecientes
         ]);
     }
 }

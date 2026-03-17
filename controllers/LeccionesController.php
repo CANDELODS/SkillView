@@ -5,6 +5,7 @@ namespace Controllers;
 use Classes\LessonAIService;
 use Model\HabilidadesBlandas;
 use Model\Lecciones;
+use Model\Logros;
 use Model\usuarios_habilidades;
 use Model\usuarios_lecciones;
 use MVC\Router;
@@ -1514,13 +1515,30 @@ class LeccionesController
 
         // 2) Obtener la habilidad de esa lección
         $lesson = Lecciones::find($lessonId);
-        if(!$lesson){
+        if (!$lesson) {
             return;
         }
         $idHabilidad = (int)$lesson->id_habilidades;
 
         // 3) Recalcular progreso de habilidad
         usuarios_habilidades::recalcularProgresoHabilidad($idUsuario, $idHabilidad);
+
+        //4) Evaluar si se desbloquea un logro nuevo por completar esta habilidad
+        $nuevosLogros = Logros::evaluarYAsignarNuevosPorLeccion($idUsuario);
+
+        if (!empty($nuevosLogros)) {
+            $_SESSION['logros_recientes'] = array_map(function ($logro) {
+                return [
+                    'id' => $logro->id,
+                    'nombre' => $logro->nombre,
+                    'descripcion' => $logro->descripcion,
+                    'icono' => $logro->icono,
+                    'tipo' => $logro->tipo,
+                    'valor_objetivo' => $logro->valor_objetivo,
+                    'fecha_obtenido' => date('Y-m-d')
+                ];
+            }, $nuevosLogros);
+        }
     }
     //---------------------------FIN HELPERS turnLeccion---------------------------//
 }
