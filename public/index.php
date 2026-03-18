@@ -11,6 +11,7 @@ use Controllers\LeccionesController;
 use Controllers\LogrosController;
 use Controllers\PerfilController;
 use Controllers\PrincipalController;
+use Controllers\RetoController;
 use Controllers\RetosController;
 
 $router = new Router();
@@ -57,6 +58,10 @@ $router->post('/api/lecciones/turn', [LeccionesController::class, 'turnLeccion']
 //--------------------RETOS--------------------
 $router->get('/retos', [RetosController::class, 'index']);
 $router->post('/retos', [RetosController::class, 'index']);
+//RETOS (API)
+$router->get('/retos/reto', [RetoController::class, 'reto']);
+$router->post('/api/retos/start', [RetoController::class, 'startChallenge']);
+$router->post('/api/retos/turn', [RetoController::class, 'turnChallenge']);
 //--------------------FIN RETOS--------------------
 
 //--------------------BLOG--------------------

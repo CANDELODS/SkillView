@@ -96,7 +96,7 @@
                                         data-time-max="<?php echo (int)$reto->tiempo_max; ?>"
                                         data-points="<?php echo (int)$reto->puntos; ?>"
                                         data-tags="<?php echo htmlspecialchars(implode(',', $reto->tags ?? [])); ?>"
-                                        data-start-url="/retos/iniciar?id=<?php echo (int)$reto->id; ?>">
+                                        data-start-url="/retos/reto?id=<?php echo (int)$reto->id; ?>">
                                         Iniciar Reto
                                     </button>
                                 <?php endif; ?>
