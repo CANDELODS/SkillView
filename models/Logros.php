@@ -100,43 +100,39 @@ class Logros extends ActiveRecord
             return [];
         }
 
-        // 1. Traer logros habilitados de tipo 1 (Habilidad completada)
+        // 1. Traer logros habilitados de tipo 1 (Habilidad)
         $logrosTipoHabilidad = self::obtenerLogrosTipoHabilidad();
 
         if (empty($logrosTipoHabilidad)) {
             return [];
         }
 
-        // 2. Traer progreso real del usuario por habilidad
-        // OJO: aquí NO usamos consultarSQL porque esta consulta no devuelve objetos Logros
-        $sql = "SELECT uh.id_habilidades, uh.progreso, hb.nombre
-            FROM usuarios_habilidades uh
-            INNER JOIN habilidades_blandas hb ON hb.id = uh.id_habilidades
-            WHERE uh.id_usuarios = {$idUsuario}
-              AND hb.habilitado = 1";
+        // 2. Traer todas las habilidades habilitadas
+        $sqlHabilidades = "SELECT id, nombre
+                       FROM habilidades_blandas
+                       WHERE habilitado = 1";
 
-        $resultado = self::$db->query($sql);
+        $resultadoHabilidades = self::$db->query($sqlHabilidades);
 
-        if (!$resultado) {
+        if (!$resultadoHabilidades) {
             return [];
         }
 
-        $progresos = [];
-        while ($row = $resultado->fetch_assoc()) {
-            $progresos[] = $row;
+        $habilidades = [];
+        while ($row = $resultadoHabilidades->fetch_assoc()) {
+            $habilidades[] = $row;
         }
-        $resultado->free();
+        $resultadoHabilidades->free();
 
-        if (empty($progresos)) {
+        if (empty($habilidades)) {
             return [];
         }
 
         $nuevosLogrosIds = [];
 
-        // 3. Verificar qué habilidades ya cumplen el objetivo
-        foreach ($progresos as $fila) {
-            $nombreHabilidad = $fila['nombre'] ?? '';
-            $progreso = (float)($fila['progreso'] ?? 0);
+        foreach ($habilidades as $habilidad) {
+            $idHabilidad = (int)$habilidad['id'];
+            $nombreHabilidad = $habilidad['nombre'] ?? '';
 
             $slug = self::slugHabilidad($nombreHabilidad);
 
@@ -144,28 +140,68 @@ class Logros extends ActiveRecord
                 continue;
             }
 
-            // IMPORTANTE: en tu BD el icono está guardado SIN .svg
-            $iconoEsperado = 'logros/habilidad_' . $slug;
+            // 3. Contar total de lecciones habilitadas de esa habilidad
+            $sqlTotalLecciones = "SELECT COUNT(*) AS total
+                              FROM lecciones
+                              WHERE id_habilidades = {$idHabilidad}
+                                AND habilitado = 1";
 
-            foreach ($logrosTipoHabilidad as $logro) {
-                if (
-                    $logro->icono === $iconoEsperado &&
-                    $progreso >= (float)$logro->valor_objetivo
-                ) {
-                    $yaExiste = usuarios_logros::existeLogroUsuario($idUsuario, (int)$logro->id);
+            $resultadoTotal = self::$db->query($sqlTotalLecciones);
 
-                    if (!$yaExiste) {
-                        $registrado = usuarios_logros::registrarLogro($idUsuario, (int)$logro->id);
+            if (!$resultadoTotal) {
+                continue;
+            }
 
-                        if ($registrado) {
-                            $nuevosLogrosIds[] = (int)$logro->id;
+            $rowTotal = $resultadoTotal->fetch_assoc();
+            $resultadoTotal->free();
+
+            $totalLecciones = (int)($rowTotal['total'] ?? 0);
+
+            if ($totalLecciones <= 0) {
+                continue;
+            }
+
+            // 4. Contar cuántas lecciones completó el usuario en esa habilidad
+            $sqlCompletadas = "SELECT COUNT(*) AS completadas
+                           FROM usuarios_lecciones ul
+                           INNER JOIN lecciones l ON l.id = ul.id_lecciones
+                           WHERE ul.id_usuarios = {$idUsuario}
+                             AND ul.completado = 1
+                             AND l.id_habilidades = {$idHabilidad}
+                             AND l.habilitado = 1";
+
+            $resultadoCompletadas = self::$db->query($sqlCompletadas);
+
+            if (!$resultadoCompletadas) {
+                continue;
+            }
+
+            $rowCompletadas = $resultadoCompletadas->fetch_assoc();
+            $resultadoCompletadas->free();
+
+            $leccionesCompletadas = (int)($rowCompletadas['completadas'] ?? 0);
+
+            // 5. Si completó todas las lecciones de la habilidad, revisar el logro correspondiente
+            if ($leccionesCompletadas >= $totalLecciones) {
+                $iconoEsperado = 'logros/habilidad_' . $slug;
+
+                foreach ($logrosTipoHabilidad as $logro) {
+                    if ($logro->icono === $iconoEsperado) {
+                        $yaExiste = usuarios_logros::existeLogroUsuario($idUsuario, (int)$logro->id);
+
+                        if (!$yaExiste) {
+                            $registrado = usuarios_logros::registrarLogro($idUsuario, (int)$logro->id);
+
+                            if ($registrado) {
+                                $nuevosLogrosIds[] = (int)$logro->id;
+                            }
                         }
                     }
                 }
             }
         }
 
-        // 4. Devolver la información completa de los logros recién asignados
+        // 6. Devolver la información completa de los logros recién asignados
         if (empty($nuevosLogrosIds)) {
             return [];
         }
