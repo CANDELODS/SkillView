@@ -1499,6 +1499,14 @@ h3 {
 .lesson__iconBtn:active {
   transform: translateY(0);
 }
+.lesson__iconBtn--listening {
+  background: rgba(235, 67, 40, 0.1);
+  border-color: rgba(235, 67, 40, 0.45);
+  box-shadow: 0 0 0 4px rgba(235, 67, 40, 0.12);
+}
+.lesson__iconBtn--listening i {
+  color: #EB4328;
+}
 .lesson__sendBtn {
   background-color: #EB4328;
   padding: 1.5rem 4rem;

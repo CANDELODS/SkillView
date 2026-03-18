@@ -12,6 +12,9 @@
     let lessonResultModalTitle = null;
     let lessonResultModalContinue = null;
 
+    let speechRecognition = null;
+    let finalTranscript = '';
+
     let lessonRoot = null;
 
     const state = {
@@ -23,7 +26,10 @@
         requiresUserResponse: false,
         completed: false,
         isLoading: false,
-        modalRedirectTo: null
+        modalRedirectTo: null,
+        isListening: false,
+        speechRecognitionSupported: false,
+        avatarIsSpeaking: false
     };
 
     function cacheDom() {
@@ -74,6 +80,7 @@
         }
 
         showLessonLoader();
+        initSpeechRecognition();
         bindEvents();
         startLesson();
     }
@@ -93,6 +100,12 @@
 
         if (lessonResultModalContinue) {
             lessonResultModalContinue.addEventListener('click', handleLessonResultContinue);
+        }
+
+        if (micButton) {
+            micButton.addEventListener('click', function () {
+                toggleSpeechRecognition();
+            });
         }
     }
 
@@ -318,6 +331,10 @@
         const message = textInput.value.trim();
         if (!message) return;
 
+        if (state.isListening) {
+            stopSpeechRecognition();
+        }
+
         textInput.value = '';
         await sendReplyTurn(message);
     }
@@ -466,6 +483,8 @@
         if (focusInput && state.inputEnabled && !state.completed) {
             textInput.focus();
         }
+
+        updateMicButtonState();
     }
 
     function setLoading(isLoading) {
@@ -483,6 +502,8 @@
         if (isLoading) {
             textInput.placeholder = 'Espera la respuesta del asistente...';
         }
+
+        updateMicButtonState();
     }
 
     function handleCompletion(data) {
@@ -492,7 +513,12 @@
             state.completed = true;
             textInput.disabled = true;
             sendButton.disabled = true;
-            if (micButton) micButton.disabled = true;
+
+            if (state.isListening) {
+                stopSpeechRecognition();
+            }
+
+            updateMicButtonState();
         }
 
         if (data.completionModal) {
@@ -517,6 +543,147 @@
             setTimeout(function () {
                 window.location.href = data.redirectTo;
             }, 1500);
+        }
+    }
+
+    //Iniciarlizar reconocimiento de voz
+    function initSpeechRecognition() {
+        const SpeechRecognitionAPI =
+            window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognitionAPI) {
+            state.speechRecognitionSupported = false;
+
+            if (micButton) {
+                micButton.disabled = true;
+                micButton.title = 'Tu navegador no soporta reconocimiento de voz';
+            }
+
+            return;
+        }
+
+        state.speechRecognitionSupported = true;
+
+        speechRecognition = new SpeechRecognitionAPI();
+        speechRecognition.lang = 'es-CO';
+        speechRecognition.continuous = true;
+        speechRecognition.interimResults = true;
+        speechRecognition.maxAlternatives = 1;
+
+        speechRecognition.onstart = function () {
+            state.isListening = true;
+            updateMicButtonState();
+
+            if (textInput) {
+                textInput.placeholder = 'Escuchando... habla ahora';
+            }
+        };
+
+        speechRecognition.onresult = function (event) {
+            let interimTranscript = '';
+            let accumulatedFinal = finalTranscript;
+
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+
+                if (event.results[i].isFinal) {
+                    accumulatedFinal += transcript + ' ';
+                } else {
+                    interimTranscript += transcript;
+                }
+            }
+
+            if (textInput) {
+                textInput.value = (accumulatedFinal + interimTranscript).trim();
+            }
+
+            finalTranscript = accumulatedFinal;
+        };
+
+        speechRecognition.onerror = function (event) {
+            console.error('Error reconocimiento de voz:', event.error);
+            state.isListening = false;
+            updateMicButtonState();
+
+            if (textInput) {
+                textInput.placeholder = 'No se pudo usar el micrófono. Intenta de nuevo.';
+            }
+        };
+
+        speechRecognition.onend = function () {
+            state.isListening = false;
+            updateMicButtonState();
+
+            if (textInput && !state.completed && !state.isLoading) {
+                textInput.placeholder = 'Escribe tu respuesta...';
+            }
+        };
+    }
+
+
+    //Toggle del microfono
+    function toggleSpeechRecognition() {
+        if (!state.speechRecognitionSupported || !speechRecognition) {
+            renderSystemMessage('Tu navegador no soporta reconocimiento de voz.');
+            return;
+        }
+
+        if (!canUseVoiceInput()) {
+            return;
+        }
+
+        if (state.isListening) {
+            stopSpeechRecognition();
+        } else {
+            startSpeechRecognition();
+        }
+    }
+
+    function startSpeechRecognition() {
+        if (!speechRecognition || state.isListening) return;
+
+        finalTranscript = textInput ? textInput.value.trim() + (textInput.value.trim() ? ' ' : '') : '';
+
+        try {
+            speechRecognition.start();
+        } catch (error) {
+            console.error('No se pudo iniciar el reconocimiento:', error);
+        }
+    }
+
+    function stopSpeechRecognition() {
+        if (!speechRecognition || !state.isListening) return;
+
+        speechRecognition.stop();
+    }
+
+    //Saber si se puede usar el input de voz
+    function canUseVoiceInput() {
+        return (
+            state.inputEnabled &&
+            !state.completed &&
+            !state.isLoading &&
+            !state.avatarIsSpeaking
+        );
+    }
+
+    //Estado visual del botón de microfono
+    function updateMicButtonState() {
+        if (!micButton) return;
+
+        const disabled = !state.speechRecognitionSupported || !canUseVoiceInput();
+
+        micButton.disabled = disabled;
+
+        micButton.classList.toggle('lesson__iconBtn--listening', state.isListening);
+        micButton.setAttribute('aria-pressed', state.isListening ? 'true' : 'false');
+
+        if (state.isListening) {
+            micButton.title = 'Detener grabación';
+        } else if (disabled) {
+            micButton.title = 'Micrófono no disponible en este momento';
+        } else {
+            micButton.title = 'Hablar';
         }
     }
 })();

@@ -55,7 +55,7 @@
 
         <!-- Composer -->
         <form class="lesson__composer" autocomplete="off">
-          <button class="lesson__iconBtn" type="button" aria-label="Responder por voz">
+          <button class="lesson__iconBtn" data-lesson-mic-btn type="button" aria-label="Responder por voz">
             <i class="fa-solid fa-microphone"></i>
           </button>
 

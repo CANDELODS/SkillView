@@ -3,7 +3,7 @@
 
 .lesson {
     padding: 2.5rem 0;
-    min-height: calc(100vh - 8rem); 
+    min-height: calc(100vh - 8rem);
     position: relative; //Por el Loader
 
     &__wrap {
@@ -33,6 +33,8 @@
             min-height: 72rem;
         }
     }
+
+    //Botón
 
     // ---------- ASISTENTE / AVATAR ----------
     &__assistant {
@@ -330,6 +332,16 @@
 
         &:active {
             transform: translateY(0);
+        }
+    }
+
+    &__iconBtn--listening {
+        background: rgb(235 67 40 / 10%);
+        border-color: rgb(235 67 40 / 45%);
+        box-shadow: 0 0 0 4px rgb(235 67 40 / 12%);
+
+        i {
+            color: v.$primary;
         }
     }
 
