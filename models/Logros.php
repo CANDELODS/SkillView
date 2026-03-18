@@ -208,6 +208,108 @@ class Logros extends ActiveRecord
 
         return usuarios_logros::obtenerPorIds($nuevosLogrosIds);
     }
+
+    /**
+     * Evalúa logros nuevos tipo 4 (habilidad completada) para un usuario
+     * y los registra en usuarios_logros si aún no existen.
+     *
+     * Devuelve un arreglo con los logros recién obtenidos.
+     */
+    public static function evaluarYAsignarNuevosPorReto(int $idUsuario, int $idReto): array
+    {
+        $idUsuario = (int)$idUsuario;
+        $idReto = (int)$idReto;
+
+        if ($idUsuario <= 0 || $idReto <= 0) {
+            return [];
+        }
+
+        // 1. Obtener información del reto y su habilidad
+        $sqlReto = "SELECT r.id, r.id_habilidades, hb.nombre AS nombre_habilidad
+                FROM retos r
+                INNER JOIN habilidades_blandas hb ON hb.id = r.id_habilidades
+                WHERE r.id = {$idReto}
+                  AND r.habilitado = 1
+                LIMIT 1";
+
+        $resultadoReto = self::$db->query($sqlReto);
+
+        if (!$resultadoReto || $resultadoReto->num_rows === 0) {
+            return [];
+        }
+
+        $reto = $resultadoReto->fetch_assoc();
+        $resultadoReto->free();
+
+        $nombreHabilidad = $reto['nombre_habilidad'] ?? '';
+        $slug = self::slugHabilidad($nombreHabilidad);
+
+        if (!$slug) {
+            return [];
+        }
+
+        // 2. Obtener resultado del usuario en ese reto
+        $sqlUsuarioReto = "SELECT completado, puntaje_obtenido
+                       FROM usuarios_retos
+                       WHERE id_usuarios = {$idUsuario}
+                         AND id_retos = {$idReto}
+                       LIMIT 1";
+
+        $resultadoUsuarioReto = self::$db->query($sqlUsuarioReto);
+
+        if (!$resultadoUsuarioReto || $resultadoUsuarioReto->num_rows === 0) {
+            return [];
+        }
+
+        $usuarioReto = $resultadoUsuarioReto->fetch_assoc();
+        $resultadoUsuarioReto->free();
+
+        $completado = (int)($usuarioReto['completado'] ?? 0);
+        $puntajeObtenido = (float)($usuarioReto['puntaje_obtenido'] ?? 0);
+
+        if ($completado !== 1) {
+            return [];
+        }
+
+        // 3. Buscar logros tipo 4 (Desempeño)
+        $sqlLogros = "SELECT *
+                  FROM " . static::$tabla . "
+                  WHERE habilitado = 1
+                    AND tipo = 4
+                  ORDER BY id ASC";
+
+        $logrosTipoDesempeno = self::consultarSQL($sqlLogros);
+
+        if (empty($logrosTipoDesempeno)) {
+            return [];
+        }
+
+        $nuevosLogrosIds = [];
+        $iconoEsperado = 'logros/desempeno_' . $slug;
+
+        foreach ($logrosTipoDesempeno as $logro) {
+            if (
+                $logro->icono === $iconoEsperado &&
+                $puntajeObtenido >= (float)$logro->valor_objetivo
+            ) {
+                $yaExiste = usuarios_logros::existeLogroUsuario($idUsuario, (int)$logro->id);
+
+                if (!$yaExiste) {
+                    $registrado = usuarios_logros::registrarLogro($idUsuario, (int)$logro->id);
+
+                    if ($registrado) {
+                        $nuevosLogrosIds[] = (int)$logro->id;
+                    }
+                }
+            }
+        }
+
+        if (empty($nuevosLogrosIds)) {
+            return [];
+        }
+
+        return usuarios_logros::obtenerPorIds($nuevosLogrosIds);
+    }
     //----------------------------FIN LOGROS----------------------------//
 
 }
