@@ -23,35 +23,39 @@ class usuarios_retos extends ActiveRecord
         WHERE id_usuarios = {$idUsuario}
           AND completado = 1
     ";
-        //Esta variable contiene un cursos apuntando a una tabla virtual con los resultados
+
         $resultado = self::$db->query($query);
 
-        //Vamos a recorrer esa tabla virtual y guardar los IDs en un array
-        //fetch_assoc() nos devuelve un array asociativo por cada fila de resultado
-        //Y usamos while ya que el número de filas es deconocido, no usamos foreacho ya que no es un array
         $ids = [];
-        while ($row = $resultado->fetch_assoc()) {
-            //Casteamos a int ya que MySQL lo devuelve como string
+        while ($resultado && $row = $resultado->fetch_assoc()) {
             $ids[] = (int)$row['id_retos'];
         }
-        //Liberamos memoria
-        $resultado->free();
+
+        if ($resultado) {
+            $resultado->free();
+        }
 
         return $ids;
     }
+
     //Obtenemos el total de retos completados por un usuario
     public static function totalCompletadosUsuario(int $idUsuario): int
     {
         $idUsuario = (int)$idUsuario;
         $query = "
-        SELECT COUNT(*)
+        SELECT COUNT(*) AS total
         FROM " . static::$tabla . "
         WHERE id_usuarios = {$idUsuario}
           AND completado = 1
     ";
         $resultado = self::$db->query($query);
-        $total = $resultado->fetch_array();
-        return (int) array_shift($total);
+        $total = $resultado ? $resultado->fetch_assoc() : ['total' => 0];
+
+        if ($resultado) {
+            $resultado->free();
+        }
+
+        return (int)($total['total'] ?? 0);
     }
 
     //Obtenemos el total de retos completados por habilidad para un usuario
@@ -78,24 +82,125 @@ class usuarios_retos extends ActiveRecord
         $resultado = self::$db->query($query);
 
         $data = [];
-        while ($row = $resultado->fetch_assoc()) {
+        while ($resultado && $row = $resultado->fetch_assoc()) {
             $data[] = [
                 'id_habilidad' => (int)$row['id_habilidad'],
                 'nombre'       => $row['nombre'],
                 'completados'  => (int)$row['completados'],
             ];
         }
-        $resultado->free();
+
+        if ($resultado) {
+            $resultado->free();
+        }
 
         return $data;
+    }
 
-        /**
-         * Devuelve un array así:
-         * [
-         *   ['id_habilidad'=>1, 'nombre'=>'Comunicación', 'completados'=>3],
-         *   ['id_habilidad'=>4, 'nombre'=>'Liderazgo', 'completados'=>1],
-         * ]
-         */
+    /**
+     * Total de retos completados por un usuario en una habilidad específica.
+     */
+    public static function totalCompletadosPorHabilidad(int $idUsuario, int $idHabilidad): int
+    {
+        $idUsuario = (int)$idUsuario;
+        $idHabilidad = (int)$idHabilidad;
+
+        $query = "
+        SELECT COUNT(*) AS total
+        FROM " . static::$tabla . " ur
+        INNER JOIN retos r ON r.id = ur.id_retos
+        WHERE ur.id_usuarios = {$idUsuario}
+          AND ur.completado = 1
+          AND r.id_habilidades = {$idHabilidad}
+          AND r.habilitado = 1
+    ";
+
+        $resultado = self::$db->query($query);
+        $row = $resultado ? $resultado->fetch_assoc() : ['total' => 0];
+
+        if ($resultado) {
+            $resultado->free();
+        }
+
+        return (int)($row['total'] ?? 0);
+    }
+
+    /**
+     * Verifica si el usuario ya completó un reto.
+     */
+    public static function yaCompletado(int $idUsuario, int $idReto): bool
+    {
+        $idUsuario = (int)$idUsuario;
+        $idReto = (int)$idReto;
+
+        $query = "
+        SELECT id
+        FROM " . static::$tabla . "
+        WHERE id_usuarios = {$idUsuario}
+          AND id_retos = {$idReto}
+          AND completado = 1
+        LIMIT 1
+    ";
+
+        $resultado = self::$db->query($query);
+
+        if (!$resultado) {
+            return false;
+        }
+
+        $existe = $resultado->num_rows > 0;
+        $resultado->free();
+
+        return $existe;
+    }
+
+    /**
+     * Inserta o actualiza el estado exitoso del reto.
+     */
+    public static function marcarComoCompletado(int $idUsuario, int $idReto, int $puntajeObtenido): bool
+    {
+        $idUsuario = (int)$idUsuario;
+        $idReto = (int)$idReto;
+        $puntajeObtenido = (int)$puntajeObtenido;
+        $fecha = date('Y-m-d H:i:s');
+
+        $checkQuery = "
+        SELECT id
+        FROM " . static::$tabla . "
+        WHERE id_usuarios = {$idUsuario}
+          AND id_retos = {$idReto}
+        LIMIT 1
+    ";
+
+        $resultado = self::$db->query($checkQuery);
+        $existe = $resultado ? $resultado->fetch_assoc() : null;
+
+        if ($resultado) {
+            $resultado->free();
+        }
+
+        if ($existe) {
+            $id = (int)$existe['id'];
+
+            $updateQuery = "
+            UPDATE " . static::$tabla . "
+            SET completado = 1,
+                fecha_completado = '{$fecha}',
+                puntaje_obtenido = {$puntajeObtenido}
+            WHERE id = {$id}
+            LIMIT 1
+        ";
+
+            return (bool) self::$db->query($updateQuery);
+        }
+
+        $insertQuery = "
+        INSERT INTO " . static::$tabla . "
+        (id_usuarios, id_retos, completado, fecha_completado, puntaje_obtenido)
+        VALUES ({$idUsuario}, {$idReto}, 1, '{$fecha}', {$puntajeObtenido})
+    ";
+
+        return (bool) self::$db->query($insertQuery);
     }
 
     // ================== FIN RETOS ================== //
@@ -112,8 +217,11 @@ class usuarios_retos extends ActiveRecord
               AND completado = 1";
 
         $resultado = self::$db->query($sql);
-        $row = $resultado->fetch_assoc();
-        $resultado->free();
+        $row = $resultado ? $resultado->fetch_assoc() : ['puntos' => 0];
+
+        if ($resultado) {
+            $resultado->free();
+        }
 
         return (int)($row['puntos'] ?? 0);
     }

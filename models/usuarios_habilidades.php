@@ -16,11 +16,8 @@ class usuarios_habilidades extends ActiveRecord
     // ================== REGISTRO (Inicializar Tabla Para /Perfil) ================== //
     public static function inicializarHabilidadesUsuario(int $idUsuario, ?string $fecha = null): bool
     {
-        // Si no nos pasan fecha, usamos la fecha actual (columna DATE)
         $fecha = $fecha ?: date('Y-m-d');
 
-        // Insert masivo de todas las habilidades habilitadas para el usuario
-        // Usamos NOT EXISTS para evitar duplicados si por alguna razón ya existen filas
         $query = "INSERT INTO usuarios_habilidades (id_usuarios, id_habilidades, nivel, progreso, ultima_actualizacion)
               SELECT {$idUsuario}, hb.id, 1, 0.00, '{$fecha}'
               FROM habilidades_blandas hb
@@ -41,7 +38,6 @@ class usuarios_habilidades extends ActiveRecord
 
     // ================== PERFIL ================== //
 
-    // Promedio del progreso del usuario en todas las habilidades habilitadas
     public static function progresoGeneral(int $idUsuario): int
     {
         $idUsuario = (int)$idUsuario;
@@ -53,18 +49,19 @@ class usuarios_habilidades extends ActiveRecord
                   AND hb.habilitado = 1";
 
         $resultado = self::$db->query($sql);
-        $row = $resultado->fetch_assoc();
-        $resultado->free();
+        $row = $resultado ? $resultado->fetch_assoc() : ['progreso_general' => 0];
+
+        if ($resultado) {
+            $resultado->free();
+        }
 
         return (int)($row['progreso_general'] ?? 0);
     }
 
-    // Progreso por habilidad para la tabla (nombre, nivel, progreso, fecha)
     public static function progresoPorHabilidad(int $idUsuario): array
     {
         $idUsuario = (int)$idUsuario;
 
-        // CASE para devolver el nivel en texto y evitar lógica en la vista
         $sql = "SELECT 
                     hb.id AS id_habilidad,
                     hb.nombre AS habilidad,
@@ -82,23 +79,22 @@ class usuarios_habilidades extends ActiveRecord
                   AND hb.habilitado = 1
                 ORDER BY hb.nombre ASC";
 
-        // OJO: consultarSQL crea objetos del modelo (usuarios_habilidades)
-        // y aquí también estamos trayendo columnas "extra" (habilidad, nivel_texto, id_habilidad).
-        // Como tu ActiveRecord asigna propiedades solo si existen, estas columnas extra NO se asignan.
-        // Por eso aquí usamos query + fetch_assoc y devolvemos array listo para la vista.
         $resultado = self::$db->query($sql);
 
         $data = [];
-        while ($row = $resultado->fetch_assoc()) {
+        while ($resultado && $row = $resultado->fetch_assoc()) {
             $data[] = [
                 'id_habilidad' => (int)$row['id_habilidad'],
                 'habilidad' => $row['habilidad'],
                 'nivel' => $row['nivel_texto'],
                 'progreso' => (int)round((float)$row['progreso']),
-                'ultima_actualizacion' => $row['ultima_actualizacion'] // la formateas en vista
+                'ultima_actualizacion' => $row['ultima_actualizacion']
             ];
         }
-        $resultado->free();
+
+        if ($resultado) {
+            $resultado->free();
+        }
 
         return $data;
     }
@@ -118,14 +114,14 @@ class usuarios_habilidades extends ActiveRecord
     public static function calcularNivelPorProgreso(float $progreso): int
     {
         if ($progreso >= 67) {
-            return 3; // Avanzado
+            return 3;
         }
 
         if ($progreso >= 34) {
-            return 2; // Intermedio
+            return 2;
         }
 
-        return 1; // Básico
+        return 1;
     }
 
     /**
@@ -152,9 +148,12 @@ class usuarios_habilidades extends ActiveRecord
     ";
 
         $resultadoLecciones = self::$db->query($sqlTotalLecciones);
-        $rowLecciones = $resultadoLecciones->fetch_assoc();
+        $rowLecciones = $resultadoLecciones ? $resultadoLecciones->fetch_assoc() : ['total' => 0];
         $totalLecciones = (int)($rowLecciones['total'] ?? 0);
-        $resultadoLecciones->free();
+
+        if ($resultadoLecciones) {
+            $resultadoLecciones->free();
+        }
 
         // -------------------------
         // LECCIONES COMPLETADAS POR EL USUARIO EN ESA HABILIDAD
@@ -175,27 +174,17 @@ class usuarios_habilidades extends ActiveRecord
     ";
 
         $resultadoRetos = self::$db->query($sqlTotalRetos);
-        $rowRetos = $resultadoRetos->fetch_assoc();
+        $rowRetos = $resultadoRetos ? $resultadoRetos->fetch_assoc() : ['total' => 0];
         $totalRetos = (int)($rowRetos['total'] ?? 0);
-        $resultadoRetos->free();
+
+        if ($resultadoRetos) {
+            $resultadoRetos->free();
+        }
 
         // -------------------------
         // RETOS COMPLETADOS POR EL USUARIO EN ESA HABILIDAD
         // -------------------------
-        $sqlRetosCompletados = "
-        SELECT COUNT(*) AS total
-        FROM usuarios_retos ur
-        INNER JOIN retos r ON r.id = ur.id_retos
-        WHERE ur.id_usuarios = {$idUsuario}
-          AND ur.completado = 1
-          AND r.id_habilidades = {$idHabilidad}
-          AND r.habilitado = 1
-    ";
-
-        $resultadoRetosCompletados = self::$db->query($sqlRetosCompletados);
-        $rowRetosCompletados = $resultadoRetosCompletados->fetch_assoc();
-        $retosCompletados = (int)($rowRetosCompletados['total'] ?? 0);
-        $resultadoRetosCompletados->free();
+        $retosCompletados = usuarios_retos::totalCompletadosPorHabilidad($idUsuario, $idHabilidad);
 
         // -------------------------
         // PORCENTAJE DE LECCIONES Y RETOS

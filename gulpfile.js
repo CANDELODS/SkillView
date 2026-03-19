@@ -29,6 +29,7 @@ const paths = {
         'src/js/aprendizaje.js',
         'src/js/apiLecciones.js',
         'src/js/retos.js',
+        'src/js/apiRetos.js',
         'src/js/blog.js',
         'src/js/perfil.js',
         'src/js/logros.js',
