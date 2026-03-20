@@ -4,6 +4,7 @@ namespace Controllers;
 
 use Classes\ChallengeAIService;
 use Model\HabilidadesBlandas;
+use Model\Logros;
 use Model\Retos;
 use Model\usuarios_habilidades;
 use Model\usuarios_retos;
@@ -713,7 +714,35 @@ class RetoController
             return false;
         }
 
-        return self::recalculateUserSkillProgress($idUsuario, $skillId);
+        // Recalcular progreso de la habilidad
+        self::recalculateUserSkillProgress($idUsuario, $skillId);
+
+        // Evaluar logros nuevos tipo 4 (desempeño)
+        $nuevosLogros = Logros::evaluarYAsignarNuevosPorReto($idUsuario, $challengeId);
+
+        if (!empty($nuevosLogros)) {
+            if (session_status() !== PHP_SESSION_ACTIVE) {
+                session_start();
+            }
+
+            $logrosSesionActual = $_SESSION['logros_recientes'] ?? [];
+
+            $logrosNuevosFormateados = array_map(function ($logro) {
+                return [
+                    'id' => $logro->id,
+                    'nombre' => $logro->nombre,
+                    'descripcion' => $logro->descripcion,
+                    'icono' => $logro->icono,
+                    'tipo' => $logro->tipo,
+                    'valor_objetivo' => $logro->valor_objetivo,
+                    'fecha_obtenido' => date('Y-m-d')
+                ];
+            }, $nuevosLogros);
+
+            $_SESSION['logros_recientes'] = array_merge($logrosSesionActual, $logrosNuevosFormateados);
+        }
+
+        return true;
     }
 
     private static function recalculateUserSkillProgress(int $idUsuario, int $idHabilidad): bool

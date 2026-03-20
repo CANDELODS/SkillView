@@ -280,4 +280,38 @@
     </section>
     <!-- ===================== /CHALLENGE MODAL ===================== -->
 
+    <!-- =================== MODAL LOGRO =================== -->
+    <div class="achievement-modal" id="sv-achievement-modal" aria-hidden="true">
+        <div class="achievement-modal__overlay" data-achievement-modal-close></div>
+
+        <div class="achievement-modal__content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sv-achievement-modal-title">
+            <button class="achievement-modal__close"
+                type="button"
+                aria-label="Cerrar"
+                data-achievement-modal-close>&times;</button>
+
+            <div class="achievement-modal__icon">
+                <img id="sv-achievement-modal-icon" src="" alt="Icono del logro" loading="lazy">
+            </div>
+
+            <h3 class="achievement-modal__title" id="sv-achievement-modal-title"></h3>
+            <p class="achievement-modal__tag" id="sv-achievement-modal-tag"></p>
+            <p class="achievement-modal__desc" id="sv-achievement-modal-desc"></p>
+
+            <div class="achievement-modal__status" id="sv-achievement-modal-status">
+                <!-- Se llena por JS -->
+            </div>
+
+            <button class="achievement-modal__btn" type="button" data-achievement-modal-close>
+                Continuar
+            </button>
+        </div>
+    </div>
+    <!-- =================== FIN MODAL LOGRO =================== -->
+    <script>
+        window.logrosRecientes = <?= json_encode($logrosRecientes ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+    </script>
 </main>

@@ -162,6 +162,10 @@ class RetosController
                 }
             }
         }
+
+        //Evaluar logros nuevos tipo 4
+        $logrosRecientes = $_SESSION['logros_recientes'] ?? [];
+        unset($_SESSION['logros_recientes']);
         // Render a la vista 
         $router->render('paginas/retos/retos', [
             'titulo' => 'Pon a prueba tus habilidades',
@@ -178,7 +182,8 @@ class RetosController
             'totalRetos' => $totalRetos,
             'completadosTotal' => $completadosTotal,
             'progresoPorHabilidad' => $progresoPorHabilidad,
-            'medallas' => $medallas
+            'medallas' => $medallas,
+            'logrosRecientes' => $logrosRecientes
         ]);
     }
 }
