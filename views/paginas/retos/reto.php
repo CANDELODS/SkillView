@@ -96,7 +96,7 @@
         </h2>
       </div>
     </header>
-
+    <div class="sv-challenge-result-modal__score" data-sv-challenge-result-score hidden></div>
     <div class="sv-challenge-result-modal__body" data-sv-challenge-result-body>
       <!-- Aquí se inyectan los mensajes -->
     </div>

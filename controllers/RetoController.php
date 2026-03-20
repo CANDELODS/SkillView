@@ -1073,6 +1073,8 @@ class RetoController
                 'type' => 'error',
                 'title' => 'Reto no completado',
                 'messages' => $modalMessages,
+                'scoreAwarded' => 0,
+                'maxScore' => (int)($flow['maxScore'] ?? 0),
                 'buttonText' => 'Volver a retos',
                 'redirectTo' => '/retos'
             ],
@@ -1154,6 +1156,8 @@ class RetoController
                 'type' => 'success',
                 'title' => 'Reto completado',
                 'messages' => $finalMessages,
+                'scoreAwarded' => (int)($flow['scoreAwarded'] ?? 0),
+                'maxScore' => (int)($flow['maxScore'] ?? 0),
                 'buttonText' => 'Continuar',
                 'redirectTo' => '/retos'
             ],

@@ -3253,6 +3253,7 @@ h3 {
   padding: 2rem 2rem 1.2rem 2rem;
   border-bottom: 1px solid #EFC7BD;
   background: #fff;
+  margin-bottom: 2rem;
 }
 .sv-challenge-result-modal__title {
   margin: 0;
@@ -3278,6 +3279,17 @@ h3 {
   color: #413c3c;
   line-height: 1.7;
   font-size: 1.6rem;
+}
+.sv-challenge-result-modal__score {
+  margin: 0 2rem 2rem;
+  padding: 1.2rem 1.6rem;
+  border-radius: 1.2rem;
+  background: #EB4328;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  color: white;
+  font-size: 1.7rem;
+  font-weight: 700;
+  text-align: center;
 }
 .sv-challenge-result-modal__footer {
   padding: 1.6rem 2rem 2rem 2rem;

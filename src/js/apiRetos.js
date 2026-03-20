@@ -16,6 +16,7 @@
     let finalTranscript = '';
 
     let challengeRoot = null;
+    let challengeResultModalScore = null;
 
     const state = {
         challengeId: 0,
@@ -54,6 +55,9 @@
             : null;
         challengeResultModalContinue = challengeResultModal
             ? challengeResultModal.querySelector('[data-sv-challenge-result-continue]')
+            : null;
+        challengeResultModalScore = challengeResultModal
+            ? challengeResultModal.querySelector('[data-sv-challenge-result-score]')
             : null;
 
         if (!messagesContainer || !composerForm || !textInput || !sendButton) {
@@ -151,6 +155,22 @@
             challengeResultModalContinue.textContent = modalData && modalData.buttonText
                 ? modalData.buttonText
                 : 'Continuar';
+        }
+
+        if (challengeResultModalScore) {
+            const hasScore =
+                modalData &&
+                typeof modalData.scoreAwarded !== 'undefined' &&
+                typeof modalData.maxScore !== 'undefined';
+
+            if (hasScore) {
+                challengeResultModalScore.textContent =
+                    `Puntaje obtenido: ${modalData.scoreAwarded} / ${modalData.maxScore}`;
+                challengeResultModalScore.hidden = false;
+            } else {
+                challengeResultModalScore.textContent = '';
+                challengeResultModalScore.hidden = true;
+            }
         }
 
         const messages = modalData && Array.isArray(modalData.messages)
