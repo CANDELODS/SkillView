@@ -55,7 +55,10 @@ class Router
             include_once __DIR__ . '/views/admin-layout.php';
         }else if(str_contains($url_actual, '/aprendizaje/leccion')) {
             include_once __DIR__ . '/views/leccion-layout.php';
-        }else{
+        }else if(str_contains($url_actual, '/retos/reto')){
+            include_once __DIR__ . '/views/reto-layout.php';
+        }
+        else{
             include_once __DIR__ . '/views/layout.php';
         }
     }
