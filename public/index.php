@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/app.php';
 use Controllers\AprendizajeController;
 use MVC\Router;
 use Controllers\AuthController;
+use Controllers\AvatarController;
 use Controllers\BlogController;
 use Controllers\DashboardController;
 use Controllers\LeccionesController;
@@ -53,6 +54,9 @@ $router->post('/aprendizaje', [AprendizajeController::class, 'index']);
 $router->get('/aprendizaje/leccion', [LeccionesController::class, 'leccion']);
 $router->post('/api/lecciones/start', [LeccionesController::class, 'startLeccion']);
 $router->post('/api/lecciones/turn', [LeccionesController::class, 'turnLeccion']);
+//AVATAR (API)
+$router->post('/api/avatar/session', [AvatarController::class, 'createSession']);
+$router->post('/api/avatar/session/close', [AvatarController::class, 'closeSession']);
 //--------------------FIN APRENDIZAJE--------------------
 
 //--------------------RETOS--------------------

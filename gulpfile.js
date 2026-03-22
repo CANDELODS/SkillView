@@ -27,6 +27,7 @@ const paths = {
     jsOrder: [
         'src/js/app.js',
         'src/js/aprendizaje.js',
+        'src/js/AvatarService.js',
         'src/js/apiLecciones.js',
         'src/js/retos.js',
         'src/js/apiRetos.js',
