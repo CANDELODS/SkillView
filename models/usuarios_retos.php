@@ -2,21 +2,38 @@
 
 namespace Model;
 
+// Modelo que representa la tabla usuarios_retos.
+// Esta tabla guarda el estado de los retos por usuario:
+// - si lo completó,
+// - cuándo,
+// - y qué puntaje obtuvo.
+//
+// Es una pieza clave en la integración con IA,
+// ya que aquí se persiste el resultado final evaluado por la IA.
 class usuarios_retos extends ActiveRecord
 {
+    // Nombre de la tabla en base de datos.
     protected static $tabla = 'usuarios_retos';
+
+    // Columnas reales de la tabla.
     protected static $columnasDB = ['id', 'id_usuarios', 'id_retos', 'completado', 'fecha_completado', 'puntaje_obtenido'];
 
+    // Propiedades del modelo.
     public $id, $id_usuarios, $id_retos, $completado, $fecha_completado, $puntaje_obtenido;
 
     // ================== RETOS ================== //
 
-    // Verificar los retos completados por un usuario
-    //Solo necesitamos los IDs, por lo cual no vamos a usar consultarSQL
+    // ================== CONSULTAS ================== //
+
+    // Obtiene los IDs de los retos completados por un usuario.
+    // Solo devuelve IDs porque es lo único necesario en muchos casos (optimización).
     public static function idsRetosCompletados(int $idUsuario): array
     {
         $idUsuario = (int)$idUsuario;
 
+        // Query:
+        // - Filtra por usuario
+        // - Solo trae retos marcados como completados
         $query = "
         SELECT id_retos
         FROM " . static::$tabla . "
@@ -27,10 +44,13 @@ class usuarios_retos extends ActiveRecord
         $resultado = self::$db->query($query);
 
         $ids = [];
+
+        // Recorre el resultado y guarda cada id_retos en un array.
         while ($resultado && $row = $resultado->fetch_assoc()) {
             $ids[] = (int)$row['id_retos'];
         }
 
+        // Libera memoria.
         if ($resultado) {
             $resultado->free();
         }
@@ -38,17 +58,22 @@ class usuarios_retos extends ActiveRecord
         return $ids;
     }
 
-    //Obtenemos el total de retos completados por un usuario
+    // Obtiene el total de retos completados por un usuario.
     public static function totalCompletadosUsuario(int $idUsuario): int
     {
         $idUsuario = (int)$idUsuario;
+
+        // Query COUNT para saber cuántos retos completó.
         $query = "
         SELECT COUNT(*) AS total
         FROM " . static::$tabla . "
         WHERE id_usuarios = {$idUsuario}
           AND completado = 1
     ";
+
         $resultado = self::$db->query($query);
+
+        // Si no hay resultado, se usa 0.
         $total = $resultado ? $resultado->fetch_assoc() : ['total' => 0];
 
         if ($resultado) {
@@ -58,11 +83,15 @@ class usuarios_retos extends ActiveRecord
         return (int)($total['total'] ?? 0);
     }
 
-    //Obtenemos el total de retos completados por habilidad para un usuario
+    // Obtiene cuántos retos completó el usuario agrupados por habilidad.
     public static function completadosPorHabilidad(int $idUsuario): array
     {
         $idUsuario = (int)$idUsuario;
 
+        // Query:
+        // - Une usuarios_retos con retos y habilidades_blandas
+        // - Agrupa por habilidad
+        // - Cuenta cuántos retos completados tiene cada una
         $query = "
         SELECT 
             r.id_habilidades AS id_habilidad,
@@ -82,6 +111,8 @@ class usuarios_retos extends ActiveRecord
         $resultado = self::$db->query($query);
 
         $data = [];
+
+        // Se transforma el resultado en un arreglo estructurado.
         while ($resultado && $row = $resultado->fetch_assoc()) {
             $data[] = [
                 'id_habilidad' => (int)$row['id_habilidad'],
@@ -99,6 +130,7 @@ class usuarios_retos extends ActiveRecord
 
     /**
      * Total de retos completados por un usuario en una habilidad específica.
+     * Este método es clave para calcular el progreso (50% retos).
      */
     public static function totalCompletadosPorHabilidad(int $idUsuario, int $idHabilidad): int
     {
@@ -127,6 +159,9 @@ class usuarios_retos extends ActiveRecord
 
     /**
      * Verifica si el usuario ya completó un reto.
+     * Esto es CRÍTICO en la lógica de IA porque:
+     * - evita repetir retos
+     * - evita reintentos una vez aprobado
      */
     public static function yaCompletado(int $idUsuario, int $idReto): bool
     {
@@ -144,26 +179,44 @@ class usuarios_retos extends ActiveRecord
 
         $resultado = self::$db->query($query);
 
+        // Si falla la consulta, se asume false.
         if (!$resultado) {
             return false;
         }
 
+        // Si hay al menos un registro, significa que ya fue completado.
         $existe = $resultado->num_rows > 0;
         $resultado->free();
 
         return $existe;
     }
 
+    // ================== PERSISTENCIA ================== //
+
     /**
      * Inserta o actualiza el estado exitoso del reto.
+     *
+     * ESTE ES EL MÉTODO MÁS IMPORTANTE PARA LA IA.
+     *
+     * Se ejecuta cuando:
+     * - la IA marca accepted = true
+     * - el flujo decide que el reto fue completado
+     *
+     * Aquí se guarda:
+     * - completado = 1
+     * - fecha
+     * - puntaje obtenido (calculado a partir de scoreRatio)
      */
     public static function marcarComoCompletado(int $idUsuario, int $idReto, int $puntajeObtenido): bool
     {
         $idUsuario = (int)$idUsuario;
         $idReto = (int)$idReto;
         $puntajeObtenido = (int)$puntajeObtenido;
+
+        // Fecha exacta de finalización.
         $fecha = date('Y-m-d H:i:s');
 
+        // Primero se verifica si ya existe un registro para ese usuario y reto.
         $checkQuery = "
         SELECT id
         FROM " . static::$tabla . "
@@ -179,6 +232,7 @@ class usuarios_retos extends ActiveRecord
             $resultado->free();
         }
 
+        // Si ya existe un registro, se actualiza.
         if ($existe) {
             $id = (int)$existe['id'];
 
@@ -194,6 +248,7 @@ class usuarios_retos extends ActiveRecord
             return (bool) self::$db->query($updateQuery);
         }
 
+        // Si no existe, se inserta un nuevo registro.
         $insertQuery = "
         INSERT INTO " . static::$tabla . "
         (id_usuarios, id_retos, completado, fecha_completado, puntaje_obtenido)
@@ -206,11 +261,17 @@ class usuarios_retos extends ActiveRecord
     // ================== FIN RETOS ================== //
 
     // ================== PERFIL ================== //
-    // Puntos totales obtenidos por un usuario
+
+    // Obtiene la suma total de puntos obtenidos por el usuario en todos los retos.
+    // Este valor es clave para:
+    // - rankings
+    // - logros tipo puntuación
+    // - métricas de desempeño
     public static function puntosTotalesUsuario(int $idUsuario): int
     {
         $idUsuario = (int)$idUsuario;
 
+        // SUM de puntaje_obtenido solo en retos completados.
         $sql = "SELECT IFNULL(SUM(puntaje_obtenido), 0) AS puntos
             FROM usuarios_retos
             WHERE id_usuarios = {$idUsuario}

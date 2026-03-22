@@ -1,22 +1,44 @@
 (function () {
+    // Contenedor donde se renderizan todos los mensajes del chat.
     let messagesContainer = null;
+
+    // Formulario del composer (input + botón de envío).
     let composerForm = null;
+
+    // Input de texto donde el usuario escribe la respuesta.
     let textInput = null;
+
+    // Botón para enviar la respuesta.
     let sendButton = null;
+
+    // Botón del micrófono para usar reconocimiento de voz.
     let micButton = null;
 
+    // Loader visual que se muestra mientras la lección inicia o carga.
     let lessonLoader = null;
 
+    // Referencias al modal final de resultado de la lección.
     let lessonResultModal = null;
     let lessonResultModalBody = null;
     let lessonResultModalTitle = null;
     let lessonResultModalContinue = null;
 
+    // Instancia de reconocimiento de voz del navegador.
     let speechRecognition = null;
+
+    // Texto final acumulado cuando el usuario dicta por voz.
     let finalTranscript = '';
 
+    // Elemento raíz de la vista de lección.
     let lessonRoot = null;
 
+    // Estado global del flujo de la lección en frontend.
+    // Aquí se guarda la información mínima necesaria para controlar:
+    // - la etapa actual,
+    // - si se puede responder,
+    // - si ya terminó,
+    // - si hay loading,
+    // - y si el micrófono está activo.
     const state = {
         lessonId: 0,
         skillId: 0,
@@ -32,19 +54,25 @@
         avatarIsSpeaking: false
     };
 
+    // Busca y cachea todos los elementos necesarios del DOM.
     function cacheDom() {
+        // Busca el contenedor principal de la lección.
         lessonRoot = document.querySelector('.lesson');
 
+        // Si no existe, la vista aún no está lista o el script no corresponde a esta página.
         if (!lessonRoot) return false;
 
+        // Busca elementos del chat.
         messagesContainer = document.querySelector('.lesson__messages');
         composerForm = document.querySelector('.lesson__composer');
         textInput = document.querySelector('.lesson__input');
         sendButton = document.querySelector('.lesson__sendBtn');
         micButton = document.querySelector('.lesson__iconBtn');
 
+        // Busca el loader.
         lessonLoader = document.getElementById('lesson-loader');
 
+        // Busca el modal final de la lección.
         lessonResultModal = document.getElementById('sv-lesson-result-modal');
         lessonResultModalBody = lessonResultModal
             ? lessonResultModal.querySelector('[data-sv-lesson-result-body]')
@@ -56,13 +84,16 @@
             ? lessonResultModal.querySelector('[data-sv-lesson-result-continue]')
             : null;
 
+        // Si faltan elementos esenciales, no se puede continuar.
         if (!messagesContainer || !composerForm || !textInput || !sendButton) {
             return false;
         }
 
+        // Lee los ids de la lección y la habilidad desde atributos data-* de la vista.
         state.lessonId = Number(lessonRoot.dataset.leccionId || 0);
         state.skillId = Number(lessonRoot.dataset.habilidadId || 0);
 
+        // Si no se pudieron leer correctamente, se registra error.
         if (!state.lessonId || !state.skillId) {
             console.error('No se pudieron leer leccionId o habilidadId desde data attributes.');
             return false;
@@ -71,37 +102,53 @@
         return true;
     }
 
+    // Método principal de inicialización.
     function init() {
         const ready = cacheDom();
 
+        // Si no se pudo preparar el DOM, se detiene la ejecución.
         if (!ready) {
             console.error('La vista de lección aún no está lista o faltan elementos del DOM.');
             return;
         }
 
+        // Muestra el loader inicial.
         showLessonLoader();
+
+        // Inicializa reconocimiento de voz si el navegador lo soporta.
         initSpeechRecognition();
+
+        // Registra todos los eventos necesarios.
         bindEvents();
+
+        // Inicia la lección llamando al backend.
         startLesson();
     }
 
+    // Si el DOM aún no está listo, espera a DOMContentLoaded.
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
+        // Si ya está listo, inicializa directamente.
         init();
     }
 
+    // Registra los listeners de la interfaz.
     function bindEvents() {
+        // Evento submit del formulario del composer.
         composerForm.addEventListener('submit', onSubmit);
 
+        // Evento input reservado para mejoras futuras.
         textInput.addEventListener('input', () => {
             // reservado para mejoras futuras
         });
 
+        // Evento del botón de continuar del modal.
         if (lessonResultModalContinue) {
             lessonResultModalContinue.addEventListener('click', handleLessonResultContinue);
         }
 
+        // Evento del botón de micrófono.
         if (micButton) {
             micButton.addEventListener('click', function () {
                 toggleSpeechRecognition();
@@ -110,53 +157,66 @@
     }
 
     // --------------------- MODAL ----------------------------------------
+
+    // Abre el modal final de la lección.
     function openLessonResultModal() {
         if (!lessonResultModal) return;
 
         lessonResultModal.classList.add('is-open');
         lessonResultModal.setAttribute('aria-hidden', 'false');
 
+        // Si existe helper global para bloquear scroll, lo usa.
         if (window.SV && typeof window.SV.lockScroll === 'function') {
             window.SV.lockScroll();
         } else {
+            // Fallback manual.
             document.body.classList.add('no-scroll');
         }
     }
 
+    // Cierra el modal final de la lección.
     function closeLessonResultModal() {
         if (!lessonResultModal) return;
 
         lessonResultModal.classList.remove('is-open');
         lessonResultModal.setAttribute('aria-hidden', 'true');
 
+        // Si existe helper global para liberar scroll, lo usa.
         if (window.SV && typeof window.SV.unlockScroll === 'function') {
             window.SV.unlockScroll();
         } else {
+            // Fallback manual.
             document.body.classList.remove('no-scroll');
         }
     }
 
+    // Renderiza el contenido del modal final.
     function renderLessonResultModal(modalData) {
         if (!lessonResultModal || !lessonResultModalBody) return;
 
+        // Limpia contenido anterior.
         lessonResultModalBody.innerHTML = '';
 
+        // Inserta el título del modal.
         if (lessonResultModalTitle) {
             lessonResultModalTitle.textContent = modalData && modalData.title
                 ? modalData.title
                 : 'Resultado de la lección';
         }
 
+        // Inserta el texto del botón del modal.
         if (lessonResultModalContinue) {
             lessonResultModalContinue.textContent = modalData && modalData.buttonText
                 ? modalData.buttonText
                 : 'Continuar';
         }
 
+        // Obtiene los mensajes que se mostrarán dentro del modal.
         const messages = modalData && Array.isArray(modalData.messages)
             ? modalData.messages
             : [];
 
+        // Inserta cada mensaje como un párrafo dentro del body del modal.
         messages.forEach(function (msg) {
             const p = document.createElement('p');
             p.className = 'sv-lesson-result-modal__text';
@@ -164,44 +224,55 @@
             lessonResultModalBody.appendChild(p);
         });
 
+        // Guarda la ruta de redirección posterior.
         state.modalRedirectTo = modalData && modalData.redirectTo
             ? modalData.redirectTo
             : '/aprendizaje';
 
+        // Finalmente abre el modal.
         openLessonResultModal();
     }
 
+    // Maneja el clic del botón "Continuar" del modal.
     function handleLessonResultContinue() {
         const redirectTo = state.modalRedirectTo || '/aprendizaje';
         closeLessonResultModal();
         window.location.href = redirectTo;
     }
+
     // --------------------- FIN MODAL ------------------------------------
 
     // --------------------- LOADER ------------------------------------
+
+    // Muestra el loader.
     function showLessonLoader() {
         if (!lessonLoader) return;
         lessonLoader.classList.add('is-visible');
         lessonLoader.setAttribute('aria-hidden', 'false');
     }
 
+    // Oculta el loader.
     function hideLessonLoader() {
         if (!lessonLoader) return;
         lessonLoader.classList.remove('is-visible');
         lessonLoader.setAttribute('aria-hidden', 'true');
     }
+
     // --------------------- FIN LOADER ------------------------------------
 
+    // Inicia la lección pidiendo al backend el flujo inicial.
     async function startLesson() {
         setLoading(true);
         clearMessages();
 
         try {
+            // Llama al endpoint que inicia la lección.
             const response = await fetch('/api/lecciones/start', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
+                // Envía lessonId y skillId.
                 body: JSON.stringify({
                     lessonId: state.lessonId,
                     skillId: state.skillId
@@ -211,11 +282,13 @@
             const data = await response.json();
             console.log('Respuesta /api/lecciones/start:', data);
 
+            // Si hay error HTTP o de backend, se maneja.
             if (!response.ok || !data.ok) {
                 handleApiError(data);
                 return;
             }
 
+            // Aplica sesión, renderiza mensajes y actualiza UI.
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
@@ -228,18 +301,23 @@
             setLoading(false);
         }
 
+        // Si el backend indica que debe avanzar automáticamente,
+        // se envía el turno "advance".
         if (state.nextExpectedAction === 'advance' && !state.requiresUserResponse) {
             await sendAdvanceTurn();
         }
     }
 
+    // Envía al backend la acción "advance".
     async function sendAdvanceTurn() {
+        // Si ya terminó o está cargando, no hace nada.
         if (state.isLoading || state.completed) return;
 
         setLoading(true);
         renderTypingIndicator();
 
         try {
+            // Llama al endpoint de turn con acción advance.
             const response = await fetch('/api/lecciones/turn', {
                 method: 'POST',
                 headers: {
@@ -253,6 +331,8 @@
 
             const data = await response.json();
             console.log('Respuesta /api/lecciones/turn (advance):', data);
+
+            // Delay visual para suavizar transición.
             await delay(500);
 
             removeTypingIndicator();
@@ -262,10 +342,13 @@
                 return;
             }
 
+            // Actualiza sesión, mensajes y UI.
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
             handleCompletion(data);
+
+            // Cuando la lección ya arrancó, oculta el loader principal.
             hideLessonLoader();
 
         } catch (error) {
@@ -278,6 +361,7 @@
         }
     }
 
+    // Envía al backend una respuesta escrita por el usuario.
     async function sendReplyTurn(userMessage) {
         if (state.isLoading || state.completed) return;
 
@@ -285,6 +369,7 @@
         renderTypingIndicator();
 
         try {
+            // Llama al endpoint de turn con acción reply.
             const response = await fetch('/api/lecciones/turn', {
                 method: 'POST',
                 headers: {
@@ -300,6 +385,8 @@
 
             const data = await response.json();
             console.log('Respuesta /api/lecciones/turn (reply):', data);
+
+            // Delay visual para suavizar transición.
             await delay(500);
 
             removeTypingIndicator();
@@ -309,6 +396,7 @@
                 return;
             }
 
+            // Aplica sesión, renderiza mensajes y actualiza UI.
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
@@ -323,22 +411,35 @@
         }
     }
 
+    // Maneja el submit del formulario del composer.
     async function onSubmit(event) {
+        // Evita recargar la página.
         event.preventDefault();
 
+        // Solo se permite enviar si:
+        // - input está habilitado,
+        // - se espera respuesta del usuario,
+        // - no hay loading.
         if (!state.inputEnabled || !state.requiresUserResponse || state.isLoading) return;
 
         const message = textInput.value.trim();
+
+        // Si el input está vacío, no se envía.
         if (!message) return;
 
+        // Si se estaba dictando por voz, se detiene primero.
         if (state.isListening) {
             stopSpeechRecognition();
         }
 
+        // Limpia el input antes de enviar.
         textInput.value = '';
+
+        // Envía la respuesta.
         await sendReplyTurn(message);
     }
 
+    // Renderiza un arreglo de mensajes en el chat.
     function renderMessages(messages) {
         if (!Array.isArray(messages) || messages.length === 0) return;
 
@@ -350,6 +451,7 @@
         scrollMessagesToBottom();
     }
 
+    // Decide qué tipo de mensaje construir según el role.
     function buildMessageElement(message) {
         const role = message.role || 'assistant';
         const text = message.text || '';
@@ -359,6 +461,7 @@
         return buildAssistantMessage(text);
     }
 
+    // Construye un mensaje visual del asistente.
     function buildAssistantMessage(text) {
         const article = document.createElement('article');
         article.className = 'lesson__msg lesson__msg--assistant';
@@ -376,6 +479,7 @@
         return article;
     }
 
+    // Construye un mensaje visual del usuario.
     function buildUserMessage(text) {
         const article = document.createElement('article');
         article.className = 'lesson__msg lesson__msg--user';
@@ -393,6 +497,7 @@
         return article;
     }
 
+    // Construye un mensaje visual de sistema.
     function buildSystemMessageElement(text) {
         const wrapper = document.createElement('div');
         wrapper.className = 'lesson__hint';
@@ -410,20 +515,24 @@
         return wrapper;
     }
 
+    // Inserta un mensaje de sistema directamente en el chat.
     function renderSystemMessage(text) {
         const el = buildSystemMessageElement(text);
         messagesContainer.appendChild(el);
         scrollMessagesToBottom();
     }
 
+    // Limpia todos los mensajes del chat.
     function clearMessages() {
         messagesContainer.innerHTML = '';
     }
 
+    // Baja el scroll del chat hasta el final.
     function scrollMessagesToBottom() {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    // Muestra el indicador temporal de typing del asistente.
     function renderTypingIndicator() {
         removeTypingIndicator();
 
@@ -445,6 +554,7 @@
         scrollMessagesToBottom();
     }
 
+    // Elimina el indicador de typing si existe.
     function removeTypingIndicator() {
         const existing = messagesContainer.querySelector('[data-typing-indicator="true"]');
         if (existing) {
@@ -452,12 +562,14 @@
         }
     }
 
+    // Helper para pausar la ejecución unos milisegundos.
     function delay(ms) {
         return new Promise(function (resolve) {
             setTimeout(resolve, ms);
         });
     }
 
+    // Aplica el estado de sesión que devuelve el backend.
     function applySessionState(session) {
         if (!session) return;
 
@@ -468,6 +580,7 @@
         state.completed = Boolean(session.completed);
     }
 
+    // Aplica cambios visuales a la UI según la respuesta del backend.
     function applyUiState(ui) {
         const placeholder = ui.composerPlaceholder || 'Escribe tu respuesta...';
         const focusInput = Boolean(ui.focusInput);
@@ -480,6 +593,7 @@
             micButton.disabled = !state.inputEnabled || state.completed;
         }
 
+        // Si se pide foco y el input está activo, se posiciona cursor.
         if (focusInput && state.inputEnabled && !state.completed) {
             textInput.focus();
         }
@@ -487,6 +601,7 @@
         updateMicButtonState();
     }
 
+    // Marca o desmarca loading en frontend.
     function setLoading(isLoading) {
         state.isLoading = isLoading;
 
@@ -506,9 +621,11 @@
         updateMicButtonState();
     }
 
+    // Verifica si la lección terminó y si debe abrir modal final.
     function handleCompletion(data) {
         if (!data || !data.progress) return;
 
+        // Si la lección ya fue completada o falló, bloquea el input.
         if (data.progress.lessonCompleted || data.progress.failed) {
             state.completed = true;
             textInput.disabled = true;
@@ -521,11 +638,13 @@
             updateMicButtonState();
         }
 
+        // Si hay modal final, lo muestra.
         if (data.completionModal) {
             renderLessonResultModal(data.completionModal);
         }
     }
 
+    // Manejo centralizado de errores de backend.
     function handleApiError(data) {
         hideLessonLoader();
         removeTypingIndicator();
@@ -539,6 +658,7 @@
 
         renderSystemMessage(message);
 
+        // Si backend envió redirectTo, se redirige luego de una breve pausa.
         if (data && data.redirectTo) {
             setTimeout(function () {
                 window.location.href = data.redirectTo;
@@ -548,9 +668,11 @@
 
     //Iniciarlizar reconocimiento de voz
     function initSpeechRecognition() {
+        // Toma la API compatible según el navegador.
         const SpeechRecognitionAPI =
             window.SpeechRecognition || window.webkitSpeechRecognition;
 
+        // Si no existe soporte, desactiva el micrófono.
         if (!SpeechRecognitionAPI) {
             state.speechRecognitionSupported = false;
 
@@ -564,12 +686,14 @@
 
         state.speechRecognitionSupported = true;
 
+        // Crea la instancia del reconocimiento.
         speechRecognition = new SpeechRecognitionAPI();
         speechRecognition.lang = 'es-CO';
         speechRecognition.continuous = true;
         speechRecognition.interimResults = true;
         speechRecognition.maxAlternatives = 1;
 
+        // Cuando empieza a escuchar.
         speechRecognition.onstart = function () {
             state.isListening = true;
             updateMicButtonState();
@@ -579,6 +703,7 @@
             }
         };
 
+        // Cuando llegan resultados de dictado.
         speechRecognition.onresult = function (event) {
             let interimTranscript = '';
             let accumulatedFinal = finalTranscript;
@@ -593,13 +718,16 @@
                 }
             }
 
+            // Actualiza el input en vivo con lo que se reconoce.
             if (textInput) {
                 textInput.value = (accumulatedFinal + interimTranscript).trim();
             }
 
+            // Guarda lo ya confirmado como final.
             finalTranscript = accumulatedFinal;
         };
 
+        // Si ocurre error en el reconocimiento.
         speechRecognition.onerror = function (event) {
             console.error('Error reconocimiento de voz:', event.error);
             state.isListening = false;
@@ -610,6 +738,7 @@
             }
         };
 
+        // Cuando el reconocimiento termina.
         speechRecognition.onend = function () {
             state.isListening = false;
             updateMicButtonState();
@@ -639,9 +768,11 @@
         }
     }
 
+    // Inicia la grabación de voz.
     function startSpeechRecognition() {
         if (!speechRecognition || state.isListening) return;
 
+        // Si ya había texto en el input, lo conserva y sigue dictando encima.
         finalTranscript = textInput ? textInput.value.trim() + (textInput.value.trim() ? ' ' : '') : '';
 
         try {
@@ -651,6 +782,7 @@
         }
     }
 
+    // Detiene la grabación de voz.
     function stopSpeechRecognition() {
         if (!speechRecognition || !state.isListening) return;
 

@@ -192,7 +192,7 @@ class LeccionesController
             'lessonType' => $tipoLeccion
         ];
 
-        // 7) Mensajes iniciales fijos (sin IA todavía)
+        // 7) Mensajes iniciales
         try {
             $lessonAIService = new LessonAIService();
             $userName = $_SESSION['nombres'] ?? 'Estudiante';

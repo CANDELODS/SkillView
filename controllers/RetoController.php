@@ -10,33 +10,59 @@ use Model\usuarios_habilidades;
 use Model\usuarios_retos;
 use MVC\Router;
 
+// Controlador responsable de toda la lógica del detalle del reto con IA.
+// Aquí se maneja:
+// - la vista individual del reto,
+// - el inicio del flujo,
+// - los turnos de interacción,
+// - la persistencia del resultado,
+// - los helpers auxiliares.
 class RetoController
 {
+    // Método que renderiza la vista principal de un reto individual.
+    // Este método NO ejecuta la IA todavía.
+    // Solo prepara la vista /retos/reto?id=...
     public static function reto(Router $router)
     {
+        // Si el usuario no está autenticado, se redirige al inicio.
         if (!isAuth()) {
             header('Location: /');
             exit;
         }
 
+        // Variable de compatibilidad con el layout.
         $login = false;
+
+        // Obtiene datos para el encabezado del sistema:
+        // nombre de usuario e iniciales.
         $datosUsuario = obtenerDatosUsuarioHeader($_SESSION['id']);
 
+        // Se toma el id del reto desde la URL.
         $idReto = $_GET['id'] ?? null;
+
+        // Si no hay id, redirige a la lista de retos.
         if (!$idReto) {
             header('Location: /retos');
             exit;
         }
 
+        // Busca el reto en base de datos.
         $reto = Retos::find($idReto);
+
+        // Si no existe, redirige a la lista.
         if (!$reto) {
             header('Location: /retos');
             exit;
         }
 
+        // Busca la habilidad a la que pertenece el reto.
         $habilidad = HabilidadesBlandas::find($reto->id_habilidades);
+
+        // Se agrega un nombre legible de la habilidad al objeto reto
+        // para mostrarlo cómodamente en la vista.
         $reto->nombreHabilidad = $habilidad ? $habilidad->nombre : 'Habilidad';
 
+        // Renderiza la vista del reto enviando todas las variables necesarias.
         $router->render('paginas/retos/reto', [
             'titulo' => $reto->nombre,
             'login' => $login,
@@ -46,8 +72,19 @@ class RetoController
         ]);
     }
 
+    // Método API que inicia un reto con IA.
+    // Este método:
+    // 1. valida autenticación,
+    // 2. valida ids,
+    // 3. verifica si el reto existe y está habilitado,
+    // 4. construye el flujo inicial,
+    // 5. solicita a la IA los mensajes iniciales,
+    // 6. guarda el flujo en sesión,
+    // 7. responde JSON al frontend.
     public static function startChallenge()
     {
+        // Si el usuario no está autenticado o no existe id de sesión,
+        // responde error JSON con código 401.
         if (!isAuth() || empty($_SESSION['id'])) {
             self::jsonResponse([
                 'ok' => false,
@@ -59,12 +96,18 @@ class RetoController
             ], 401);
         }
 
+        // Id del usuario autenticado.
         $idUsuario = (int)$_SESSION['id'];
+
+        // Obtiene los datos enviados por fetch/AJAX.
         $input = self::getRequestData();
 
+        // Id del reto y de la habilidad enviados desde frontend.
         $challengeId = (int)($input['challengeId'] ?? 0);
         $skillId = (int)($input['skillId'] ?? 0);
 
+        // Validación básica del payload.
+        // Si los ids no son válidos, no se puede iniciar el reto.
         if ($challengeId <= 0 || $skillId <= 0) {
             self::jsonResponse([
                 'ok' => false,
@@ -75,8 +118,10 @@ class RetoController
             ], 422);
         }
 
+        // Busca el reto en base de datos.
         $reto = Retos::find($challengeId);
 
+        // Si el reto no existe, responde 404.
         if (!$reto) {
             self::jsonResponse([
                 'ok' => false,
@@ -87,8 +132,10 @@ class RetoController
             ], 404);
         }
 
+        // Busca la habilidad asociada al reto.
         $habilidad = HabilidadesBlandas::find($reto->id_habilidades ?? 0);
 
+        // Si la habilidad no existe, responde 404.
         if (!$habilidad) {
             self::jsonResponse([
                 'ok' => false,
@@ -99,6 +146,8 @@ class RetoController
             ], 404);
         }
 
+        // Verifica que el reto realmente pertenezca a la habilidad enviada por frontend.
+        // Esto evita inconsistencias o manipulaciones del request.
         if ((int)$reto->id_habilidades !== $skillId) {
             self::jsonResponse([
                 'ok' => false,
@@ -109,6 +158,7 @@ class RetoController
             ], 409);
         }
 
+        // Verifica que el reto esté habilitado.
         if ((int)($reto->habilitado ?? 0) !== 1) {
             self::jsonResponse([
                 'ok' => false,
@@ -119,6 +169,7 @@ class RetoController
             ], 409);
         }
 
+        // Verifica que la habilidad también esté habilitada.
         if ((int)($habilidad->habilitado ?? 0) !== 1) {
             self::jsonResponse([
                 'ok' => false,
@@ -129,6 +180,7 @@ class RetoController
             ], 409);
         }
 
+        // Si el usuario ya completó este reto, no se permite iniciarlo de nuevo.
         if (usuarios_retos::yaCompletado($idUsuario, $challengeId)) {
             self::jsonResponse([
                 'ok' => false,
@@ -140,15 +192,24 @@ class RetoController
             ], 409);
         }
 
+        // Borra cualquier flujo anterior activo de reto.
+        // Esto evita que se mezclen sesiones viejas con el nuevo reto.
         self::clearChallengeFlow();
 
+        // Construye la estructura completa del flujo inicial del reto.
         $flow = self::buildChallengeFlow($reto, $habilidad, $idUsuario);
+
+        // Extrae el contenido normalizado del reto desde el flow.
         $content = $flow['content'] ?? [];
 
+        // Instancia el servicio que orquesta la IA del reto.
         $challengeAI = new ChallengeAIService();
+
+        // Toma el nombre del usuario para personalizar mensajes.
         $userName = trim((string)($_SESSION['nombre'] ?? $_SESSION['nombres'] ?? 'Estudiante'));
 
         try {
+            // Intenta pedir a la IA los mensajes iniciales del reto.
             $messages = $challengeAI->generateInitialMessages(
                 $content['title'] ?? '',
                 $content['skillName'] ?? 'Habilidad',
@@ -156,11 +217,14 @@ class RetoController
                 $userName
             );
         } catch (\Throwable $e) {
+            // Si la IA falla, se usa un fallback local para no romper el flujo.
             $messages = self::buildInitialChallengeMessagesFallback($content, $userName);
         }
 
+        // Guarda el flujo inicial en sesión.
         self::saveChallengeFlow($flow);
 
+        // Devuelve al frontend toda la información necesaria para renderizar el inicio.
         self::jsonResponse([
             'ok' => true,
             'error' => null,
@@ -188,8 +252,17 @@ class RetoController
         ]);
     }
 
+    // Método API que procesa cada turno del reto.
+    // Aquí se controla el flujo completo de interacción:
+    // - avanzar del intro a la consigna,
+    // - recibir respuesta del usuario,
+    // - validar localmente,
+    // - evaluar con IA,
+    // - permitir reintentos,
+    // - finalizar con éxito o fracaso.
     public static function turnChallenge()
     {
+        // Valida autenticación.
         if (!isAuth() || empty($_SESSION['id'])) {
             self::jsonResponse([
                 'ok' => false,
@@ -201,13 +274,18 @@ class RetoController
             ], 401);
         }
 
+        // Id del usuario autenticado.
         $idUsuario = (int)$_SESSION['id'];
+
+        // Datos enviados desde el frontend.
         $input = self::getRequestData();
 
+        // Id del reto, acción y mensaje del usuario.
         $challengeId = (int)($input['challengeId'] ?? 0);
         $action = trim((string)($input['action'] ?? ''));
         $message = trim((string)($input['message'] ?? ''));
 
+        // Valida que la solicitud tenga lo mínimo necesario.
         if ($challengeId <= 0 || $action === '') {
             self::jsonResponse([
                 'ok' => false,
@@ -218,8 +296,10 @@ class RetoController
             ], 422);
         }
 
+        // Recupera el flujo activo desde sesión.
         $flow = self::getActiveChallengeFlow();
 
+        // Si no hay flujo, no se puede continuar el reto.
         if (!$flow) {
             self::jsonResponse([
                 'ok' => false,
@@ -230,6 +310,7 @@ class RetoController
             ], 409);
         }
 
+        // Verifica que el flujo activo pertenezca al usuario autenticado.
         if ((int)($flow['userId'] ?? 0) !== $idUsuario) {
             self::jsonResponse([
                 'ok' => false,
@@ -240,6 +321,7 @@ class RetoController
             ], 409);
         }
 
+        // Verifica que el reto del flujo coincida con el reto solicitado.
         if ((int)($flow['challengeId'] ?? 0) !== $challengeId) {
             self::jsonResponse([
                 'ok' => false,
@@ -250,6 +332,7 @@ class RetoController
             ], 409);
         }
 
+        // Si el reto ya terminó, no se permiten más acciones.
         if (!empty($flow['completed'])) {
             self::jsonResponse([
                 'ok' => false,
@@ -260,18 +343,22 @@ class RetoController
             ], 409);
         }
 
+        // Variables base del flujo actual.
         $currentStage = (string)($flow['currentStage'] ?? 'intro');
         $content = $flow['content'] ?? [];
         $userName = trim((string)($_SESSION['nombre'] ?? $_SESSION['nombres'] ?? 'Estudiante'));
         $challengeAI = new ChallengeAIService();
 
+        // Máquina de estados del reto.
         switch ($currentStage) {
             case 'intro':
+                // En la etapa intro, solo se permite la acción "advance".
                 if ($action !== 'advance') {
                     self::invalidActionResponse($currentStage, 'advance');
                 }
 
                 try {
+                    // La IA genera la consigna principal del reto.
                     $messages = $challengeAI->generateChallengePromptMessages(
                         $content['title'] ?? '',
                         $content['skillName'] ?? 'Habilidad',
@@ -279,16 +366,20 @@ class RetoController
                         $userName
                     );
                 } catch (\Throwable $e) {
+                    // Si falla IA, se usa fallback local.
                     $messages = self::buildChallengePromptFallback($content);
                 }
 
+                // Se avanza el flujo a la etapa donde el usuario ya puede responder.
                 $flow['currentStage'] = 'challenge_answer';
                 $flow['nextExpectedAction'] = 'reply';
                 $flow['inputEnabled'] = true;
                 $flow['requiresUserResponse'] = true;
 
+                // Guarda el flujo actualizado.
                 self::saveChallengeFlow($flow);
 
+                // Responde al frontend con la consigna y el nuevo estado del flujo.
                 self::jsonResponse([
                     'ok' => true,
                     'error' => null,
@@ -306,16 +397,23 @@ class RetoController
 
             case 'challenge_answer':
             case 'challenge_answer_retry':
+                // En estas etapas solo se permite la acción "reply".
                 if ($action !== 'reply') {
                     self::invalidActionResponse($currentStage, 'reply');
                 }
 
+                // Primero se valida la respuesta localmente antes de llamar a la IA.
                 $basicValidation = self::validateBasicChallengeAnswer($message);
 
+                // Si falla la validación básica, no se consume API.
                 if (!$basicValidation['valid']) {
+                    // Aumenta intentos usados.
                     $flow['attempts']['challengeAnswer'] = (int)($flow['attempts']['challengeAnswer'] ?? 0) + 1;
+
+                    // Calcula cuántos intentos quedan.
                     $remainingAttempts = self::remainingAttempts($flow);
 
+                    // Estructura de evaluación simulada para respuesta inválida local.
                     $evaluation = [
                         'accepted' => false,
                         'needsRetry' => true,
@@ -326,8 +424,10 @@ class RetoController
                         'feedbackSummary' => $basicValidation['message'] ?? 'Tu respuesta necesita más desarrollo.'
                     ];
 
+                    // Guarda la evaluación en el flow.
                     $flow['evaluation'] = $evaluation;
 
+                    // Prepara el mensaje del usuario para que aparezca en el chat.
                     $userMessagePayload = [[
                         'id' => 'msg_u_' . uniqid(),
                         'role' => 'user',
@@ -335,12 +435,15 @@ class RetoController
                         'text' => $message
                     ]];
 
+                    // Si ya no quedan intentos, se marca el reto como fallido.
                     if ($remainingAttempts <= 0) {
                         $flow = self::markChallengeFlowAsFailed($flow);
                         self::saveChallengeFlow($flow);
 
+                        // En el chat se muestra solo el último mensaje del usuario.
                         $chatMessages = $userMessagePayload;
 
+                        // En el modal se muestra feedback estructurado del asistente.
                         $modalMessages = self::buildFailedChallengeModalMessages($flow, $evaluation);
 
                         self::jsonResponse(
@@ -348,6 +451,7 @@ class RetoController
                         );
                     }
 
+                    // Si aún quedan intentos, el flujo entra en retry.
                     $flow['currentStage'] = 'challenge_answer_retry';
                     $flow['nextExpectedAction'] = 'reply';
                     $flow['inputEnabled'] = true;
@@ -355,6 +459,7 @@ class RetoController
 
                     self::saveChallengeFlow($flow);
 
+                    // Mensajes de retry: mensaje del usuario + feedback del asistente.
                     $retryMessages = array_merge(
                         $userMessagePayload,
                         self::buildRetryMessagesFallback($evaluation, $remainingAttempts)
@@ -366,6 +471,8 @@ class RetoController
                 }
 
                 try {
+                    // Si la validación básica fue correcta, ahora sí se llama a la IA
+                    // para evaluar semánticamente la respuesta.
                     $aiEvaluation = $challengeAI->evaluateChallengeAnswer(
                         $content['title'] ?? '',
                         $content['skillName'] ?? 'Habilidad',
@@ -379,14 +486,19 @@ class RetoController
                         $userName
                     );
                 } catch (\Throwable $e) {
+                    // Si la IA falla por razones técnicas, se devuelve error temporal controlado.
                     self::jsonResponse(
                         self::buildTemporaryAIErrorResponse($flow),
                         503
                     );
                 }
 
+                // Si la IA rechaza la respuesta.
                 if (empty($aiEvaluation['accepted'])) {
+                    // Incrementa intentos usados.
                     $flow['attempts']['challengeAnswer'] = (int)($flow['attempts']['challengeAnswer'] ?? 0) + 1;
+
+                    // Guarda la evaluación de IA en el flow.
                     $flow['evaluation'] = [
                         'accepted' => false,
                         'needsRetry' => true,
@@ -397,8 +509,10 @@ class RetoController
                         'feedbackSummary' => $aiEvaluation['feedbackSummary'] ?? null
                     ];
 
+                    // Calcula intentos restantes.
                     $remainingAttempts = self::remainingAttempts($flow);
 
+                    // Prepara el mensaje del usuario.
                     $userMessagePayload = [[
                         'id' => 'msg_u_' . uniqid(),
                         'role' => 'user',
@@ -406,6 +520,7 @@ class RetoController
                         'text' => $message
                     ]];
 
+                    // Si ya no quedan intentos, el reto termina como fallido.
                     if ($remainingAttempts <= 0) {
                         $flow = self::markChallengeFlowAsFailed($flow);
                         self::saveChallengeFlow($flow);
@@ -419,15 +534,19 @@ class RetoController
                         );
                     }
 
+                    // Si aún quedan intentos, sigue en retry.
                     $flow['currentStage'] = 'challenge_answer_retry';
                     $flow['nextExpectedAction'] = 'reply';
                     $flow['inputEnabled'] = true;
                     $flow['requiresUserResponse'] = true;
 
+                    // Si la IA devolvió mensajes, se normalizan.
+                    // Si no, se usa fallback local.
                     $assistantRetryMessages = !empty($aiEvaluation['messages'])
                         ? $challengeAI->normalizeMessages($aiEvaluation['messages'], 'msg_ai_retry_')
                         : self::buildRetryMessagesFallback($flow['evaluation'], $remainingAttempts);
 
+                    // Si la IA devolvió mensajes, se agrega un mensaje extra indicando intentos restantes.
                     if (!empty($aiEvaluation['messages'])) {
                         $assistantRetryMessages[] = [
                             'id' => 'msg_ai_attempts_' . uniqid(),
@@ -437,6 +556,7 @@ class RetoController
                         ];
                     }
 
+                    // Se combinan mensaje usuario + feedback asistente.
                     $retryMessages = array_merge($userMessagePayload, $assistantRetryMessages);
 
                     self::saveChallengeFlow($flow);
@@ -446,13 +566,17 @@ class RetoController
                     );
                 }
 
+                // Si la respuesta fue aceptada por la IA, se calcula el puntaje real.
                 $scoreAwarded = self::calculateChallengeScore(
                     (float)($aiEvaluation['scoreRatio'] ?? 0),
                     (int)($flow['maxScore'] ?? 0),
                     true
                 );
 
+                // Se guarda la respuesta final del usuario.
                 $flow['answers']['challengeAnswer'] = $message;
+
+                // Se guarda la evaluación exitosa.
                 $flow['evaluation'] = [
                     'accepted' => true,
                     'needsRetry' => false,
@@ -463,6 +587,7 @@ class RetoController
                     'feedbackSummary' => $aiEvaluation['feedbackSummary'] ?? null
                 ];
 
+                // Se actualiza el estado final del reto en sesión.
                 $flow['scoreAwarded'] = $scoreAwarded;
                 $flow['currentStage'] = 'complete';
                 $flow['nextExpectedAction'] = null;
@@ -472,8 +597,10 @@ class RetoController
                 $flow['passed'] = true;
                 $flow['failed'] = false;
 
+                // Se persiste en base de datos el resultado del reto y sus efectos asociados.
                 $saved = self::persistCompletedChallenge($idUsuario, $flow);
 
+                // Si falla la persistencia, se responde error 500.
                 if (!$saved) {
                     self::jsonResponse([
                         'ok' => false,
@@ -484,6 +611,7 @@ class RetoController
                     ], 500);
                 }
 
+                // Mensaje del usuario que se mostrará en el chat final.
                 $userMessages = [[
                     'id' => 'msg_u_' . uniqid(),
                     'role' => 'user',
@@ -492,6 +620,7 @@ class RetoController
                 ]];
 
                 try {
+                    // La IA genera el feedback final que se mostrará en el modal.
                     $finalMessages = $challengeAI->generateFinalFeedbackMessages(
                         $content['title'] ?? '',
                         $content['skillName'] ?? 'Habilidad',
@@ -505,11 +634,16 @@ class RetoController
                         $userName
                     );
                 } catch (\Throwable $e) {
+                    // Si falla la IA, se usa feedback final local.
                     $finalMessages = self::buildFinalChallengeFeedbackFallback($flow, $flow['evaluation']);
                 }
 
+                // Guarda el flow final actualizado.
                 self::saveChallengeFlow($flow);
 
+                // Respuesta final exitosa:
+                // - el chat recibe el mensaje del usuario,
+                // - el modal recibe el feedback del asistente.
                 self::jsonResponse(
                     self::buildCompletedChallengeResponse(
                         $flow,
@@ -525,11 +659,15 @@ class RetoController
                 break;
 
             default:
+                // Si el stage no existe o no es válido, responde error controlado.
                 self::invalidStageResponse($currentStage);
                 break;
         }
     }
 
+    // Lee los datos del request.
+    // Primero intenta leer JSON desde php://input.
+    // Si no hay JSON válido, cae como fallback a $_POST.
     private static function getRequestData(): array
     {
         $raw = file_get_contents('php://input');
@@ -542,6 +680,8 @@ class RetoController
         return $_POST ?? [];
     }
 
+    // Helper general para responder JSON.
+    // Define status HTTP, content-type y finaliza la ejecución.
     private static function jsonResponse(array $data, int $status = 200): void
     {
         http_response_code($status);
@@ -550,6 +690,8 @@ class RetoController
         exit;
     }
 
+    // Construye un arreglo normalizado con todos los datos del reto
+    // que serán útiles durante el flujo y para los prompts de IA.
     private static function buildChallengeContent(object $reto, object $habilidad): array
     {
         $difficultyValue = (int)($reto->dificultad ?? 1);
@@ -569,6 +711,8 @@ class RetoController
         ];
     }
 
+    // Construye el estado inicial del flujo del reto.
+    // Aquí se define toda la máquina de estados base.
     private static function buildChallengeFlow(object $reto, object $habilidad, int $userId): array
     {
         $content = self::buildChallengeContent($reto, $habilidad);
@@ -620,23 +764,29 @@ class RetoController
         ];
     }
 
+    // Devuelve el flujo activo del reto desde sesión.
+    // Si no existe o no es array, retorna null.
     private static function getActiveChallengeFlow(): ?array
     {
         $flow = $_SESSION['challenge_flow'] ?? null;
         return is_array($flow) ? $flow : null;
     }
 
+    // Guarda el flujo en sesión y actualiza el timestamp de última interacción.
     private static function saveChallengeFlow(array $flow): void
     {
         $flow['lastInteractionAt'] = date('Y-m-d H:i:s');
         $_SESSION['challenge_flow'] = $flow;
     }
 
+    // Elimina completamente el flujo del reto desde sesión.
     private static function clearChallengeFlow(): void
     {
         unset($_SESSION['challenge_flow']);
     }
 
+    // Devuelve una versión reducida del flow para el frontend.
+    // No expone todos los datos internos, solo los necesarios para la UI.
     private static function sessionPayload(array $flow): array
     {
         return [
@@ -666,6 +816,10 @@ class RetoController
         ];
     }
 
+    // Convierte el scoreRatio devuelto por IA en el puntaje real del reto.
+    // Regla:
+    // - si no fue aceptado, el puntaje es 0,
+    // - si fue aceptado, el puntaje se calcula proporcionalmente al máximo.
     private static function calculateChallengeScore(float $scoreRatio, int $maxPoints, bool $accepted): int
     {
         if (!$accepted || $maxPoints <= 0) {
@@ -676,6 +830,8 @@ class RetoController
         $score = (int) floor($maxPoints * $ratio);
         $score = max(0, min($maxPoints, $score));
 
+        // Si la IA aceptó pero el cálculo da 0 por redondeo,
+        // se garantiza mínimo 1 punto.
         if ($accepted && $score === 0) {
             return 1;
         }
@@ -683,6 +839,7 @@ class RetoController
         return $score;
     }
 
+    // Calcula cuántos intentos quedan según el flow.
     private static function remainingAttempts(array $flow): int
     {
         $used = (int)($flow['attempts']['challengeAnswer'] ?? 0);
@@ -691,6 +848,11 @@ class RetoController
         return max(0, $limit - $used);
     }
 
+    // Persiste un reto exitoso en base de datos y desencadena efectos secundarios:
+    // - guarda usuarios_retos,
+    // - recalcula progreso de habilidad,
+    // - evalúa logros,
+    // - guarda logros recientes en sesión.
     private static function persistCompletedChallenge(int $idUsuario, array $flow): bool
     {
         $idUsuario = (int)$idUsuario;
@@ -700,14 +862,17 @@ class RetoController
         $completed = (bool)($flow['completed'] ?? false);
         $passed = (bool)($flow['passed'] ?? false);
 
+        // Validación de integridad.
         if ($idUsuario <= 0 || $challengeId <= 0 || $skillId <= 0) {
             return false;
         }
 
+        // Solo persiste si el reto realmente terminó y fue aprobado.
         if (!$completed || !$passed) {
             return false;
         }
 
+        // Guarda o actualiza el reto en la tabla usuarios_retos.
         $saved = usuarios_retos::marcarComoCompletado($idUsuario, $challengeId, $scoreAwarded);
 
         if (!$saved) {
@@ -721,12 +886,15 @@ class RetoController
         $nuevosLogros = Logros::evaluarYAsignarNuevosPorReto($idUsuario, $challengeId);
 
         if (!empty($nuevosLogros)) {
+            // Garantiza que la sesión esté activa antes de usarla.
             if (session_status() !== PHP_SESSION_ACTIVE) {
                 session_start();
             }
 
+            // Lee logros recientes ya existentes en sesión.
             $logrosSesionActual = $_SESSION['logros_recientes'] ?? [];
 
+            // Formatea los logros nuevos para que puedan mostrarse fácilmente en frontend.
             $logrosNuevosFormateados = array_map(function ($logro) {
                 return [
                     'id' => $logro->id,
@@ -739,12 +907,15 @@ class RetoController
                 ];
             }, $nuevosLogros);
 
+            // Fusiona logros anteriores + logros nuevos.
             $_SESSION['logros_recientes'] = array_merge($logrosSesionActual, $logrosNuevosFormateados);
         }
 
         return true;
     }
 
+    // Recalcula el progreso consolidado de la habilidad del usuario.
+    // Devuelve true si los ids son válidos y la operación se ejecuta.
     private static function recalculateUserSkillProgress(int $idUsuario, int $idHabilidad): bool
     {
         if ($idUsuario <= 0 || $idHabilidad <= 0) {
@@ -755,6 +926,7 @@ class RetoController
         return true;
     }
 
+    // Convierte dificultad numérica a etiqueta legible para UI y prompts.
     private static function difficultyLabel(int $difficulty): string
     {
         return match ($difficulty) {
@@ -764,6 +936,7 @@ class RetoController
         };
     }
 
+    // Convierte un string de tags separados por comas en un array limpio.
     private static function parseTags(string $rawTags): array
     {
         $parts = array_map('trim', explode(',', $rawTags));
@@ -772,22 +945,27 @@ class RetoController
         return array_values($parts);
     }
 
+    // Construye una descripción estándar del objetivo del reto.
     private static function buildChallengeObjective(object $reto, object $habilidad): string
     {
         $skillName = trim((string)($habilidad->nombre ?? 'la habilidad'));
         return "Aplicar la habilidad de {$skillName} en una situación breve relacionada con entrevistas.";
     }
 
+    // Construye la acción esperada del estudiante en el reto.
     private static function buildExpectedAction(object $reto, object $habilidad): string
     {
         $skillName = trim((string)($habilidad->nombre ?? 'la habilidad'));
         return "Responder con claridad, coherencia, reflexión y una acción concreta alineada con {$skillName}.";
     }
 
+    // Validación local mínima antes de llamar a la IA.
+    // Sirve para filtrar respuestas vacías, demasiado cortas o absurdamente genéricas.
     private static function validateBasicChallengeAnswer(string $message): array
     {
         $message = trim($message);
 
+        // Caso 1: respuesta vacía.
         if ($message === '') {
             return [
                 'valid' => false,
@@ -796,6 +974,7 @@ class RetoController
             ];
         }
 
+        // Caso 2: respuesta demasiado corta.
         if (mb_strlen($message) < 12) {
             return [
                 'valid' => false,
@@ -804,6 +983,7 @@ class RetoController
             ];
         }
 
+        // Caso 3: menos de 3 palabras útiles.
         $words = preg_split('/\s+/u', $message, -1, PREG_SPLIT_NO_EMPTY);
         if (!$words || count($words) < 3) {
             return [
@@ -813,6 +993,7 @@ class RetoController
             ];
         }
 
+        // Caso 4: no contiene letras ni números útiles.
         if (!preg_match('/[a-záéíóúñ0-9]/iu', $message)) {
             return [
                 'valid' => false,
@@ -821,6 +1002,7 @@ class RetoController
             ];
         }
 
+        // Caso 5: respuestas demasiado genéricas conocidas.
         $generic = [
             'si',
             'sí',
@@ -842,6 +1024,7 @@ class RetoController
             ];
         }
 
+        // Si pasa todas las validaciones, se considera válida para enviar a IA.
         return [
             'valid' => true,
             'reason' => null,
@@ -849,6 +1032,7 @@ class RetoController
         ];
     }
 
+    // Traduce razones de validación local a razones compatibles con el sistema de retry.
     private static function mapBasicValidationReasonToRetryReason(?string $reason): string
     {
         return match ($reason) {
@@ -861,6 +1045,7 @@ class RetoController
         };
     }
 
+    // Respuesta estándar cuando la acción enviada no corresponde con la etapa actual del flujo.
     private static function invalidActionResponse(string $currentStage, string $expectedAction): void
     {
         self::jsonResponse([
@@ -874,6 +1059,7 @@ class RetoController
         ], 409);
     }
 
+    // Respuesta estándar cuando el stage actual no existe o no es reconocido.
     private static function invalidStageResponse(string $currentStage): void
     {
         self::jsonResponse([
@@ -886,6 +1072,8 @@ class RetoController
         ], 409);
     }
 
+    // Marca el flujo como fallido.
+    // Se usa cuando el usuario agota sus intentos.
     private static function markChallengeFlowAsFailed(array $flow): array
     {
         $flow['currentStage'] = 'failed';
@@ -900,6 +1088,7 @@ class RetoController
         return $flow;
     }
 
+    // Genera el texto que indica al usuario cuántos intentos le quedan.
     private static function buildAttemptsWarningMessage(int $remainingAttempts): string
     {
         if ($remainingAttempts <= 0) {
@@ -913,6 +1102,7 @@ class RetoController
         return "Te quedan {$remainingAttempts} intentos.";
     }
 
+    // Mensajes iniciales fallback si la IA falla al iniciar el reto.
     private static function buildInitialChallengeMessagesFallback(array $content, string $userName = ''): array
     {
         $name = trim($userName);
@@ -935,6 +1125,7 @@ class RetoController
         ];
     }
 
+    // Consigna fallback si la IA falla al generar el prompt principal del reto.
     private static function buildChallengePromptFallback(array $content): array
     {
         $title = $content['title'] ?? 'Reto';
@@ -963,6 +1154,7 @@ class RetoController
         ];
     }
 
+    // Traduce una razón técnica de retry a un mensaje más natural para el usuario.
     private static function mapRetryReasonToMessage(?string $reason): string
     {
         return match ($reason) {
@@ -976,6 +1168,7 @@ class RetoController
         };
     }
 
+    // Construye mensajes de retry locales cuando no se usan mensajes devueltos por IA.
     private static function buildRetryMessagesFallback(array $evaluation, int $remainingAttempts): array
     {
         return [
@@ -1000,6 +1193,7 @@ class RetoController
         ];
     }
 
+    // Feedback final fallback cuando la IA falla al generar el cierre exitoso.
     private static function buildFinalChallengeFeedbackFallback(array $flow, array $evaluation = []): array
     {
         $skillName = $flow['content']['skillName'] ?? 'esta habilidad';
@@ -1035,6 +1229,7 @@ class RetoController
         ];
     }
 
+    // Respuesta estándar cuando hay un fallo técnico temporal al usar la IA.
     private static function buildTemporaryAIErrorResponse(array $flow): array
     {
         return [
@@ -1054,6 +1249,8 @@ class RetoController
         ];
     }
 
+    // Construye la respuesta estándar de retry.
+    // Aquí el reto sigue vivo y el usuario aún puede volver a responder.
     private static function buildRetryResponse(array $flow, array $messages, array $evaluation): array
     {
         return [
@@ -1077,6 +1274,10 @@ class RetoController
         ];
     }
 
+    // Construye la respuesta final cuando el reto termina fallido.
+    // Distingue entre:
+    // - mensajes del chat,
+    // - mensajes del modal.
     private static function buildFailedChallengeResponse(
         array $flow,
         array $chatMessages,
@@ -1123,6 +1324,8 @@ class RetoController
         ];
     }
 
+    // Construye los mensajes específicos del modal de fallo.
+    // Aquí se explica por qué no se completó y qué debería reforzar el usuario.
     private static function buildFailedChallengeModalMessages(array $flow, array $evaluation = []): array
     {
         $skillName = $flow['content']['skillName'] ?? 'esta habilidad';
@@ -1160,6 +1363,10 @@ class RetoController
         ];
     }
 
+    // Construye la respuesta final cuando el reto fue completado con éxito.
+    // Separa:
+    // - messages => chat (mensaje del usuario),
+    // - completionModal => feedback final del asistente.
     private static function buildCompletedChallengeResponse(
         array $flow,
         array $userMessages,
