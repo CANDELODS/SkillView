@@ -57,6 +57,7 @@ $router->post('/api/lecciones/turn', [LeccionesController::class, 'turnLeccion']
 //AVATAR (API)
 $router->post('/api/avatar/session', [AvatarController::class, 'createSession']);
 $router->post('/api/avatar/session/close', [AvatarController::class, 'closeSession']);
+$router->post('/api/avatar/task', [AvatarController::class, 'sendTask']);
 //--------------------FIN APRENDIZAJE--------------------
 
 //--------------------RETOS--------------------

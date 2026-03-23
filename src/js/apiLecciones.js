@@ -100,9 +100,7 @@
         ]);
 
         const NON_NARRABLE_STAGES = new Set([
-            'micro_practice_answer',
             'micro_practice_answer_retry',
-            'mini_eval_answer',
             'mini_eval_retry',
             'complete'
         ]);
@@ -130,7 +128,6 @@
             if (!ui.showAvatarSpeaking) return false;
             if (!isAssistantMessage(message)) return false;
             if (NON_NARRABLE_STAGES.has(stage)) return false;
-            if (!isNarrableStage(stage)) return false;
             if (isRetryStage(stage)) return false;
 
             const text = normalizeText(message.text);

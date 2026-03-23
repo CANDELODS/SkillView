@@ -5,15 +5,13 @@
         provider: 'heygen',
         context: 'lesson',
         debug: false,
-
         endpoints: {
             createSession: '/api/avatar/session',
+            sendTask: '/api/avatar/task',
             closeSession: '/api/avatar/session/close'
         },
-
         sessionStartTimeoutMs: 20000,
         speechTimeoutMs: 45000,
-
         avatarId: null,
         voiceId: null
     };
@@ -27,7 +25,20 @@
     });
 
     const state = {
-        options: { ...DEFAULTS },
+        options: {
+            provider: DEFAULTS.provider,
+            context: DEFAULTS.context,
+            debug: DEFAULTS.debug,
+            endpoints: {
+                createSession: DEFAULTS.endpoints.createSession,
+                sendTask: DEFAULTS.endpoints.sendTask,
+                closeSession: DEFAULTS.endpoints.closeSession
+            },
+            sessionStartTimeoutMs: DEFAULTS.sessionStartTimeoutMs,
+            speechTimeoutMs: DEFAULTS.speechTimeoutMs,
+            avatarId: DEFAULTS.avatarId,
+            voiceId: DEFAULTS.voiceId
+        },
         provider: 'heygen',
 
         containerEl: null,
@@ -39,6 +50,7 @@
         unavailable: false,
 
         currentSpeechId: null,
+        currentTaskId: null,
         sessionInfo: null,
         providerClient: null,
 
@@ -47,6 +59,8 @@
 
         sessionTimeoutId: null,
         speechTimeoutId: null,
+        videoEl: null,
+        room: null,
 
         listeners: {
             ready: new Set(),
@@ -57,24 +71,24 @@
         }
     };
 
-    function log(...args) {
+    function log() {
         if (!state.options.debug) return;
-        console.log('[AvatarService]', ...args);
+        console.log.apply(console, ['[AvatarService]'].concat(Array.prototype.slice.call(arguments)));
     }
 
     function normalizeText(text) {
         return String(text || '').replace(/\s+/g, ' ').trim();
     }
 
-    function emit(eventName, payload = {}) {
-        const listeners = state.listeners[eventName];
+    function emit(eventName, payload) {
+        var listeners = state.listeners[eventName];
         if (!listeners || !listeners.size) return;
 
-        listeners.forEach((callback) => {
+        listeners.forEach(function (callback) {
             try {
-                callback(payload);
+                callback(payload || {});
             } catch (error) {
-                console.error(`[AvatarService] Error en listener "${eventName}":`, error);
+                console.error('[AvatarService] Error en listener "' + eventName + '":', error);
             }
         });
     }
@@ -97,6 +111,7 @@
     function resetSpeechState() {
         state.speaking = false;
         state.currentSpeechId = null;
+        state.currentTaskId = null;
         state.speechPromise = null;
         state.speechTimeoutId = clearTimeoutSafe(state.speechTimeoutId);
     }
@@ -111,15 +126,25 @@
         resetSpeechState();
     }
 
-    function setUnavailable(reason, extra = {}) {
+    function setUnavailable(reason, extra) {
         state.unavailable = true;
         resetSessionState();
-        emit(EVENTS.ERROR, {
-            reason,
+
+        var payload = {
+            reason: reason,
             provider: state.provider,
-            context: state.options.context || null,
-            ...extra
-        });
+            context: state.options.context || null
+        };
+
+        if (extra) {
+            for (var key in extra) {
+                if (Object.prototype.hasOwnProperty.call(extra, key)) {
+                    payload[key] = extra[key];
+                }
+            }
+        }
+
+        emit(EVENTS.ERROR, payload);
     }
 
     function isReady() {
@@ -134,14 +159,22 @@
         return state.unavailable === true;
     }
 
-    function init(options = {}) {
+    function init(options) {
+        options = options || {};
+
         state.options = {
-            ...DEFAULTS,
-            ...options,
+            provider: options.provider || DEFAULTS.provider,
+            context: options.context || DEFAULTS.context,
+            debug: Boolean(options.debug),
             endpoints: {
-                ...DEFAULTS.endpoints,
-                ...(options.endpoints || {})
-            }
+                createSession: (options.endpoints && options.endpoints.createSession) || DEFAULTS.endpoints.createSession,
+                sendTask: (options.endpoints && options.endpoints.sendTask) || DEFAULTS.endpoints.sendTask,
+                closeSession: (options.endpoints && options.endpoints.closeSession) || DEFAULTS.endpoints.closeSession
+            },
+            sessionStartTimeoutMs: options.sessionStartTimeoutMs || DEFAULTS.sessionStartTimeoutMs,
+            speechTimeoutMs: options.speechTimeoutMs || DEFAULTS.speechTimeoutMs,
+            avatarId: options.avatarId || DEFAULTS.avatarId,
+            voiceId: options.voiceId || DEFAULTS.voiceId
         };
 
         state.provider = state.options.provider || 'heygen';
@@ -150,12 +183,15 @@
         state.sessionActive = false;
         state.unavailable = false;
         state.currentSpeechId = null;
+        state.currentTaskId = null;
         state.sessionInfo = null;
         state.providerClient = null;
         state.sessionStartPromise = null;
         state.speechPromise = null;
         state.sessionTimeoutId = clearTimeoutSafe(state.sessionTimeoutId);
         state.speechTimeoutId = clearTimeoutSafe(state.speechTimeoutId);
+        state.videoEl = null;
+        state.room = null;
 
         log('init()', state.options);
     }
@@ -171,7 +207,7 @@
         state.containerEl.innerHTML = '';
         state.containerEl.setAttribute('data-avatar-mounted', 'true');
 
-        ensureVideoShell();
+        ensureVideoElement();
         return true;
     }
 
@@ -185,16 +221,21 @@
             return false;
         }
 
-        state.sessionStartPromise = (async () => {
-            state.sessionTimeoutId = setTimeout(() => {
+        if (!global.LivekitClient) {
+            setUnavailable('livekit_client_missing');
+            return false;
+        }
+
+        state.sessionStartPromise = (async function () {
+            state.sessionTimeoutId = setTimeout(function () {
                 setUnavailable('avatar_session_timeout');
             }, state.options.sessionStartTimeoutMs);
 
             try {
-                const sessionInfo = await createSessionFromBackend();
+                var sessionInfo = await createSessionFromBackend();
                 state.sessionInfo = sessionInfo;
 
-                const providerClient = await startHeyGenProviderSession(sessionInfo);
+                var providerClient = await startHeyGenProviderSession(sessionInfo);
 
                 state.providerClient = providerClient;
                 state.sessionActive = true;
@@ -210,7 +251,7 @@
                 return true;
             } catch (error) {
                 state.sessionTimeoutId = clearTimeoutSafe(state.sessionTimeoutId);
-                setUnavailable('avatar_session_start_failed', { error });
+                setUnavailable('avatar_session_start_failed', { error: error });
                 return false;
             } finally {
                 state.sessionStartPromise = null;
@@ -220,41 +261,46 @@
         return state.sessionStartPromise;
     }
 
-    async function speak(text, meta = {}) {
-        const cleanText = normalizeText(text);
+    async function speak(text, meta) {
+        meta = meta || {};
+
+        var cleanText = normalizeText(text);
 
         if (!cleanText) return false;
         if (state.unavailable || !state.ready || !state.sessionActive) return false;
         if (state.speaking) return false;
 
-        const speechId = `speech_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        var speechId = 'speech_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
         state.currentSpeechId = speechId;
         state.speaking = true;
 
         emit(EVENTS.SPEECH_START, {
-            speechId,
+            speechId: speechId,
             text: cleanText,
-            meta
+            meta: meta
         });
 
-        state.speechPromise = (async () => {
-            state.speechTimeoutId = setTimeout(() => {
+        state.speechPromise = (async function () {
+            state.speechTimeoutId = setTimeout(function () {
                 emit(EVENTS.ERROR, {
                     reason: 'avatar_speech_timeout',
-                    speechId,
-                    meta
+                    speechId: speechId,
+                    meta: meta
                 });
             }, state.options.speechTimeoutMs);
 
             try {
-                await speakWithHeyGen(cleanText, meta, speechId);
+                var taskId = await speakWithHeyGen(cleanText, meta, speechId);
+                state.currentTaskId = taskId || null;
+
+                await waitForSpeechCompletion(cleanText);
 
                 state.speechTimeoutId = clearTimeoutSafe(state.speechTimeoutId);
 
                 emit(EVENTS.SPEECH_END, {
-                    speechId,
+                    speechId: speechId,
                     text: cleanText,
-                    meta
+                    meta: meta
                 });
 
                 resetSpeechState();
@@ -264,9 +310,9 @@
 
                 emit(EVENTS.ERROR, {
                     reason: 'avatar_speech_failed',
-                    error,
-                    speechId,
-                    meta
+                    error: error,
+                    speechId: speechId,
+                    meta: meta
                 });
 
                 resetSpeechState();
@@ -285,7 +331,7 @@
         } catch (error) {
             emit(EVENTS.ERROR, {
                 reason: 'avatar_stop_failed',
-                error
+                error: error
             });
         } finally {
             resetSpeechState();
@@ -299,17 +345,26 @@
         } catch (error) {
             emit(EVENTS.ERROR, {
                 reason: 'avatar_destroy_failed',
-                error
+                error: error
             });
         } finally {
             resetSessionState();
             state.unavailable = false;
+
+            if (state.room) {
+                try {
+                    await state.room.disconnect();
+                } catch (e) { }
+            }
+
+            state.room = null;
 
             if (state.containerEl) {
                 state.containerEl.innerHTML = '';
                 state.containerEl.removeAttribute('data-avatar-mounted');
             }
 
+            state.videoEl = null;
             state.containerEl = null;
             state.mounted = false;
 
@@ -320,16 +375,16 @@
     }
 
     async function createSessionFromBackend() {
-        const endpoint = state.options.endpoints.createSession;
+        var endpoint = state.options.endpoints.createSession;
 
-        const payload = {
+        var payload = {
             provider: 'heygen',
             context: state.options.context || 'lesson',
             avatarId: state.options.avatarId || null,
             voiceId: state.options.voiceId || null
         };
 
-        const response = await fetch(endpoint, {
+        var response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -337,7 +392,8 @@
             body: JSON.stringify(payload)
         });
 
-        let data = null;
+        var data = null;
+
         try {
             data = await response.json();
         } catch (error) {
@@ -345,7 +401,7 @@
         }
 
         if (!response.ok || !data || !data.ok) {
-            const message = data && data.error && data.error.message
+            var message = data && data.error && data.error.message
                 ? data.error.message
                 : 'No se pudo crear la sesión del avatar.';
             throw new Error(message);
@@ -365,88 +421,130 @@
         };
     }
 
-    function ensureVideoShell() {
-        if (!state.containerEl) return;
+    function ensureVideoElement() {
+        if (!state.containerEl) return null;
 
-        const existing = state.containerEl.querySelector('[data-avatar-video-shell="true"]');
-        if (existing) return existing;
+        var video = state.containerEl.querySelector('[data-avatar-video="true"]');
 
-        const shell = document.createElement('div');
-        shell.className = 'lesson__avatarShell';
-        shell.setAttribute('data-avatar-video-shell', 'true');
+        if (!video) {
+            video = document.createElement('video');
+            video.setAttribute('data-avatar-video', 'true');
+            video.setAttribute('playsinline', 'true');
+            video.setAttribute('autoplay', 'true');
+            video.muted = false;
+            video.autoplay = true;
+            video.playsInline = true;
+            video.className = 'lesson__avatarVideo';
+            state.containerEl.appendChild(video);
+        }
 
-        state.containerEl.appendChild(shell);
-        return shell;
+        state.videoEl = video;
+        return video;
     }
 
     async function startHeyGenProviderSession(sessionInfo) {
-        const token = sessionInfo && sessionInfo.token ? sessionInfo.token : null;
-        if (!token) {
-            throw new Error('No se recibió token para iniciar HeyGen.');
+        var sessionId = sessionInfo && sessionInfo.sessionId ? sessionInfo.sessionId : null;
+        var url = sessionInfo && sessionInfo.url ? sessionInfo.url : null;
+        var accessToken = sessionInfo && sessionInfo.accessToken ? sessionInfo.accessToken : null;
+
+        if (!sessionId || !url || !accessToken) {
+            throw new Error('La sesión de HeyGen no devolvió sessionId, url o accessToken.');
         }
 
-        const shell = ensureVideoShell();
+        var videoEl = ensureVideoElement();
+        var room = new global.LivekitClient.Room();
 
-        // -----------------------------------------------------------------
-        // PUNTO DE INTEGRACIÓN REAL CON HEYGEN
-        // -----------------------------------------------------------------
-        // Aquí vas a reemplazar este bloque por la inicialización del SDK real.
-        //
-        // Ejemplo conceptual:
-        // const avatar = new StreamingAvatar({ token });
-        // await avatar.createStartAvatar({...});
-        // const mediaStream = avatar.mediaStream;
-        // bindStreamToVideo(mediaStream, shell);
-        // return avatar;
-        // -----------------------------------------------------------------
+        state.room = room;
 
-        const client = {
+        room.on(global.LivekitClient.RoomEvent.TrackSubscribed, function (track) {
+            var mediaStream = new MediaStream([track.mediaStreamTrack]);
+
+            if (track.kind === 'video') {
+                videoEl.srcObject = mediaStream;
+                videoEl.play().catch(function (error) {
+                    console.warn('[AvatarService] No se pudo reproducir video automáticamente:', error);
+                });
+            }
+
+            if (track.kind === 'audio') {
+                var audioEl = document.createElement('audio');
+                audioEl.autoplay = true;
+                audioEl.srcObject = mediaStream;
+                audioEl.play().catch(function (error) {
+                    console.warn('[AvatarService] No se pudo reproducir audio automáticamente:', error);
+                });
+            }
+        });
+
+        room.on(global.LivekitClient.RoomEvent.Disconnected, function () {
+            emit(EVENTS.ERROR, {
+                reason: 'avatar_room_disconnected'
+            });
+        });
+
+        await room.connect(url, accessToken);
+
+        return {
             provider: 'heygen',
-            token,
-            sessionId: sessionInfo.sessionId || null,
+            sessionId: sessionId,
             avatarId: sessionInfo.avatarId || null,
             voiceId: sessionInfo.voiceId || null,
-            shell
+            room: room
         };
-
-        renderIdlePlaceholder(shell);
-        return client;
     }
 
     async function speakWithHeyGen(text, meta, speechId) {
-        if (!state.providerClient) {
-            throw new Error('No existe providerClient activo.');
+        if (!state.providerClient || !state.providerClient.sessionId) {
+            throw new Error('No existe providerClient activo o sessionId.');
         }
 
-        // -----------------------------------------------------------------
-        // PUNTO DE INTEGRACIÓN REAL CON HEYGEN
-        // -----------------------------------------------------------------
-        // Aquí conectas la función de "speak" real del SDK.
-        //
-        // Ejemplo conceptual:
-        // await state.providerClient.speak({
-        //   text,
-        //   taskType: 'talk'
-        // });
-        // await waitForAvatarPlaybackEnd();
-        // -----------------------------------------------------------------
+        var response = await fetch(state.options.endpoints.sendTask, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                provider: 'heygen',
+                sessionId: state.providerClient.sessionId,
+                text: text,
+                taskType: 'repeat'
+            })
+        });
 
-        renderSpeakingPlaceholder(text);
-        await wait(estimateSpeechDurationMs(text));
-        renderIdlePlaceholder(state.providerClient.shell);
+        var data = null;
 
-        return {
-            ok: true,
-            speechId,
-            meta
-        };
+        try {
+            data = await response.json();
+        } catch (error) {
+            throw new Error('La respuesta del endpoint task no fue JSON válido.');
+        }
+
+        if (!response.ok || !data || !data.ok) {
+            var message = data && data.error && data.error.message
+                ? data.error.message
+                : 'No se pudo enviar la tarea al avatar.';
+            throw new Error(message);
+        }
+
+        var taskId = null;
+
+        if (data && data.taskId) {
+            taskId = data.taskId;
+        } else if (data && data.remoteTask && data.remoteTask.data && data.remoteTask.data.task_id) {
+            taskId = data.remoteTask.data.task_id;
+        } else if (data && data.remoteTask && data.remoteTask.task_id) {
+            taskId = data.remoteTask.task_id;
+        }
+
+        return taskId;
+    }
+
+    async function waitForSpeechCompletion(text) {
+        var estimatedMs = estimateSpeechDurationMs(text);
+        await wait(estimatedMs);
     }
 
     async function stopHeyGenSpeech() {
-        if (!state.providerClient) return true;
-
-        // Aquí luego llamarías al stop del SDK real si existe
-        renderIdlePlaceholder(state.providerClient.shell);
         return true;
     }
 
@@ -454,8 +552,8 @@
         if (!state.providerClient) return true;
 
         try {
-            const closeEndpoint = state.options.endpoints.closeSession;
-            const sessionId =
+            var closeEndpoint = state.options.endpoints.closeSession;
+            var sessionId =
                 state.providerClient.sessionId ||
                 (state.sessionInfo ? state.sessionInfo.sessionId : null);
 
@@ -467,7 +565,7 @@
                     },
                     body: JSON.stringify({
                         provider: 'heygen',
-                        sessionId
+                        sessionId: sessionId
                     })
                 });
             }
@@ -476,52 +574,32 @@
         }
     }
 
-    function renderIdlePlaceholder(shell) {
-        if (!shell) return;
-        shell.innerHTML = `
-            <div class="lesson__avatarFallback" data-avatar-fallback="idle">
-                <span class="lesson__avatarFallbackLabel">Avatar listo</span>
-            </div>
-        `;
-    }
-
-    function renderSpeakingPlaceholder(text) {
-        const shell = state.providerClient ? state.providerClient.shell : null;
-        if (!shell) return;
-
-        shell.innerHTML = `
-            <div class="lesson__avatarFallback" data-avatar-fallback="speaking">
-                <span class="lesson__avatarFallbackLabel">Avatar hablando...</span>
-            </div>
-        `;
-    }
-
     function estimateSpeechDurationMs(text) {
-        const words = normalizeText(text).split(' ').filter(Boolean).length || 1;
-        const minutes = words / 155;
-        const ms = Math.ceil(minutes * 60 * 1000);
+        var words = normalizeText(text).split(' ').filter(Boolean).length || 1;
+        var minutes = words / 155;
+        var ms = Math.ceil(minutes * 60 * 1000);
         return Math.min(Math.max(ms, 1200), 12000);
     }
 
     function wait(ms) {
-        return new Promise((resolve) => {
+        return new Promise(function (resolve) {
             setTimeout(resolve, ms);
         });
     }
 
     global.AvatarService = {
-        init,
-        mount,
-        startSession,
-        speak,
-        stop,
-        destroy,
-        isReady,
-        isSpeaking,
-        isUnavailable,
-        on,
-        off,
-        EVENTS
+        init: init,
+        mount: mount,
+        startSession: startSession,
+        speak: speak,
+        stop: stop,
+        destroy: destroy,
+        isReady: isReady,
+        isSpeaking: isSpeaking,
+        isUnavailable: isUnavailable,
+        on: on,
+        off: off,
+        EVENTS: EVENTS
     };
 
 })(window);

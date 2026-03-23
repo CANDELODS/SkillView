@@ -1,3 +1,4 @@
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <main class="lesson" data-leccion-id="<?php echo (int)$leccion->id; ?>" data-habilidad-id="<?php echo (int)$leccion->id_habilidades; ?>">
   <!--Loader-->
   <div class="lesson-loader" id="lesson-loader" aria-hidden="false">

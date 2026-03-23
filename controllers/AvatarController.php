@@ -6,7 +6,6 @@ class AvatarController
 {
     public static function createSession()
     {
-        // 1) Validar autenticación
         if (!isAuth()) {
             self::jsonResponse([
                 'ok' => false,
@@ -30,23 +29,12 @@ class AvatarController
             ], 401);
         }
 
-        // 2) Leer payload
         $input = self::getRequestData();
 
         $provider = isset($input['provider']) ? trim((string)$input['provider']) : 'heygen';
         $context  = isset($input['context']) ? trim((string)$input['context']) : 'lesson';
         $avatarId = isset($input['avatarId']) ? trim((string)$input['avatarId']) : '';
         $voiceId  = isset($input['voiceId']) ? trim((string)$input['voiceId']) : '';
-
-        if ($provider === '') {
-            self::jsonResponse([
-                'ok' => false,
-                'error' => [
-                    'code' => 'INVALID_PAYLOAD',
-                    'message' => 'El proveedor del avatar es obligatorio.'
-                ]
-            ], 422);
-        }
 
         if ($provider !== 'heygen') {
             self::jsonResponse([
@@ -58,13 +46,13 @@ class AvatarController
             ], 422);
         }
 
-        // 3) Obtener configuración
         $apiKey = self::env('HEYGEN_API_KEY', '');
         $defaultAvatarId = self::env('HEYGEN_AVATAR_ID', '');
-        $defaultVoiceId  = self::env('HEYGEN_VOICE_ID', '');
+        $defaultVoiceId = self::env('HEYGEN_VOICE_ID', '');
 
         if ($apiKey === '') {
             error_log('AvatarController.createSession: falta HEYGEN_API_KEY');
+
             self::jsonResponse([
                 'ok' => false,
                 'error' => [
@@ -82,43 +70,83 @@ class AvatarController
             $voiceId = $defaultVoiceId;
         }
 
-        // 4) Pedir token efímero a HeyGen
+        if ($avatarId === '') {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'AVATAR_ID_REQUIRED',
+                    'message' => 'No se configuró el avatar_id de HeyGen.'
+                ]
+            ], 422);
+        }
+
         try {
-            $heygenResponse = self::requestHeyGen(
+            $newSessionPayload = [
+                'version' => 'v2',
+                'avatar_id' => $avatarId
+            ];
+
+            if ($voiceId !== '') {
+                $newSessionPayload['voice'] = [
+                    'voice_id' => $voiceId
+                ];
+            }
+
+            $newSessionResponse = self::requestHeyGen(
                 'POST',
-                'https://api.heygen.com/v1/streaming.create_token',
-                [],
+                'https://api.heygen.com/v1/streaming.new',
+                $newSessionPayload,
                 [
-                    'x-api-key: ' . $apiKey,
+                    'Authorization: Bearer ' . $apiKey,
                     'Content-Type: application/json'
                 ]
             );
 
-            $body = $heygenResponse['body'] ?? [];
-            $token =
-                $body['data']['token'] ??
-                $body['token'] ??
-                $body['data']['access_token'] ??
-                $body['access_token'] ??
-                null;
+            $newSessionBody = $newSessionResponse['body'] ?? [];
+            $sessionData = $newSessionBody['data'] ?? $newSessionBody;
 
-            if (!$token) {
-                error_log('AvatarController.createSession: respuesta inesperada de HeyGen -> ' . json_encode($body));
+            $sessionId = $sessionData['session_id'] ?? null;
+            $url = $sessionData['url'] ?? null;
+            $accessToken = $sessionData['access_token'] ?? null;
+            $realAvatarId = $sessionData['avatar_id'] ?? $avatarId;
+
+            if (!$sessionId || !$url || !$accessToken) {
+                error_log(
+                    'AvatarController.createSession: respuesta inesperada de streaming.new -> ' .
+                        json_encode($newSessionBody, JSON_UNESCAPED_UNICODE)
+                );
+
                 self::jsonResponse([
                     'ok' => false,
                     'error' => [
-                        'code' => 'AVATAR_TOKEN_NOT_RETURNED',
-                        'message' => 'No se pudo obtener el token de sesión del avatar.'
+                        'code' => 'AVATAR_SESSION_INVALID',
+                        'message' => 'HeyGen no devolvió los datos completos de la sesión.'
                     ]
                 ], 502);
             }
 
-            // Guardamos un pequeño estado local opcional para trazabilidad
+            $startSessionResponse = self::requestHeyGen(
+                'POST',
+                'https://api.heygen.com/v1/streaming.start',
+                [
+                    'session_id' => $sessionId
+                ],
+                [
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json'
+                ]
+            );
+
+            $startSessionBody = $startSessionResponse['body'] ?? [];
+
             $_SESSION['avatar_flow'] = [
                 'provider' => 'heygen',
                 'context' => $context,
-                'avatarId' => $avatarId,
+                'sessionId' => $sessionId,
+                'avatarId' => $realAvatarId,
                 'voiceId' => $voiceId,
+                'url' => $url,
+                'accessToken' => $accessToken,
                 'createdAt' => date('c'),
                 'createdBy' => $idUsuario
             ];
@@ -127,28 +155,32 @@ class AvatarController
                 'ok' => true,
                 'error' => null,
                 'provider' => 'heygen',
-                'token' => $token,
-                'sessionId' => null,
-                'avatarId' => $avatarId ?: null,
-                'voiceId' => $voiceId ?: null,
-                'context' => $context
+                'context' => $context,
+                'sessionId' => $sessionId,
+                'url' => $url,
+                'accessToken' => $accessToken,
+                'avatarId' => $realAvatarId,
+                'voiceId' => $voiceId !== '' ? $voiceId : null,
+                'remoteStart' => $startSessionBody
             ], 200);
         } catch (\Throwable $e) {
             error_log('AvatarController.createSession error: ' . $e->getMessage());
+
+            self::clearAvatarFlow();
 
             self::jsonResponse([
                 'ok' => false,
                 'error' => [
                     'code' => 'AVATAR_SESSION_ERROR',
-                    'message' => 'No se pudo crear la sesión del avatar.'
+                    'message' => 'No se pudo crear la sesión del avatar.',
+                    'debug' => $e->getMessage()
                 ]
             ], 502);
         }
     }
 
-    public static function closeSession()
+    public static function sendTask()
     {
-        // 1) Validar autenticación
         if (!isAuth()) {
             self::jsonResponse([
                 'ok' => false,
@@ -172,10 +204,128 @@ class AvatarController
             ], 401);
         }
 
-        // 2) Leer payload
         $input = self::getRequestData();
 
-        $provider  = isset($input['provider']) ? trim((string)$input['provider']) : 'heygen';
+        $provider = isset($input['provider']) ? trim((string)$input['provider']) : 'heygen';
+        $sessionId = isset($input['sessionId']) ? trim((string)$input['sessionId']) : '';
+        $text = isset($input['text']) ? trim((string)$input['text']) : '';
+        $taskType = isset($input['taskType']) ? trim((string)$input['taskType']) : 'repeat';
+
+        if ($provider !== 'heygen') {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'UNSUPPORTED_PROVIDER',
+                    'message' => 'El proveedor solicitado no está soportado actualmente.'
+                ]
+            ], 422);
+        }
+
+        if ($sessionId === '') {
+            $sessionId = $_SESSION['avatar_flow']['sessionId'] ?? '';
+        }
+
+        if ($sessionId === '') {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'SESSION_ID_REQUIRED',
+                    'message' => 'No se recibió el sessionId del avatar.'
+                ]
+            ], 422);
+        }
+
+        if ($text === '') {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'TEXT_REQUIRED',
+                    'message' => 'No se recibió texto para narrar.'
+                ]
+            ], 422);
+        }
+
+        $apiKey = self::env('HEYGEN_API_KEY', '');
+        if ($apiKey === '') {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'AVATAR_CONFIG_MISSING',
+                    'message' => 'La configuración del avatar no está disponible.'
+                ]
+            ], 500);
+        }
+
+        try {
+            $taskResponse = self::requestHeyGen(
+                'POST',
+                'https://api.heygen.com/v1/streaming.task',
+                [
+                    'session_id' => $sessionId,
+                    'text' => $text,
+                    'task_type' => $taskType
+                ],
+                [
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json'
+                ]
+            );
+
+            $taskBody = $taskResponse['body'] ?? [];
+            $taskData = $taskBody['data'] ?? $taskBody;
+
+            $taskId = $taskData['task_id'] ?? null;
+
+            self::jsonResponse([
+                'ok' => true,
+                'error' => null,
+                'provider' => 'heygen',
+                'sessionId' => $sessionId,
+                'taskId' => $taskId,
+                'remoteTask' => $taskBody
+            ], 200);
+        } catch (\Throwable $e) {
+            error_log('AvatarController.sendTask error: ' . $e->getMessage());
+
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'AVATAR_TASK_ERROR',
+                    'message' => 'No se pudo enviar la tarea al avatar.',
+                    'debug' => $e->getMessage()
+                ]
+            ], 502);
+        }
+    }
+
+    public static function closeSession()
+    {
+        if (!isAuth()) {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'UNAUTHORIZED',
+                    'message' => 'Tu sesión ha expirado.'
+                ],
+                'redirectTo' => '/'
+            ], 401);
+        }
+
+        $idUsuario = (int)($_SESSION['id'] ?? 0);
+        if ($idUsuario <= 0) {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'UNAUTHORIZED',
+                    'message' => 'No se pudo identificar al usuario.'
+                ],
+                'redirectTo' => '/'
+            ], 401);
+        }
+
+        $input = self::getRequestData();
+
+        $provider = isset($input['provider']) ? trim((string)$input['provider']) : 'heygen';
         $sessionId = isset($input['sessionId']) ? trim((string)$input['sessionId']) : '';
 
         if ($provider !== 'heygen') {
@@ -190,8 +340,10 @@ class AvatarController
             ], 200);
         }
 
-        // Si todavía no tienes sessionId real desde frontend / SDK,
-        // no fallamos: simplemente limpiamos estado local y devolvemos ok.
+        if ($sessionId === '') {
+            $sessionId = $_SESSION['avatar_flow']['sessionId'] ?? '';
+        }
+
         if ($sessionId === '') {
             self::clearAvatarFlow();
 
@@ -217,16 +369,15 @@ class AvatarController
             ], 500);
         }
 
-        // 3) Cerrar sesión remota en HeyGen
         try {
-            $heygenResponse = self::requestHeyGen(
+            $stopResponse = self::requestHeyGen(
                 'POST',
                 'https://api.heygen.com/v1/streaming.stop',
                 [
                     'session_id' => $sessionId
                 ],
                 [
-                    'x-api-key: ' . $apiKey,
+                    'Authorization: Bearer ' . $apiKey,
                     'Content-Type: application/json'
                 ]
             );
@@ -239,7 +390,7 @@ class AvatarController
                 'provider' => 'heygen',
                 'sessionClosed' => true,
                 'sessionId' => $sessionId,
-                'remoteResponse' => $heygenResponse['body'] ?? null
+                'remoteStop' => $stopResponse['body'] ?? null
             ], 200);
         } catch (\Throwable $e) {
             error_log('AvatarController.closeSession error: ' . $e->getMessage());
@@ -250,7 +401,8 @@ class AvatarController
                 'ok' => false,
                 'error' => [
                     'code' => 'AVATAR_CLOSE_ERROR',
-                    'message' => 'No se pudo cerrar la sesión del avatar.'
+                    'message' => 'No se pudo cerrar la sesión del avatar.',
+                    'debug' => $e->getMessage()
                 ]
             ], 502);
         }
@@ -262,8 +414,10 @@ class AvatarController
     private static function getRequestData(): array
     {
         $raw = file_get_contents('php://input');
+
         if ($raw) {
             $decoded = json_decode($raw, true);
+
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                 return $decoded;
             }
@@ -312,7 +466,7 @@ class AvatarController
         }
 
         $method = strtoupper(trim($method));
-        $jsonPayload = !empty($payload) ? json_encode($payload, JSON_UNESCAPED_UNICODE) : '{}';
+        $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE);
 
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
@@ -332,14 +486,12 @@ class AvatarController
             throw new \Exception('Error cURL HeyGen: ' . $error);
         }
 
-        $statusCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $statusCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         $decoded = json_decode($response, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            $decoded = [
-                'raw' => $response
-            ];
+            $decoded = ['raw' => $response];
         }
 
         if ($statusCode >= 400) {
