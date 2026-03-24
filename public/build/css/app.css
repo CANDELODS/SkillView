@@ -1277,13 +1277,12 @@ h3 {
 }
 .lesson__avatar {
   width: 24rem;
-  height: 24rem;
+  height: 38rem;
   margin: 0 auto 2rem auto;
   position: relative;
-  border-radius: 999px;
-  border: 5px solid #EB4328;
+  border-radius: 2.4rem;
+  outline: 5px solid #EB4328;
   box-shadow: 0 0 0 6px rgba(235, 67, 40, 0.1), 0 20px 50px rgba(0, 0, 0, 0.1);
-  background: #FBEBE8;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -1291,8 +1290,34 @@ h3 {
 @media (min-width: 768px) {
   .lesson__avatar {
     width: 28rem;
-    height: 28rem;
+    height: 40rem;
   }
+}
+.lesson__avatarShell {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.lesson__avatarVideo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center top;
+  transform: scale(1);
+  border-radius: inherit;
+  background: #000;
+}
+.lesson__avatar--loading {
+  opacity: 0.92;
+}
+.lesson__avatar--speaking {
+  box-shadow: 0 0 0 6px rgba(235, 67, 40, 0.16), 0 0 0 14px rgba(235, 67, 40, 0.08), 0 20px 50px rgba(0, 0, 0, 0.1);
+}
+.lesson__avatar--unavailable {
+  background: #f5f5f5;
 }
 .lesson__avatarImg {
   width: 100%;
@@ -1570,10 +1595,16 @@ h3 {
   position: absolute;
   inset: 0;
   z-index: 50;
-  display: none;
+  display: block;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 .lesson-loader.is-visible {
-  display: block;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 .lesson-loader__backdrop {
   position: absolute;

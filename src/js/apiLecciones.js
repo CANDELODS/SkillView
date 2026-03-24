@@ -1,26 +1,41 @@
 (function () {
+    // Referencias principales del DOM para la interfaz del chat
     let messagesContainer = null;
     let composerForm = null;
     let textInput = null;
     let sendButton = null;
     let micButton = null;
 
+    // Loader visual de la lección
     let lessonLoader = null;
 
+    // Elementos del modal de resultado final de la lección
     let lessonResultModal = null;
     let lessonResultModalBody = null;
     let lessonResultModalTitle = null;
     let lessonResultModalContinue = null;
 
+    // Variables asociadas al reconocimiento de voz
     let speechRecognition = null;
     let finalTranscript = '';
 
+    // Elementos raíz de la vista y contenedor del avatar
     let lessonRoot = null;
     let avatarContainer = null;
 
+    // Variable para guardar un modal final pendiente de abrir
+    // hasta que termine la narración del avatar
     let pendingCompletionModal = null;
+
+    // Bandera para saber si el avatar está disponible
     let avatarAvailable = false;
 
+    // ---------------------------------------------------------------------
+    // ESTADO GLOBAL DEL MÓDULO
+    // ---------------------------------------------------------------------
+    // Aquí se concentra el estado funcional de toda la experiencia:
+    // etapa actual, si el input está habilitado, si el avatar habla,
+    // si el sistema está cargando, etc.
     const state = {
         lessonId: 0,
         skillId: 0,
@@ -33,12 +48,17 @@
         modalRedirectTo: null,
         isListening: false,
         speechRecognitionSupported: false,
-        avatarIsSpeaking: false
+        avatarIsSpeaking: false,
+        avatarIsPendingSpeech: false,
+        pendingAutoAdvance: false
     };
 
     // ---------------------------------------------------------------------
     // FALLBACKS SEGUROS
     // ---------------------------------------------------------------------
+    // Si por alguna razón AvatarService no está cargado en window,
+    // este fallback evita que el sistema se rompa.
+    // Expone la misma interfaz mínima, pero sin comportamiento real.
     const AvatarService = window.AvatarService || (() => {
         const listeners = {
             ready: [],
@@ -48,6 +68,7 @@
             sessionClosed: []
         };
 
+        // Emite eventos simulados a los listeners registrados
         function emit(eventName, payload = {}) {
             if (!listeners[eventName]) return;
             listeners[eventName].forEach((callback) => {
@@ -91,36 +112,36 @@
         };
     })();
 
+    // ---------------------------------------------------------------------
+    // POLÍTICA DE NARRACIÓN
+    // ---------------------------------------------------------------------
+    // Este módulo define qué mensajes sí deben ser narrados por el avatar
+    // y cuáles no. Por ejemplo, los retries no se narran.
     const NarrationPolicy = window.NarrationPolicy || (() => {
-        const NARRABLE_STAGES = new Set([
-            'intro',
-            'micro_practice_prompt',
-            'mini_eval_prompt',
-            'final_feedback'
-        ]);
 
+        // Etapas que NO deben narrarse
         const NON_NARRABLE_STAGES = new Set([
             'micro_practice_answer_retry',
             'mini_eval_retry',
             'complete'
         ]);
 
+        // Normaliza el texto recibido
         function normalizeText(text) {
             return String(text || '').replace(/\s+/g, ' ').trim();
         }
 
+        // Verifica si el mensaje proviene del asistente
         function isAssistantMessage(message) {
             return Boolean(message) && message.role === 'assistant';
         }
 
-        function isNarrableStage(stage) {
-            return NARRABLE_STAGES.has(stage);
-        }
-
+        // Verifica si la etapa actual corresponde a un retry
         function isRetryStage(stage) {
             return stage === 'micro_practice_answer_retry' || stage === 'mini_eval_retry';
         }
 
+        // Decide si un mensaje debe narrarse o no
         function shouldNarrateMessage(message, context = {}) {
             const stage = context.stage || null;
             const ui = context.ui || {};
@@ -137,6 +158,7 @@
             return true;
         }
 
+        // Selecciona mensajes narrables del flujo principal
         function select(messages = [], context = {}) {
             if (!Array.isArray(messages) || messages.length === 0) return [];
 
@@ -152,6 +174,7 @@
                 }));
         }
 
+        // Selecciona mensajes narrables del modal final
         function selectCompletionModalMessages(completionModal, context = {}) {
             if (!completionModal || !Array.isArray(completionModal.messages)) return [];
 
@@ -173,10 +196,16 @@
         };
     })();
 
+    // ---------------------------------------------------------------------
+    // COLA DE NARRACIÓN
+    // ---------------------------------------------------------------------
+    // Evita que varios mensajes se narren al mismo tiempo.
+    // El avatar habla uno por uno en orden.
     const NarrationQueue = window.NarrationQueue || (() => {
         let items = [];
         let processing = false;
 
+        // Agrega un lote de mensajes a la cola
         function enqueue(batch = []) {
             if (!Array.isArray(batch) || batch.length === 0) return;
 
@@ -186,6 +215,7 @@
             });
         }
 
+        // Procesa la cola de narración secuencialmente
         async function processNext() {
             if (processing) return;
             if (!items.length) return;
@@ -210,18 +240,26 @@
                 }
             } finally {
                 processing = false;
+
+                // Cuando la cola termina, avisamos al sistema
+                if (!items.length) {
+                    handleNarrationQueueDrained();
+                }
             }
         }
 
+        // Vacía la cola por completo
         function clear() {
             items = [];
             processing = false;
         }
 
+        // Retorna cuántos elementos faltan por narrar
         function pendingCount() {
             return items.length;
         }
 
+        // Retorna si actualmente la cola está procesando
         function isProcessing() {
             return processing;
         }
@@ -235,6 +273,10 @@
         };
     })();
 
+    // ---------------------------------------------------------------------
+    // CACHEAR ELEMENTOS DEL DOM
+    // ---------------------------------------------------------------------
+    // Busca y guarda referencias a todos los elementos necesarios en la vista.
     function cacheDom() {
         lessonRoot = document.querySelector('.lesson');
 
@@ -264,6 +306,7 @@
             return false;
         }
 
+        // Leemos los ids de la lección y la habilidad desde data attributes
         state.lessonId = Number(lessonRoot.dataset.leccionId || 0);
         state.skillId = Number(lessonRoot.dataset.habilidadId || 0);
 
@@ -275,6 +318,9 @@
         return true;
     }
 
+    // ---------------------------------------------------------------------
+    // INICIALIZACIÓN GENERAL
+    // ---------------------------------------------------------------------
     function init() {
         const ready = cacheDom();
 
@@ -290,12 +336,16 @@
         startLesson();
     }
 
+    // Se inicializa al cargar el DOM
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
         init();
     }
 
+    // ---------------------------------------------------------------------
+    // ENLACE DE EVENTOS
+    // ---------------------------------------------------------------------
     function bindEvents() {
         composerForm.addEventListener('submit', onSubmit);
 
@@ -316,6 +366,7 @@
         window.addEventListener('beforeunload', handleBeforeUnload);
     }
 
+    // Antes de cerrar o recargar la página, detenemos reconocimiento y avatar
     function handleBeforeUnload() {
         if (state.isListening) {
             stopSpeechRecognition();
@@ -329,6 +380,8 @@
     // ---------------------------------------------------------------------
     // AVATAR
     // ---------------------------------------------------------------------
+
+    // Inicializa la integración del avatar con el contenedor de la vista
     function initAvatarIntegration() {
         if (!avatarContainer || !AvatarService) {
             setAvatarVisualState('unavailable');
@@ -366,14 +419,18 @@
         }
     }
 
+    // Cuando el avatar ya está listo
     function handleAvatarReady() {
         avatarAvailable = true;
         setAvatarVisualState('idle');
     }
 
+    // Cuando el avatar empieza a hablar
     function handleAvatarSpeechStart() {
+        state.avatarIsPendingSpeech = false;
         state.avatarIsSpeaking = true;
 
+        // Si el micrófono estaba activo, lo detenemos
         if (state.isListening) {
             stopSpeechRecognition();
         }
@@ -383,23 +440,76 @@
         setAvatarVisualState('speaking');
     }
 
+    // Cuando el avatar termina una narración
     function handleAvatarSpeechEnd() {
         state.avatarIsSpeaking = false;
 
+        // Si todavía quedan mensajes por narrar, dejamos pendiente el bloqueo
+        if (NarrationQueue.pendingCount() > 0 || NarrationQueue.isProcessing()) {
+            state.avatarIsPendingSpeech = true;
+        }
+
         applyUiState({});
         updateMicButtonState();
+    }
 
-        if (NarrationQueue.pendingCount() > 0) {
-            NarrationQueue.processNext();
+    // Cuando la cola de narración termina completamente
+    async function handleNarrationQueueDrained() {
+        state.avatarIsSpeaking = false;
+
+        // Si hay un autoavance pendiente, NO habilitamos inputs aún
+        if (state.pendingAutoAdvance) {
+            state.avatarIsPendingSpeech = true;
+            applyUiState({});
+            updateMicButtonState();
+
+            await maybeRunPendingAutoAdvance();
             return;
         }
+
+        state.avatarIsPendingSpeech = false;
+
+        applyUiState({});
+        updateMicButtonState();
 
         setAvatarVisualState(avatarAvailable ? 'idle' : 'unavailable');
         maybeOpenPendingCompletionModal();
         maybeFocusInputAfterSpeech();
     }
 
+    // Determina si el flujo debe autoavanzar sin intervención del usuario
+    function shouldAutoAdvance() {
+        return (
+            state.nextExpectedAction === 'advance' &&
+            !state.requiresUserResponse &&
+            !state.completed
+        );
+    }
+
+    // Marca el autoavance como pendiente y bloquea temporalmente la UI
+    function queueAutoAdvanceIfNeeded() {
+        if (!shouldAutoAdvance()) return;
+
+        state.pendingAutoAdvance = true;
+        state.avatarIsPendingSpeech = true;
+        applyUiState({});
+        updateMicButtonState();
+    }
+
+    // Ejecuta el autoavance pendiente si ya no hay narración en curso
+    async function maybeRunPendingAutoAdvance() {
+        if (!state.pendingAutoAdvance) return;
+        if (state.isLoading) return;
+        if (state.avatarIsSpeaking) return;
+        if (NarrationQueue.isProcessing() || NarrationQueue.pendingCount() > 0) return;
+
+        state.pendingAutoAdvance = false;
+        await sendAdvanceTurn();
+    }
+
+    // Manejo de error del avatar
     function handleAvatarError(payload) {
+        state.avatarIsPendingSpeech = false;
         state.avatarIsSpeaking = false;
         avatarAvailable = false;
 
@@ -412,12 +522,18 @@
         maybeOpenPendingCompletionModal();
     }
 
+    // Manejo cuando la sesión del avatar se cierra
     function handleAvatarSessionClosed() {
+        state.avatarIsPendingSpeech = false;
         state.avatarIsSpeaking = false;
         avatarAvailable = false;
+
+        applyUiState({});
+        updateMicButtonState();
         setAvatarVisualState('unavailable');
     }
 
+    // Cambia el estado visual del avatar en la UI
     function setAvatarVisualState(status) {
         if (!avatarContainer) return;
 
@@ -433,6 +549,7 @@
         avatarContainer.setAttribute('data-avatar-state', safeStatus);
     }
 
+    // Procesa los mensajes narrables y los manda a la cola del avatar
     function handleAvatarNarration(data = {}) {
         if (!avatarAvailable) {
             if (data.completionModal) {
@@ -471,27 +588,35 @@
             return;
         }
 
+        state.avatarIsPendingSpeech = true;
+        applyUiState({});
+        updateMicButtonState();
+
         NarrationQueue.enqueue(batch);
         NarrationQueue.processNext();
     }
 
+    // Guarda temporalmente el modal final
     function queueCompletionModal(modalData) {
         pendingCompletionModal = modalData || null;
     }
 
+    // Abre el modal final si existe uno pendiente
     function maybeOpenPendingCompletionModal() {
         if (!pendingCompletionModal) return;
         renderLessonResultModal(pendingCompletionModal);
         pendingCompletionModal = null;
     }
 
+    // Devuelve foco al input si corresponde
     function maybeFocusInputAfterSpeech() {
         const shouldFocus =
             state.inputEnabled &&
             state.requiresUserResponse &&
             !state.completed &&
             !state.isLoading &&
-            !state.avatarIsSpeaking;
+            !state.avatarIsSpeaking &&
+            !state.avatarIsPendingSpeech;
 
         if (shouldFocus) {
             textInput.focus();
@@ -499,6 +624,7 @@
     }
 
     // --------------------- MODAL ----------------------------------------
+    // Abre el modal final y bloquea scroll del body
     function openLessonResultModal() {
         if (!lessonResultModal) return;
 
@@ -512,6 +638,7 @@
         }
     }
 
+    // Cierra el modal final y restaura scroll
     function closeLessonResultModal() {
         if (!lessonResultModal) return;
 
@@ -525,6 +652,7 @@
         }
     }
 
+    // Renderiza el contenido del modal final
     function renderLessonResultModal(modalData) {
         if (!lessonResultModal || !lessonResultModalBody) return;
 
@@ -560,6 +688,7 @@
         openLessonResultModal();
     }
 
+    // Acción del botón continuar en el modal final
     function handleLessonResultContinue() {
         const redirectTo = state.modalRedirectTo || '/aprendizaje';
         closeLessonResultModal();
@@ -568,19 +697,32 @@
     // --------------------- FIN MODAL ------------------------------------
 
     // --------------------- LOADER ------------------------------------
+    // Muestra el loader de la lección
     function showLessonLoader() {
         if (!lessonLoader) return;
         lessonLoader.classList.add('is-visible');
         lessonLoader.setAttribute('aria-hidden', 'false');
     }
 
+    // Oculta el loader
     function hideLessonLoader() {
         if (!lessonLoader) return;
         lessonLoader.classList.remove('is-visible');
         lessonLoader.setAttribute('aria-hidden', 'true');
     }
+
+    // Oculta el loader y espera un pequeño tiempo para suavizar la transición
+    async function hideLessonLoaderAndWait() {
+        hideLessonLoader();
+        await delay(250);
+    }
     // --------------------- FIN LOADER ------------------------------------
 
+    // ---------------------------------------------------------------------
+    // FLUJO PRINCIPAL DE LA LECCIÓN
+    // ---------------------------------------------------------------------
+
+    // Inicia la lección en el backend
     async function startLesson() {
         setLoading(true);
         clearMessages();
@@ -608,6 +750,12 @@
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
+            await hideLessonLoaderAndWait();
+
+            if (shouldAutoAdvance()) {
+                queueAutoAdvanceIfNeeded();
+            }
+
             handleAvatarNarration(data);
         } catch (error) {
             console.error('Error al iniciar la lección:', error);
@@ -617,12 +765,9 @@
         } finally {
             setLoading(false);
         }
-
-        if (state.nextExpectedAction === 'advance' && !state.requiresUserResponse) {
-            await sendAdvanceTurn();
-        }
     }
 
+    // Envía al backend la acción "advance" para pasar a la siguiente parte del flujo
     async function sendAdvanceTurn() {
         if (state.isLoading || state.completed) return;
 
@@ -656,8 +801,13 @@
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
             handleCompletion(data);
+            await hideLessonLoaderAndWait();
+
+            if (shouldAutoAdvance()) {
+                queueAutoAdvanceIfNeeded();
+            }
+
             handleAvatarNarration(data);
-            hideLessonLoader();
 
         } catch (error) {
             removeTypingIndicator();
@@ -669,6 +819,7 @@
         }
     }
 
+    // Envía al backend una respuesta escrita por el usuario
     async function sendReplyTurn(userMessage) {
         if (state.isLoading || state.completed) return;
 
@@ -704,6 +855,11 @@
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
             handleCompletion(data);
+
+            if (shouldAutoAdvance()) {
+                queueAutoAdvanceIfNeeded();
+            }
+
             handleAvatarNarration(data);
 
         } catch (error) {
@@ -715,10 +871,17 @@
         }
     }
 
+    // Maneja el envío manual del formulario por parte del usuario
     async function onSubmit(event) {
         event.preventDefault();
 
-        if (!state.inputEnabled || !state.requiresUserResponse || state.isLoading || state.avatarIsSpeaking) {
+        if (
+            !state.inputEnabled ||
+            !state.requiresUserResponse ||
+            state.isLoading ||
+            state.avatarIsSpeaking ||
+            state.avatarIsPendingSpeech
+        ) {
             return;
         }
 
@@ -733,6 +896,11 @@
         await sendReplyTurn(message);
     }
 
+    // ---------------------------------------------------------------------
+    // RENDER DE MENSAJES
+    // ---------------------------------------------------------------------
+
+    // Renderiza un lote de mensajes
     function renderMessages(messages) {
         if (!Array.isArray(messages) || messages.length === 0) return;
 
@@ -744,6 +912,7 @@
         scrollMessagesToBottom();
     }
 
+    // Construye el elemento correcto según el tipo de mensaje
     function buildMessageElement(message) {
         const role = message.role || 'assistant';
         const text = message.text || '';
@@ -753,6 +922,7 @@
         return buildAssistantMessage(text);
     }
 
+    // Construye mensaje del asistente
     function buildAssistantMessage(text) {
         const article = document.createElement('article');
         article.className = 'lesson__msg lesson__msg--assistant';
@@ -770,6 +940,7 @@
         return article;
     }
 
+    // Construye mensaje del usuario
     function buildUserMessage(text) {
         const article = document.createElement('article');
         article.className = 'lesson__msg lesson__msg--user';
@@ -787,6 +958,7 @@
         return article;
     }
 
+    // Construye mensaje del sistema
     function buildSystemMessageElement(text) {
         const wrapper = document.createElement('div');
         wrapper.className = 'lesson__hint';
@@ -804,20 +976,24 @@
         return wrapper;
     }
 
+    // Inserta un mensaje de sistema directamente
     function renderSystemMessage(text) {
         const el = buildSystemMessageElement(text);
         messagesContainer.appendChild(el);
         scrollMessagesToBottom();
     }
 
+    // Limpia el área de mensajes
     function clearMessages() {
         messagesContainer.innerHTML = '';
     }
 
+    // Baja automáticamente el scroll del chat
     function scrollMessagesToBottom() {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    // Muestra el indicador de "pensando..."
     function renderTypingIndicator() {
         removeTypingIndicator();
 
@@ -839,6 +1015,7 @@
         scrollMessagesToBottom();
     }
 
+    // Elimina el indicador de "pensando..."
     function removeTypingIndicator() {
         const existing = messagesContainer.querySelector('[data-typing-indicator="true"]');
         if (existing) {
@@ -846,12 +1023,18 @@
         }
     }
 
+    // Espera utilitaria
     function delay(ms) {
         return new Promise(function (resolve) {
             setTimeout(resolve, ms);
         });
     }
 
+    // ---------------------------------------------------------------------
+    // ACTUALIZACIÓN DE ESTADO Y UI
+    // ---------------------------------------------------------------------
+
+    // Toma la información de session del backend y actualiza el estado global
     function applySessionState(session) {
         if (!session) return;
 
@@ -862,9 +1045,11 @@
         state.completed = Boolean(session.completed);
     }
 
+    // Aplica el estado de UI al input, botón enviar y micrófono
     function applyUiState(ui) {
-        const placeholder = resolveComposerPlaceholder(ui);
-        const focusInput = Boolean(ui.focusInput);
+        const safeUi = ui || {};
+        const placeholder = resolveComposerPlaceholder(safeUi);
+        const focusInput = Boolean(safeUi.focusInput);
 
         textInput.placeholder = placeholder;
 
@@ -872,7 +1057,8 @@
             state.isLoading ||
             !state.inputEnabled ||
             state.completed ||
-            state.avatarIsSpeaking;
+            state.avatarIsSpeaking ||
+            state.avatarIsPendingSpeech;
 
         textInput.disabled = shouldDisableComposer;
         sendButton.disabled = shouldDisableComposer;
@@ -888,9 +1074,14 @@
         updateMicButtonState();
     }
 
+    // Define qué placeholder debe mostrarse en el composer
     function resolveComposerPlaceholder(ui = {}) {
         if (state.avatarIsSpeaking) {
             return 'El avatar está hablando...';
+        }
+
+        if (state.avatarIsPendingSpeech) {
+            return 'Espera un momento...';
         }
 
         if (state.isLoading) {
@@ -904,11 +1095,13 @@
         return 'Escribe tu respuesta...';
     }
 
+    // Marca si el sistema está cargando
     function setLoading(isLoading) {
         state.isLoading = isLoading;
         applyUiState({});
     }
 
+    // Procesa información de finalización de la lección
     function handleCompletion(data) {
         if (!data || !data.progress) return;
 
@@ -927,7 +1120,9 @@
         }
     }
 
+    // Maneja errores devueltos por la API
     function handleApiError(data) {
+        state.avatarIsPendingSpeech = false;
         hideLessonLoader();
         removeTypingIndicator();
         console.error('Error API:', data);
@@ -939,6 +1134,7 @@
         }
 
         renderSystemMessage(message);
+        applyUiState({});
 
         if (data && data.redirectTo) {
             setTimeout(function () {
@@ -947,7 +1143,11 @@
         }
     }
 
-    // Inicializar reconocimiento de voz
+    // ---------------------------------------------------------------------
+    // RECONOCIMIENTO DE VOZ
+    // ---------------------------------------------------------------------
+
+    // Inicializa Web Speech API si está soportada
     function initSpeechRecognition() {
         const SpeechRecognitionAPI =
             window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -971,6 +1171,7 @@
         speechRecognition.interimResults = true;
         speechRecognition.maxAlternatives = 1;
 
+        // Cuando el reconocimiento empieza
         speechRecognition.onstart = function () {
             state.isListening = true;
             updateMicButtonState();
@@ -980,6 +1181,7 @@
             }
         };
 
+        // Mientras llegan resultados de voz
         speechRecognition.onresult = function (event) {
             let interimTranscript = '';
             let accumulatedFinal = finalTranscript;
@@ -1001,6 +1203,7 @@
             finalTranscript = accumulatedFinal;
         };
 
+        // Si ocurre error en reconocimiento
         speechRecognition.onerror = function (event) {
             console.error('Error reconocimiento de voz:', event.error);
             state.isListening = false;
@@ -1011,17 +1214,24 @@
             }
         };
 
+        // Cuando termina el reconocimiento
         speechRecognition.onend = function () {
             state.isListening = false;
             updateMicButtonState();
 
-            if (textInput && !state.completed && !state.isLoading && !state.avatarIsSpeaking) {
+            if (
+                textInput &&
+                !state.completed &&
+                !state.isLoading &&
+                !state.avatarIsSpeaking &&
+                !state.avatarIsPendingSpeech
+            ) {
                 textInput.placeholder = 'Escribe tu respuesta...';
             }
         };
     }
 
-    // Toggle del micrófono
+    // Activa o detiene el micrófono
     function toggleSpeechRecognition() {
         if (!state.speechRecognitionSupported || !speechRecognition) {
             renderSystemMessage('Tu navegador no soporta reconocimiento de voz.');
@@ -1039,8 +1249,16 @@
         }
     }
 
+    // Inicia el reconocimiento de voz
     function startSpeechRecognition() {
-        if (!speechRecognition || state.isListening || state.avatarIsSpeaking) return;
+        if (
+            !speechRecognition ||
+            state.isListening ||
+            state.avatarIsSpeaking ||
+            state.avatarIsPendingSpeech
+        ) {
+            return;
+        }
 
         finalTranscript = textInput
             ? textInput.value.trim() + (textInput.value.trim() ? ' ' : '')
@@ -1053,23 +1271,25 @@
         }
     }
 
+    // Detiene el reconocimiento de voz
     function stopSpeechRecognition() {
         if (!speechRecognition || !state.isListening) return;
 
         speechRecognition.stop();
     }
 
-    // Saber si se puede usar el input de voz
+    // Decide si se puede usar entrada por voz
     function canUseVoiceInput() {
         return (
             state.inputEnabled &&
             !state.completed &&
             !state.isLoading &&
-            !state.avatarIsSpeaking
+            !state.avatarIsSpeaking &&
+            !state.avatarIsPendingSpeech
         );
     }
 
-    // Estado visual del botón de micrófono
+    // Actualiza el estado visual del botón de micrófono
     function updateMicButtonState() {
         if (!micButton) return;
 
@@ -1082,7 +1302,7 @@
 
         if (state.isListening) {
             micButton.title = 'Detener grabación';
-        } else if (state.avatarIsSpeaking) {
+        } else if (state.avatarIsSpeaking || state.avatarIsPendingSpeech) {
             micButton.title = 'Micrófono bloqueado mientras el avatar habla';
         } else if (disabled) {
             micButton.title = 'Micrófono no disponible en este momento';

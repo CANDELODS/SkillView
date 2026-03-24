@@ -5,10 +5,16 @@
   position: absolute;
   inset: 0;
   z-index: 50;
-  display: none;
+  display: block;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .25s ease, visibility .25s ease;
 
   &.is-visible {
-    display: block;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
   }
 
   &__backdrop {
@@ -82,10 +88,14 @@
 }
 
 @keyframes lessonLoaderBounce {
-  0%, 80%, 100% {
+
+  0%,
+  80%,
+  100% {
     transform: scale(.8);
     opacity: .45;
   }
+
   40% {
     transform: scale(1.15);
     opacity: 1;

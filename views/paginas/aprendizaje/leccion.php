@@ -29,7 +29,7 @@
       <aside class="lesson__assistant" aria-label="Asistente SkillView">
         <div class="lesson__assistantCard">
           <div class="lesson__avatar">
-            <!-- Aquí luego montas el avatar IA (img/video/canvas) -->
+            <!-- Aquí se monta el avatar IA -->
             <img class="lesson__avatarImg" src="/build/img/blog/responsabilidad-1.webp" alt="Asistente SkillView">
             <span class="lesson__status" title="En línea"></span>
           </div>
