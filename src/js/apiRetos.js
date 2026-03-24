@@ -1,4 +1,8 @@
 (function () {
+    // ---------------------------------------------------------------------
+    // REFERENCIAS DEL DOM
+    // ---------------------------------------------------------------------
+
     // Contenedor donde se renderizan todos los mensajes del chat.
     let messagesContainer = null;
 
@@ -23,6 +27,9 @@
     let challengeResultModalTitle = null;
     let challengeResultModalContinue = null;
 
+    // Elemento donde se muestra el puntaje en el modal final.
+    let challengeResultModalScore = null;
+
     // Instancia del reconocimiento de voz del navegador.
     let speechRecognition = null;
 
@@ -32,13 +39,20 @@
     // Elemento raíz del reto en el DOM.
     let challengeRoot = null;
 
-    // Contenedor donde se muestra el puntaje dentro del modal.
-    let challengeResultModalScore = null;
+    // Contenedor visual del avatar dentro de la vista del reto.
+    let avatarContainer = null;
 
-    // Estado global del flujo del reto en frontend.
-    // Aquí se guarda información que el JS necesita para saber
-    // en qué etapa está el reto, si el usuario puede escribir,
-    // si el reto terminó, etc.
+    // Modal final pendiente de abrir cuando termine la narración.
+    let pendingCompletionModal = null;
+
+    // Indica si el avatar está disponible.
+    let avatarAvailable = false;
+
+    // ---------------------------------------------------------------------
+    // ESTADO GLOBAL DEL FLUJO DEL RETO
+    // ---------------------------------------------------------------------
+    // Aquí se guarda toda la información que el frontend necesita
+    // para saber en qué etapa está el reto y cómo debe comportarse la UI.
     const state = {
         challengeId: 0,
         skillId: 0,
@@ -51,16 +65,223 @@
         modalRedirectTo: null,
         isListening: false,
         speechRecognitionSupported: false,
-        avatarIsSpeaking: false
+        avatarIsSpeaking: false,
+        avatarIsPendingSpeech: false,
+        pendingAutoAdvance: false
     };
 
-    // Método que cachea referencias a elementos del DOM.
-    // Esto evita consultar el DOM muchas veces y centraliza la inicialización.
+    // ---------------------------------------------------------------------
+    // FALLBACKS SEGUROS
+    // ---------------------------------------------------------------------
+    // Si AvatarService no está cargado en window, este fallback evita
+    // que el reto se rompa. No hace nada real, pero mantiene la interfaz.
+    const AvatarService = window.AvatarService || (() => {
+        const listeners = {
+            ready: [],
+            speechStart: [],
+            speechEnd: [],
+            error: [],
+            sessionClosed: []
+        };
+
+        function emit(eventName, payload = {}) {
+            if (!listeners[eventName]) return;
+
+            listeners[eventName].forEach((callback) => {
+                try {
+                    callback(payload);
+                } catch (error) {
+                    console.error(`Error en listener ${eventName}:`, error);
+                }
+            });
+        }
+
+        return {
+            init() { },
+            mount() { },
+            async startSession() {
+                return false;
+            },
+            async speak() {
+                return false;
+            },
+            async stop() { },
+            async destroy() { },
+            isReady() {
+                return false;
+            },
+            isSpeaking() {
+                return false;
+            },
+            isUnavailable() {
+                return true;
+            },
+            on(eventName, callback) {
+                if (!listeners[eventName]) listeners[eventName] = [];
+                listeners[eventName].push(callback);
+            },
+            off(eventName, callback) {
+                if (!listeners[eventName]) return;
+                listeners[eventName] = listeners[eventName].filter(fn => fn !== callback);
+            },
+            emit
+        };
+    })();
+
+    // ---------------------------------------------------------------------
+    // POLÍTICA DE NARRACIÓN
+    // ---------------------------------------------------------------------
+    // Decide qué mensajes sí se narran y cuáles no.
+    // En retos queremos narrar los mensajes del asistente, excepto retries.
+    const NarrationPolicy = window.NarrationPolicy || (() => {
+        // Etapas que no deben narrarse.
+        const NON_NARRABLE_STAGES = new Set([
+            'attempt_retry',
+            'complete'
+        ]);
+
+        function normalizeText(text) {
+            return String(text || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function isAssistantMessage(message) {
+            return Boolean(message) && message.role === 'assistant';
+        }
+
+        function isRetryStage(stage) {
+            return stage === 'attempt_retry';
+        }
+
+        function shouldNarrateMessage(message, context = {}) {
+            const stage = context.stage || null;
+            const ui = context.ui || {};
+
+            if (!ui.showAvatarSpeaking) return false;
+            if (!isAssistantMessage(message)) return false;
+            if (NON_NARRABLE_STAGES.has(stage)) return false;
+            if (isRetryStage(stage)) return false;
+
+            const text = normalizeText(message.text);
+            if (!text) return false;
+            if (text.length < 3) return false;
+
+            return true;
+        }
+
+        function select(messages = [], context = {}) {
+            if (!Array.isArray(messages) || messages.length === 0) return [];
+
+            return messages
+                .filter(message => shouldNarrateMessage(message, context))
+                .map((message, index) => ({
+                    id: message.id || `challenge_narration_${Date.now()}_${index}`,
+                    text: normalizeText(message.text),
+                    source: 'messages',
+                    role: message.role || 'assistant',
+                    stage: context.stage || null,
+                    priority: 'normal'
+                }));
+        }
+
+        function selectCompletionModalMessages(completionModal, context = {}) {
+            if (!completionModal || !Array.isArray(completionModal.messages)) return [];
+
+            return completionModal.messages
+                .map((message, index) => ({
+                    id: `challenge_completion_modal_${Date.now()}_${index}`,
+                    text: normalizeText(message.text),
+                    source: 'completionModal',
+                    role: 'assistant',
+                    stage: context.stage || 'final_feedback',
+                    priority: 'high'
+                }))
+                .filter(item => Boolean(item.text));
+        }
+
+        return {
+            select,
+            selectCompletionModalMessages
+        };
+    })();
+
+    // ---------------------------------------------------------------------
+    // COLA DE NARRACIÓN
+    // ---------------------------------------------------------------------
+    // Evita que varios mensajes del reto se narren al mismo tiempo.
+    const NarrationQueue = window.NarrationQueue || (() => {
+        let items = [];
+        let processing = false;
+
+        function enqueue(batch = []) {
+            if (!Array.isArray(batch) || batch.length === 0) return;
+
+            batch.forEach((item) => {
+                if (!item || !item.text) return;
+                items.push(item);
+            });
+        }
+
+        async function processNext() {
+            if (processing) return;
+            if (!items.length) return;
+            if (!AvatarService.isReady || !AvatarService.isReady()) return;
+            if (AvatarService.isUnavailable && AvatarService.isUnavailable()) return;
+
+            processing = true;
+
+            try {
+                while (items.length > 0) {
+                    const item = items.shift();
+
+                    const spoke = await AvatarService.speak(item.text, {
+                        stage: item.stage,
+                        source: item.source,
+                        priority: item.priority
+                    });
+
+                    if (!spoke) {
+                        continue;
+                    }
+                }
+            } finally {
+                processing = false;
+
+                if (!items.length) {
+                    handleNarrationQueueDrained();
+                }
+            }
+        }
+
+        function clear() {
+            items = [];
+            processing = false;
+        }
+
+        function pendingCount() {
+            return items.length;
+        }
+
+        function isProcessing() {
+            return processing;
+        }
+
+        return {
+            enqueue,
+            processNext,
+            clear,
+            pendingCount,
+            isProcessing
+        };
+    })();
+
+    // ---------------------------------------------------------------------
+    // CACHE DEL DOM
+    // ---------------------------------------------------------------------
+    // Busca y guarda las referencias a todos los elementos necesarios.
     function cacheDom() {
         // Busca el contenedor raíz del reto.
         challengeRoot = document.querySelector('.challenge');
 
-        // Si no existe, no se puede continuar.
         if (!challengeRoot) return false;
 
         // Busca todos los elementos necesarios de la interfaz.
@@ -69,39 +290,32 @@
         textInput = document.querySelector('.challenge__input');
         sendButton = document.querySelector('.challenge__sendBtn');
         micButton = document.querySelector('.challenge__iconBtn');
+        avatarContainer = document.querySelector('.challenge__avatar');
 
-        // Busca el loader.
+        // Busca el loader principal del reto.
         challengeLoader = document.getElementById('challenge-loader');
 
-        // Busca el modal de resultado del reto.
+        // Busca el modal de resultado final.
         challengeResultModal = document.getElementById('sv-challenge-result-modal');
-
-        // Busca el body del modal donde se insertan los mensajes finales.
         challengeResultModalBody = challengeResultModal
             ? challengeResultModal.querySelector('[data-sv-challenge-result-body]')
             : null;
-
-        // Busca el título del modal.
         challengeResultModalTitle = challengeResultModal
             ? challengeResultModal.querySelector('#sv-challenge-result-modal-title')
             : null;
-
-        // Busca el botón de continuar del modal.
         challengeResultModalContinue = challengeResultModal
             ? challengeResultModal.querySelector('[data-sv-challenge-result-continue]')
             : null;
-
-        // Busca el contenedor del puntaje dentro del modal.
         challengeResultModalScore = challengeResultModal
             ? challengeResultModal.querySelector('[data-sv-challenge-result-score]')
             : null;
 
-        // Si faltan elementos esenciales, no se puede inicializar correctamente.
+        // Si faltan elementos esenciales, no se puede continuar.
         if (!messagesContainer || !composerForm || !textInput || !sendButton) {
             return false;
         }
 
-        // Lee los ids del reto y de la habilidad desde atributos data-* en el HTML.
+        // Lee los ids del reto y de la habilidad desde atributos data-*.
         state.challengeId = Number(challengeRoot.dataset.retoId || 0);
         state.skillId = Number(challengeRoot.dataset.habilidadId || 0);
 
@@ -114,75 +328,307 @@
         return true;
     }
 
-    // Método principal de inicialización del archivo.
+    // ---------------------------------------------------------------------
+    // INICIALIZACIÓN GENERAL
+    // ---------------------------------------------------------------------
     function init() {
         const ready = cacheDom();
 
-        // Si el DOM no está listo o faltan elementos, se detiene.
         if (!ready) {
             console.error('La vista de reto aún no está lista o faltan elementos del DOM.');
             return;
         }
 
-        // Muestra el loader mientras arranca el flujo.
         showChallengeLoader();
-
-        // Inicializa reconocimiento de voz si el navegador lo soporta.
         initSpeechRecognition();
-
-        // Registra eventos del formulario, modal y micrófono.
+        initAvatarIntegration();
         bindEvents();
-
-        // Inicia el reto llamando al backend.
         startChallenge();
     }
 
-    // Si el DOM aún está cargando, espera DOMContentLoaded.
+    // Espera a que cargue el DOM si aún no está listo.
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
-        // Si el DOM ya está listo, inicializa directamente.
         init();
     }
 
-    // Registra los eventos de la interfaz.
+    // ---------------------------------------------------------------------
+    // EVENTOS
+    // ---------------------------------------------------------------------
     function bindEvents() {
-        // Evento submit del formulario del composer.
         composerForm.addEventListener('submit', onSubmit);
 
-        // Evento input reservado para posibles mejoras futuras.
         textInput.addEventListener('input', () => {
             // reservado para mejoras futuras
         });
 
-        // Evento del botón continuar del modal final.
         if (challengeResultModalContinue) {
             challengeResultModalContinue.addEventListener('click', handleChallengeResultContinue);
         }
 
-        // Evento del botón del micrófono.
         if (micButton) {
             micButton.addEventListener('click', function () {
                 toggleSpeechRecognition();
             });
         }
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
     }
 
-    // --------------------- MODAL ----------------------------------------
+    // Antes de salir de la vista, detenemos micrófono y avatar.
+    function handleBeforeUnload() {
+        if (state.isListening) {
+            stopSpeechRecognition();
+        }
+
+        if (AvatarService && typeof AvatarService.destroy === 'function') {
+            AvatarService.destroy();
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // AVATAR
+    // ---------------------------------------------------------------------
+    function initAvatarIntegration() {
+        if (!avatarContainer || !AvatarService) {
+            setAvatarVisualState('unavailable');
+            return;
+        }
+
+        try {
+            AvatarService.init({
+                provider: 'heygen',
+                context: 'challenge'
+            });
+
+            AvatarService.mount(avatarContainer);
+
+            AvatarService.on('ready', handleAvatarReady);
+            AvatarService.on('speechStart', handleAvatarSpeechStart);
+            AvatarService.on('speechEnd', handleAvatarSpeechEnd);
+            AvatarService.on('error', handleAvatarError);
+            AvatarService.on('sessionClosed', handleAvatarSessionClosed);
+
+            AvatarService.startSession()
+                .then((started) => {
+                    avatarAvailable = Boolean(started);
+                    setAvatarVisualState(started ? 'idle' : 'unavailable');
+                })
+                .catch((error) => {
+                    avatarAvailable = false;
+                    console.error('No se pudo iniciar la sesión del avatar del reto:', error);
+                    setAvatarVisualState('unavailable');
+                });
+        } catch (error) {
+            avatarAvailable = false;
+            console.error('Error al inicializar el avatar del reto:', error);
+            setAvatarVisualState('unavailable');
+        }
+    }
+
+    function handleAvatarReady() {
+        avatarAvailable = true;
+        setAvatarVisualState('idle');
+    }
+
+    function handleAvatarSpeechStart() {
+        state.avatarIsPendingSpeech = false;
+        state.avatarIsSpeaking = true;
+
+        if (state.isListening) {
+            stopSpeechRecognition();
+        }
+
+        applyUiState({});
+        updateMicButtonState();
+        setAvatarVisualState('speaking');
+    }
+
+    function handleAvatarSpeechEnd() {
+        state.avatarIsSpeaking = false;
+
+        if (NarrationQueue.pendingCount() > 0 || NarrationQueue.isProcessing()) {
+            state.avatarIsPendingSpeech = true;
+        }
+
+        applyUiState({});
+        updateMicButtonState();
+    }
+
+    async function handleNarrationQueueDrained() {
+        state.avatarIsSpeaking = false;
+
+        // Si hay un autoavance pendiente, todavía no habilitamos input.
+        if (state.pendingAutoAdvance) {
+            state.avatarIsPendingSpeech = true;
+            applyUiState({});
+            updateMicButtonState();
+
+            await maybeRunPendingAutoAdvance();
+            return;
+        }
+
+        state.avatarIsPendingSpeech = false;
+
+        applyUiState({});
+        updateMicButtonState();
+
+        setAvatarVisualState(avatarAvailable ? 'idle' : 'unavailable');
+        maybeOpenPendingCompletionModal();
+        maybeFocusInputAfterSpeech();
+    }
+
+    function shouldAutoAdvance() {
+        return (
+            state.nextExpectedAction === 'advance' &&
+            !state.requiresUserResponse &&
+            !state.completed
+        );
+    }
+
+    function queueAutoAdvanceIfNeeded() {
+        if (!shouldAutoAdvance()) return;
+
+        state.pendingAutoAdvance = true;
+        state.avatarIsPendingSpeech = true;
+        applyUiState({});
+        updateMicButtonState();
+    }
+
+    async function maybeRunPendingAutoAdvance() {
+        if (!state.pendingAutoAdvance) return;
+        if (state.isLoading) return;
+        if (state.avatarIsSpeaking) return;
+        if (NarrationQueue.isProcessing() || NarrationQueue.pendingCount() > 0) return;
+
+        state.pendingAutoAdvance = false;
+        await sendAdvanceTurn();
+    }
+
+    function handleAvatarError(payload) {
+        state.avatarIsPendingSpeech = false;
+        state.avatarIsSpeaking = false;
+        avatarAvailable = false;
+
+        console.error('Avatar error en reto:', payload);
+
+        applyUiState({});
+        updateMicButtonState();
+        setAvatarVisualState('unavailable');
+
+        maybeOpenPendingCompletionModal();
+    }
+
+    function handleAvatarSessionClosed() {
+        state.avatarIsPendingSpeech = false;
+        state.avatarIsSpeaking = false;
+        avatarAvailable = false;
+
+        applyUiState({});
+        updateMicButtonState();
+        setAvatarVisualState('unavailable');
+    }
+
+    function setAvatarVisualState(status) {
+        if (!avatarContainer) return;
+
+        avatarContainer.classList.remove(
+            'challenge__avatar--idle',
+            'challenge__avatar--speaking',
+            'challenge__avatar--loading',
+            'challenge__avatar--unavailable'
+        );
+
+        const safeStatus = status || 'idle';
+        avatarContainer.classList.add(`challenge__avatar--${safeStatus}`);
+        avatarContainer.setAttribute('data-avatar-state', safeStatus);
+    }
+
+    function handleAvatarNarration(data = {}) {
+        if (!avatarAvailable) {
+            if (data.completionModal) {
+                queueCompletionModal(data.completionModal);
+                maybeOpenPendingCompletionModal();
+            }
+            return;
+        }
+
+        const stage = state.currentStage;
+        const ui = data.ui || {};
+
+        const narrableMessages = NarrationPolicy.select(data.messages || [], {
+            stage,
+            ui,
+            completed: state.completed
+        });
+
+        const narrableCompletionMessages = NarrationPolicy.selectCompletionModalMessages(
+            data.completionModal,
+            {
+                stage: 'final_feedback',
+                ui: { showAvatarSpeaking: true },
+                completed: true
+            }
+        );
+
+        const batch = [...narrableMessages, ...narrableCompletionMessages];
+
+        if (data.completionModal) {
+            queueCompletionModal(data.completionModal);
+        }
+
+        if (!batch.length) {
+            maybeOpenPendingCompletionModal();
+            return;
+        }
+
+        state.avatarIsPendingSpeech = true;
+        applyUiState({});
+        updateMicButtonState();
+
+        NarrationQueue.enqueue(batch);
+        NarrationQueue.processNext();
+    }
+
+    function queueCompletionModal(modalData) {
+        pendingCompletionModal = modalData || null;
+    }
+
+    function maybeOpenPendingCompletionModal() {
+        if (!pendingCompletionModal) return;
+        renderChallengeResultModal(pendingCompletionModal);
+        pendingCompletionModal = null;
+    }
+
+    function maybeFocusInputAfterSpeech() {
+        const shouldFocus =
+            state.inputEnabled &&
+            state.requiresUserResponse &&
+            !state.completed &&
+            !state.isLoading &&
+            !state.avatarIsSpeaking &&
+            !state.avatarIsPendingSpeech;
+
+        if (shouldFocus) {
+            textInput.focus();
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // MODAL FINAL
+    // ---------------------------------------------------------------------
 
     // Abre el modal final del reto.
     function openChallengeResultModal() {
         if (!challengeResultModal) return;
 
-        // Muestra el modal.
         challengeResultModal.classList.add('is-open');
         challengeResultModal.setAttribute('aria-hidden', 'false');
 
-        // Si existe helper global de lockScroll, lo usa.
         if (window.SV && typeof window.SV.lockScroll === 'function') {
             window.SV.lockScroll();
         } else {
-            // Si no, aplica clase al body para bloquear scroll.
             document.body.classList.add('no-scroll');
         }
     }
@@ -191,42 +637,34 @@
     function closeChallengeResultModal() {
         if (!challengeResultModal) return;
 
-        // Oculta el modal.
         challengeResultModal.classList.remove('is-open');
         challengeResultModal.setAttribute('aria-hidden', 'true');
 
-        // Libera scroll usando helper global si existe.
         if (window.SV && typeof window.SV.unlockScroll === 'function') {
             window.SV.unlockScroll();
         } else {
-            // Si no existe helper, elimina clase manual.
             document.body.classList.remove('no-scroll');
         }
     }
 
     // Renderiza el contenido del modal final.
-    // Este modal puede ser de éxito o de error.
     function renderChallengeResultModal(modalData) {
         if (!challengeResultModal || !challengeResultModalBody) return;
 
-        // Limpia el contenido previo del modal.
         challengeResultModalBody.innerHTML = '';
 
-        // Título del modal.
         if (challengeResultModalTitle) {
             challengeResultModalTitle.textContent = modalData && modalData.title
                 ? modalData.title
                 : 'Resultado del reto';
         }
 
-        // Texto del botón principal del modal.
         if (challengeResultModalContinue) {
             challengeResultModalContinue.textContent = modalData && modalData.buttonText
                 ? modalData.buttonText
                 : 'Continuar';
         }
 
-        // Manejo del puntaje mostrado en el modal.
         if (challengeResultModalScore) {
             const hasScore =
                 modalData &&
@@ -243,12 +681,10 @@
             }
         }
 
-        // Mensajes del modal.
         const messages = modalData && Array.isArray(modalData.messages)
             ? modalData.messages
             : [];
 
-        // Inserta cada mensaje como un párrafo dentro del body del modal.
         messages.forEach(function (msg) {
             const p = document.createElement('p');
             p.className = 'sv-challenge-result-modal__text';
@@ -256,25 +692,22 @@
             challengeResultModalBody.appendChild(p);
         });
 
-        // Guarda la URL de redirección que se usará al pulsar continuar.
         state.modalRedirectTo = modalData && modalData.redirectTo
             ? modalData.redirectTo
             : '/retos';
 
-        // Finalmente abre el modal.
         openChallengeResultModal();
     }
 
-    // Maneja el clic del botón "Continuar" del modal.
     function handleChallengeResultContinue() {
         const redirectTo = state.modalRedirectTo || '/retos';
         closeChallengeResultModal();
         window.location.href = redirectTo;
     }
 
-    // --------------------- FIN MODAL ------------------------------------
-
-    // --------------------- LOADER ------------------------------------
+    // ---------------------------------------------------------------------
+    // LOADER
+    // ---------------------------------------------------------------------
 
     // Muestra el loader principal del reto.
     function showChallengeLoader() {
@@ -290,80 +723,69 @@
         challengeLoader.setAttribute('aria-hidden', 'true');
     }
 
-    // --------------------- FIN LOADER ------------------------------------
+    // Oculta el loader y espera un poco para suavizar la transición.
+    async function hideChallengeLoaderAndWait() {
+        hideChallengeLoader();
+        await delay(250);
+    }
+
+    // ---------------------------------------------------------------------
+    // FLUJO PRINCIPAL DEL RETO
+    // ---------------------------------------------------------------------
 
     // Inicia el reto pidiendo al backend el flujo inicial.
     async function startChallenge() {
-        // Marca el frontend como cargando.
         setLoading(true);
-
-        // Limpia mensajes anteriores.
         clearMessages();
 
         try {
-            // Llama al endpoint que inicia el reto.
             const response = await fetch('/api/retos/start', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                // Envía challengeId y skillId al backend.
                 body: JSON.stringify({
                     challengeId: state.challengeId,
                     skillId: state.skillId
                 })
             });
 
-            // Convierte la respuesta a JSON.
             const data = await response.json();
             console.log('Respuesta /api/retos/start:', data);
 
-            // Si el backend respondió error, se maneja como error API.
             if (!response.ok || !data.ok) {
                 handleApiError(data);
                 return;
             }
 
-            // Aplica el estado de sesión enviado por backend.
             applySessionState(data.session);
-
-            // Renderiza mensajes iniciales.
             renderMessages(data.messages || []);
-
-            // Aplica cambios de UI.
             applyUiState(data.ui || {});
+            await hideChallengeLoaderAndWait();
+
+            if (shouldAutoAdvance()) {
+                queueAutoAdvanceIfNeeded();
+            }
+
+            handleAvatarNarration(data);
         } catch (error) {
-            // Manejo de error de red o fallo inesperado.
             console.error('Error al iniciar el reto:', error);
             renderSystemMessage('Ocurrió un error al iniciar el reto.');
             hideChallengeLoader();
             return;
         } finally {
-            // Siempre quita el estado de loading.
             setLoading(false);
-        }
-
-        // Si el backend indicó que el siguiente paso es "advance"
-        // y aún no se requiere respuesta del usuario,
-        // el frontend lo ejecuta automáticamente.
-        if (state.nextExpectedAction === 'advance' && !state.requiresUserResponse) {
-            await sendAdvanceTurn();
         }
     }
 
     // Envía al backend la acción "advance".
-    // Se usa para pasar del intro a la consigna principal del reto.
     async function sendAdvanceTurn() {
-        // No hace nada si ya está cargando o si el reto terminó.
         if (state.isLoading || state.completed) return;
 
         setLoading(true);
-
-        // Muestra indicador visual de "pensando".
         renderTypingIndicator();
 
         try {
-            // Llama al endpoint de turn con acción advance.
             const response = await fetch('/api/retos/turn', {
                 method: 'POST',
                 headers: {
@@ -377,33 +799,26 @@
 
             const data = await response.json();
             console.log('Respuesta /api/retos/turn (advance):', data);
-
-            // Se agrega un delay pequeño para hacer la transición más natural visualmente.
             await delay(500);
 
-            // Se elimina el indicador de typing.
             removeTypingIndicator();
 
-            // Si la respuesta fue error, se maneja.
             if (!response.ok || !data.ok) {
                 handleApiError(data);
                 return;
             }
 
-            // Se actualiza el estado del flujo.
             applySessionState(data.session);
-
-            // Se renderizan mensajes nuevos.
             renderMessages(data.messages || []);
-
-            // Se aplica el estado visual.
             applyUiState(data.ui || {});
-
-            // Se verifica si el reto terminó o si debe mostrar modal.
             handleCompletion(data);
+            await hideChallengeLoaderAndWait();
 
-            // Oculta el loader principal.
-            hideChallengeLoader();
+            if (shouldAutoAdvance()) {
+                queueAutoAdvanceIfNeeded();
+            }
+
+            handleAvatarNarration(data);
 
         } catch (error) {
             removeTypingIndicator();
@@ -415,18 +830,14 @@
         }
     }
 
-    // Envía al backend la respuesta del usuario.
+    // Envía la respuesta del usuario al backend.
     async function sendReplyTurn(userMessage) {
-        // Si está cargando o ya terminó, no envía nada.
         if (state.isLoading || state.completed) return;
 
         setLoading(true);
-
-        // Muestra indicador de typing del asistente.
         renderTypingIndicator();
 
         try {
-            // Llama al backend con la respuesta del usuario.
             const response = await fetch('/api/retos/turn', {
                 method: 'POST',
                 headers: {
@@ -442,30 +853,25 @@
 
             const data = await response.json();
             console.log('Respuesta /api/retos/turn (reply):', data);
-
-            // Delay visual para suavizar transición.
             await delay(500);
 
-            // Quita indicador de typing.
             removeTypingIndicator();
 
-            // Si la respuesta fue error, se maneja.
             if (!response.ok || !data.ok) {
                 handleApiError(data);
                 return;
             }
 
-            // Se actualiza estado del flujo.
             applySessionState(data.session);
-
-            // Se renderizan mensajes que llegan desde backend.
             renderMessages(data.messages || []);
-
-            // Se actualiza la UI.
             applyUiState(data.ui || {});
-
-            // Se revisa si el reto terminó o requiere modal.
             handleCompletion(data);
+
+            if (shouldAutoAdvance()) {
+                queueAutoAdvanceIfNeeded();
+            }
+
+            handleAvatarNarration(data);
 
         } catch (error) {
             removeTypingIndicator();
@@ -478,33 +884,34 @@
 
     // Maneja el submit del formulario del composer.
     async function onSubmit(event) {
-        // Evita que el formulario recargue la página.
         event.preventDefault();
 
-        // Solo se permite enviar si:
-        // - el input está habilitado,
-        // - el flujo espera respuesta,
-        // - no está cargando.
-        if (!state.inputEnabled || !state.requiresUserResponse || state.isLoading) return;
+        if (
+            !state.inputEnabled ||
+            !state.requiresUserResponse ||
+            state.isLoading ||
+            state.avatarIsSpeaking ||
+            state.avatarIsPendingSpeech
+        ) {
+            return;
+        }
 
         const message = textInput.value.trim();
-
-        // Si el input está vacío, no envía nada.
         if (!message) return;
 
-        // Si el usuario estaba dictando por voz, se detiene antes de enviar.
         if (state.isListening) {
             stopSpeechRecognition();
         }
 
-        // Limpia el input visualmente.
         textInput.value = '';
-
-        // Envía la respuesta al backend.
         await sendReplyTurn(message);
     }
 
-    // Renderiza una lista de mensajes dentro del chat.
+    // ---------------------------------------------------------------------
+    // RENDER DE MENSAJES
+    // ---------------------------------------------------------------------
+
+    // Renderiza un lote de mensajes.
     function renderMessages(messages) {
         if (!Array.isArray(messages) || messages.length === 0) return;
 
@@ -516,7 +923,7 @@
         scrollMessagesToBottom();
     }
 
-    // Construye el elemento DOM correcto según el role del mensaje.
+    // Construye el elemento correcto según el role.
     function buildMessageElement(message) {
         const role = message.role || 'assistant';
         const text = message.text || '';
@@ -562,8 +969,7 @@
         return article;
     }
 
-    // Construye un mensaje visual de sistema.
-    // Se usa para errores o avisos simples.
+    // Construye un mensaje visual del sistema.
     function buildSystemMessageElement(text) {
         const wrapper = document.createElement('div');
         wrapper.className = 'challenge__hint';
@@ -581,7 +987,7 @@
         return wrapper;
     }
 
-    // Inserta un mensaje de sistema directamente en el chat.
+    // Inserta un mensaje de sistema directamente.
     function renderSystemMessage(text) {
         const el = buildSystemMessageElement(text);
         messagesContainer.appendChild(el);
@@ -593,12 +999,12 @@
         messagesContainer.innerHTML = '';
     }
 
-    // Hace scroll al fondo del contenedor de mensajes.
+    // Baja automáticamente el scroll al final.
     function scrollMessagesToBottom() {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // Renderiza el indicador temporal de "el asistente está pensando..."
+    // Renderiza el indicador de "pensando..."
     function renderTypingIndicator() {
         removeTypingIndicator();
 
@@ -620,7 +1026,7 @@
         scrollMessagesToBottom();
     }
 
-    // Elimina el indicador de typing si existe.
+    // Elimina el indicador de typing.
     function removeTypingIndicator() {
         const existing = messagesContainer.querySelector('[data-typing-indicator="true"]');
         if (existing) {
@@ -628,14 +1034,18 @@
         }
     }
 
-    // Helper para generar una espera artificial.
+    // Espera utilitaria.
     function delay(ms) {
         return new Promise(function (resolve) {
             setTimeout(resolve, ms);
         });
     }
 
-    // Aplica al estado frontend los datos de sesión que devuelve el backend.
+    // ---------------------------------------------------------------------
+    // ESTADO Y UI
+    // ---------------------------------------------------------------------
+
+    // Aplica al estado frontend los datos de sesión devueltos por backend.
     function applySessionState(session) {
         if (!session) return;
 
@@ -646,63 +1056,69 @@
         state.completed = Boolean(session.completed);
     }
 
-    // Aplica cambios visuales a la UI según lo que indique el backend.
+    // Aplica visualmente el estado actual a input, enviar y micrófono.
     function applyUiState(ui) {
-        const placeholder = ui.composerPlaceholder || 'Escribe tu respuesta...';
-        const focusInput = Boolean(ui.focusInput);
+        const safeUi = ui || {};
+        const placeholder = resolveComposerPlaceholder(safeUi);
+        const focusInput = Boolean(safeUi.focusInput);
 
-        // Actualiza placeholder y estados disabled.
         textInput.placeholder = placeholder;
-        textInput.disabled = !state.inputEnabled || state.completed;
-        sendButton.disabled = !state.inputEnabled || state.completed;
+
+        const shouldDisableComposer =
+            state.isLoading ||
+            !state.inputEnabled ||
+            state.completed ||
+            state.avatarIsSpeaking ||
+            state.avatarIsPendingSpeech;
+
+        textInput.disabled = shouldDisableComposer;
+        sendButton.disabled = shouldDisableComposer;
 
         if (micButton) {
-            micButton.disabled = !state.inputEnabled || state.completed;
+            micButton.disabled = shouldDisableComposer;
         }
 
-        // Si el backend pide foco y el input está activo, se posiciona el cursor.
-        if (focusInput && state.inputEnabled && !state.completed) {
+        if (focusInput && !shouldDisableComposer && state.requiresUserResponse) {
             textInput.focus();
         }
 
         updateMicButtonState();
     }
 
-    // Marca o desmarca el frontend como "loading".
-    function setLoading(isLoading) {
-        state.isLoading = isLoading;
-
-        const shouldDisable = isLoading || !state.inputEnabled || state.completed;
-
-        // Mientras está cargando, se bloquea input y botones.
-        textInput.disabled = shouldDisable;
-        sendButton.disabled = shouldDisable;
-
-        if (micButton) {
-            micButton.disabled = shouldDisable;
+    // Determina el placeholder correcto del composer.
+    function resolveComposerPlaceholder(ui = {}) {
+        if (state.avatarIsSpeaking) {
+            return 'El avatar está hablando...';
         }
 
-        // Placeholder temporal durante la espera.
-        if (isLoading) {
-            textInput.placeholder = 'Espera la respuesta del asistente...';
+        if (state.avatarIsPendingSpeech) {
+            return 'Espera un momento...';
         }
 
-        updateMicButtonState();
+        if (state.isLoading) {
+            return 'Espera la respuesta del asistente...';
+        }
+
+        if (ui.composerPlaceholder) {
+            return ui.composerPlaceholder;
+        }
+
+        return 'Escribe tu respuesta...';
     }
 
-    // Procesa la finalización del reto si el backend lo indica.
+    // Marca loading on/off y recalcula UI.
+    function setLoading(isLoading) {
+        state.isLoading = isLoading;
+        applyUiState({});
+    }
+
+    // Procesa finalización del reto.
     function handleCompletion(data) {
         if (!data) return;
 
-        const hasProgress = !!data.progress;
-        const hasCompletionModal = !!data.completionModal;
-
-        // Si vino progress, se revisa si el reto terminó o falló.
-        if (hasProgress) {
+        if (data.progress) {
             if (data.progress.challengeCompleted || data.progress.failed) {
                 state.completed = true;
-                textInput.disabled = true;
-                sendButton.disabled = true;
 
                 if (state.isListening) {
                     stopSpeechRecognition();
@@ -712,37 +1128,27 @@
             }
         }
 
-        // Si vino completionModal, se muestra el modal final.
-        if (hasCompletionModal) {
-            state.completed = true;
-            textInput.disabled = true;
-            sendButton.disabled = true;
-
-            if (state.isListening) {
-                stopSpeechRecognition();
-            }
-
-            updateMicButtonState();
-            renderChallengeResultModal(data.completionModal);
+        if (data.completionModal) {
+            queueCompletionModal(data.completionModal);
         }
     }
 
-    // Maneja errores que vienen del backend.
+    // Maneja errores devueltos por backend.
     function handleApiError(data) {
+        state.avatarIsPendingSpeech = false;
         hideChallengeLoader();
         removeTypingIndicator();
         console.error('Error API:', data);
 
         let message = 'Ocurrió un error inesperado.';
 
-        // Si el backend envió un mensaje de error, se usa ese.
         if (data && data.error && data.error.message) {
             message = data.error.message;
         }
 
         renderSystemMessage(message);
+        applyUiState({});
 
-        // Si viene una redirección, se ejecuta después de una pequeña espera.
         const redirectTo =
             (data && data.error && data.error.redirectTo)
                 ? data.error.redirectTo
@@ -755,14 +1161,15 @@
         }
     }
 
-    // --------------------- RECONOCIMIENTO DE VOZ ------------------------
+    // ---------------------------------------------------------------------
+    // RECONOCIMIENTO DE VOZ
+    // ---------------------------------------------------------------------
 
-    // Inicializa el reconocimiento de voz si el navegador lo soporta.
+    // Inicializa Web Speech API si el navegador la soporta.
     function initSpeechRecognition() {
         const SpeechRecognitionAPI =
             window.SpeechRecognition || window.webkitSpeechRecognition;
 
-        // Si el navegador no soporta reconocimiento, se desactiva el botón.
         if (!SpeechRecognitionAPI) {
             state.speechRecognitionSupported = false;
 
@@ -776,22 +1183,12 @@
 
         state.speechRecognitionSupported = true;
 
-        // Crea la instancia.
         speechRecognition = new SpeechRecognitionAPI();
-
-        // Idioma configurado.
         speechRecognition.lang = 'es-CO';
-
-        // Permite hablar de forma continua.
         speechRecognition.continuous = true;
-
-        // Permite resultados intermedios mientras el usuario dicta.
         speechRecognition.interimResults = true;
-
-        // Cantidad máxima de alternativas por resultado.
         speechRecognition.maxAlternatives = 1;
 
-        // Evento cuando empieza a escuchar.
         speechRecognition.onstart = function () {
             state.isListening = true;
             updateMicButtonState();
@@ -801,7 +1198,6 @@
             }
         };
 
-        // Evento cuando llegan resultados del dictado.
         speechRecognition.onresult = function (event) {
             let interimTranscript = '';
             let accumulatedFinal = finalTranscript;
@@ -816,16 +1212,13 @@
                 }
             }
 
-            // Actualiza el input en vivo.
             if (textInput) {
                 textInput.value = (accumulatedFinal + interimTranscript).trim();
             }
 
-            // Guarda lo confirmado como final.
             finalTranscript = accumulatedFinal;
         };
 
-        // Evento cuando ocurre un error en reconocimiento.
         speechRecognition.onerror = function (event) {
             console.error('Error reconocimiento de voz:', event.error);
             state.isListening = false;
@@ -836,12 +1229,17 @@
             }
         };
 
-        // Evento cuando el reconocimiento se detiene.
         speechRecognition.onend = function () {
             state.isListening = false;
             updateMicButtonState();
 
-            if (textInput && !state.completed && !state.isLoading) {
+            if (
+                textInput &&
+                !state.completed &&
+                !state.isLoading &&
+                !state.avatarIsSpeaking &&
+                !state.avatarIsPendingSpeech
+            ) {
                 textInput.placeholder = 'Escribe tu respuesta...';
             }
         };
@@ -865,11 +1263,17 @@
         }
     }
 
-    // Inicia el reconocimiento de voz.
+    // Inicia reconocimiento de voz.
     function startSpeechRecognition() {
-        if (!speechRecognition || state.isListening) return;
+        if (
+            !speechRecognition ||
+            state.isListening ||
+            state.avatarIsSpeaking ||
+            state.avatarIsPendingSpeech
+        ) {
+            return;
+        }
 
-        // Si ya había texto en el input, lo conserva y continúa dictando encima.
         finalTranscript = textInput
             ? textInput.value.trim() + (textInput.value.trim() ? ' ' : '')
             : '';
@@ -881,20 +1285,21 @@
         }
     }
 
-    // Detiene el reconocimiento de voz.
+    // Detiene reconocimiento de voz.
     function stopSpeechRecognition() {
         if (!speechRecognition || !state.isListening) return;
 
         speechRecognition.stop();
     }
 
-    // Verifica si el micrófono puede usarse en este momento.
+    // Determina si el micrófono puede usarse.
     function canUseVoiceInput() {
         return (
             state.inputEnabled &&
             !state.completed &&
             !state.isLoading &&
-            !state.avatarIsSpeaking
+            !state.avatarIsSpeaking &&
+            !state.avatarIsPendingSpeech
         );
     }
 
@@ -905,14 +1310,13 @@
         const disabled = !state.speechRecognitionSupported || !canUseVoiceInput();
 
         micButton.disabled = disabled;
-
-        // Marca visualmente si está escuchando.
         micButton.classList.toggle('challenge__iconBtn--listening', state.isListening);
         micButton.setAttribute('aria-pressed', state.isListening ? 'true' : 'false');
 
-        // Actualiza tooltip del botón según el estado actual.
         if (state.isListening) {
             micButton.title = 'Detener grabación';
+        } else if (state.avatarIsSpeaking || state.avatarIsPendingSpeech) {
+            micButton.title = 'Micrófono bloqueado mientras el avatar habla';
         } else if (disabled) {
             micButton.title = 'Micrófono no disponible en este momento';
         } else {

@@ -1,3 +1,4 @@
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <main class="challenge" data-reto-id="<?php echo (int)$reto->id; ?>" data-habilidad-id="<?php echo (int)$reto->id_habilidades; ?>">
   <!-- Loader -->
   <div class="challenge-loader" id="challenge-loader" aria-hidden="false">
