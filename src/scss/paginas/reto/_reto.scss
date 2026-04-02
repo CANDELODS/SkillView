@@ -89,6 +89,20 @@
         }
     }
 
+    .challenge__avatar--reconnecting::after {
+        content: "Reconectando avatar...";
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        font-size: 1.4rem;
+        font-weight: 500;
+        z-index: 10;
+    }
+
     // NUEVO: shell interno para controlar mejor el recorte
     &__avatarShell {
         width: 100%;

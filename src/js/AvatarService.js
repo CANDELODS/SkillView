@@ -13,10 +13,12 @@
         endpoints: {
             createSession: '/api/avatar/session',
             sendTask: '/api/avatar/task',
-            closeSession: '/api/avatar/session/close'
+            closeSession: '/api/avatar/session/close',
+            keepAlive: '/api/avatar/keep-alive'
         },
         sessionStartTimeoutMs: 20000,
         speechTimeoutMs: 45000,
+        keepAliveIntervalMs: 60000,
         avatarId: null,
         voiceId: null
     };
@@ -49,10 +51,12 @@
             endpoints: {
                 createSession: DEFAULTS.endpoints.createSession,
                 sendTask: DEFAULTS.endpoints.sendTask,
-                closeSession: DEFAULTS.endpoints.closeSession
+                closeSession: DEFAULTS.endpoints.closeSession,
+                keepAlive: DEFAULTS.endpoints.keepAlive
             },
             sessionStartTimeoutMs: DEFAULTS.sessionStartTimeoutMs,
             speechTimeoutMs: DEFAULTS.speechTimeoutMs,
+            keepAliveTimerId: null,
             avatarId: DEFAULTS.avatarId,
             voiceId: DEFAULTS.voiceId
         },
@@ -180,6 +184,7 @@
         state.sessionInfo = null;
         state.sessionStartPromise = null;
         state.sessionTimeoutId = clearTimeoutSafe(state.sessionTimeoutId);
+        stopKeepAliveLoop();
         resetSpeechState();
     }
 
@@ -244,6 +249,7 @@
             },
             sessionStartTimeoutMs: options.sessionStartTimeoutMs || DEFAULTS.sessionStartTimeoutMs,
             speechTimeoutMs: options.speechTimeoutMs || DEFAULTS.speechTimeoutMs,
+            keepAliveIntervalMs: options.keepAliveIntervalMs || DEFAULTS.keepAliveIntervalMs,
             avatarId: options.avatarId || DEFAULTS.avatarId,
             voiceId: options.voiceId || DEFAULTS.voiceId
         };
@@ -327,6 +333,7 @@
                 state.sessionActive = true;
                 state.ready = true;
                 state.unavailable = false;
+                startKeepAliveLoop();
                 state.sessionTimeoutId = clearTimeoutSafe(state.sessionTimeoutId);
 
                 // Avisamos que el avatar está listo.
@@ -439,6 +446,42 @@
             });
         } finally {
             resetSpeechState();
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Mantener avatar activo
+    // -----------------------------------------------------------------
+
+    function startKeepAliveLoop() {
+        stopKeepAliveLoop();
+
+        if (!state.providerClient || !state.providerClient.sessionId) return;
+
+        state.keepAliveTimerId = setInterval(async function () {
+            try {
+                if (!state.sessionActive || !state.ready) return;
+
+                await fetch(state.options.endpoints.keepAlive, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        provider: 'heygen',
+                        sessionId: state.providerClient.sessionId
+                    })
+                });
+            } catch (error) {
+                console.warn('[AvatarService] Falló keepAlive del avatar:', error);
+            }
+        }, state.options.keepAliveIntervalMs);
+    }
+
+    function stopKeepAliveLoop() {
+        if (state.keepAliveTimerId) {
+            clearInterval(state.keepAliveTimerId);
+            state.keepAliveTimerId = null;
         }
     }
 
@@ -593,31 +636,44 @@
         state.room = room;
 
         // Cuando llega una pista multimedia, la conectamos al video o al audio.
-        room.on(global.LivekitClient.RoomEvent.TrackSubscribed, function (track) {
-            var mediaStream = new MediaStream([track.mediaStreamTrack]);
+        room.on(global.LivekitClient.RoomEvent.TrackSubscribed, function (track, publication, participant) {
 
             if (track.kind === 'video') {
-                videoEl.srcObject = mediaStream;
-                videoEl.play().catch(function (error) {
-                    console.warn('[AvatarService] No se pudo reproducir video automáticamente:', error);
-                });
+                track.attach(videoEl); // conecta el video al <video>
             }
 
             if (track.kind === 'audio') {
-                var audioEl = document.createElement('audio');
+                var audioEl = track.attach();
                 audioEl.autoplay = true;
-                audioEl.srcObject = mediaStream;
-                audioEl.play().catch(function (error) {
-                    console.warn('[AvatarService] No se pudo reproducir audio automáticamente:', error);
-                });
             }
+
         });
 
-        // Si la sala se desconecta, emitimos error para que la app lo maneje.
-        room.on(global.LivekitClient.RoomEvent.Disconnected, function () {
+        room.on(global.LivekitClient.RoomEvent.Disconnected, async function () {
+
             emit(EVENTS.ERROR, {
-                reason: 'avatar_room_disconnected'
+                reason: 'avatar_reconnecting'
             });
+
+            // emit(EVENTS.ERROR, {
+            //     reason: 'avatar_room_disconnected'
+            // });
+
+            stopKeepAliveLoop();
+
+            try {
+                state.ready = false;
+                state.sessionActive = false;
+
+                var restarted = await startSession();
+
+                if (!restarted) {
+                    setUnavailable('avatar_room_disconnected');
+                }
+
+            } catch (error) {
+                setUnavailable('avatar_room_disconnected', { error: error });
+            }
         });
 
         // Conectamos el cliente LiveKit con la URL y token devueltos por el backend.

@@ -60,6 +60,10 @@ $router->post('/api/avatar/session/close', [AvatarController::class, 'closeSessi
 $router->post('/api/avatar/task', [AvatarController::class, 'sendTask']);
 //--------------------FIN APRENDIZAJE--------------------
 
+//---------------------MANTENER AVATAR ACTIVO------------
+$router->post('/api/avatar/keep-alive', [AvatarController::class, 'keepAlive']);
+//---------------------MANTENER AVATAR ACTIVO------------
+
 //--------------------RETOS--------------------
 $router->get('/retos', [RetosController::class, 'index']);
 $router->post('/retos', [RetosController::class, 'index']);

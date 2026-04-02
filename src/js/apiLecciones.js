@@ -508,17 +508,32 @@
     }
 
     // Manejo de error del avatar
-    function handleAvatarError(payload) {
+    async function handleAvatarError(payload) {
+        if (payload && payload.reason === 'avatar_reconnecting') {
+            setAvatarVisualState('reconnecting');
+            return;
+        }
         state.avatarIsPendingSpeech = false;
         state.avatarIsSpeaking = false;
-        avatarAvailable = false;
 
         console.error('Avatar error:', payload);
 
         applyUiState({});
         updateMicButtonState();
-        setAvatarVisualState('unavailable');
 
+        if (payload && payload.reason === 'avatar_room_disconnected') {
+            try {
+                const restarted = await AvatarService.startSession();
+                avatarAvailable = Boolean(restarted);
+                setAvatarVisualState(restarted ? 'idle' : 'unavailable');
+                return;
+            } catch (error) {
+                console.error('No se pudo reactivar el avatar:', error);
+            }
+        }
+
+        avatarAvailable = false;
+        setAvatarVisualState('unavailable');
         maybeOpenPendingCompletionModal();
     }
 
@@ -541,7 +556,8 @@
             'lesson__avatar--idle',
             'lesson__avatar--speaking',
             'lesson__avatar--loading',
-            'lesson__avatar--unavailable'
+            'lesson__avatar--unavailable',
+            'lesson__avatar--reconnecting'
         );
 
         const safeStatus = status || 'idle';

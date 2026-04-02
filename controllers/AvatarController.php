@@ -484,6 +484,108 @@ class AvatarController
     }
 
     // -----------------------------------------------------------------
+    // Mantiene activa la sesión del avatar (keep-alive)
+    // -----------------------------------------------------------------
+    public static function keepAlive()
+    {
+        if (!isAuth()) {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'UNAUTHORIZED',
+                    'message' => 'Tu sesión ha expirado.'
+                ],
+                'redirectTo' => '/'
+            ], 401);
+        }
+
+        $idUsuario = (int)($_SESSION['id'] ?? 0);
+        if ($idUsuario <= 0) {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'UNAUTHORIZED',
+                    'message' => 'No se pudo identificar al usuario.'
+                ],
+                'redirectTo' => '/'
+            ], 401);
+        }
+
+        $input = self::getRequestData();
+
+        $provider = isset($input['provider']) ? trim((string)$input['provider']) : 'heygen';
+        $sessionId = isset($input['sessionId']) ? trim((string)$input['sessionId']) : '';
+
+        if ($provider !== 'heygen') {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'UNSUPPORTED_PROVIDER',
+                    'message' => 'El proveedor solicitado no está soportado actualmente.'
+                ]
+            ], 422);
+        }
+
+        if ($sessionId === '') {
+            $sessionId = $_SESSION['avatar_flow']['sessionId'] ?? '';
+        }
+
+        if ($sessionId === '') {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'SESSION_ID_REQUIRED',
+                    'message' => 'No se recibió el sessionId del avatar.'
+                ]
+            ], 422);
+        }
+
+        $apiKey = self::env('HEYGEN_API_KEY', '');
+        if ($apiKey === '') {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'AVATAR_CONFIG_MISSING',
+                    'message' => 'La configuración del avatar no está disponible.'
+                ]
+            ], 500);
+        }
+
+        try {
+            $keepAliveResponse = self::requestHeyGen(
+                'POST',
+                'https://api.heygen.com/v1/streaming.keep_alive',
+                [
+                    'session_id' => $sessionId
+                ],
+                [
+                    'Authorization: Bearer ' . $apiKey,
+                    'Content-Type: application/json'
+                ]
+            );
+
+            self::jsonResponse([
+                'ok' => true,
+                'error' => null,
+                'provider' => 'heygen',
+                'sessionId' => $sessionId,
+                'remoteKeepAlive' => $keepAliveResponse['body'] ?? null
+            ], 200);
+        } catch (\Throwable $e) {
+            error_log('AvatarController.keepAlive error: ' . $e->getMessage());
+
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'AVATAR_KEEPALIVE_ERROR',
+                    'message' => 'No se pudo mantener activa la sesión del avatar.',
+                    'debug' => $e->getMessage()
+                ]
+            ], 502);
+        }
+    }
+
+    // -----------------------------------------------------------------
     // HELPERS
     // -----------------------------------------------------------------
 
