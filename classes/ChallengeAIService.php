@@ -161,6 +161,7 @@ Reglas:
 - No evalúes todavía.
 - Puedes usar 1 o 2 mensajes del asistente como máximo.
 - Indica claramente qué debe hacer el usuario en su respuesta.
+- No pidas información que no esté visible para el usuario (El reto siempre debe tener toda la información necesaria), por ejemplo, si pides al usuario analizar 5 preguntas, leer 5 escenarios, etc. Procura siempre proporcionar toda la información necesaria dentro del reto.
 - Devuelve exactamente un JSON válido.
 - El JSON debe tener esta estructura:
 {

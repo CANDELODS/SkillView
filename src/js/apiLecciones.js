@@ -30,6 +30,10 @@
     // Bandera para saber si el avatar está disponible
     let avatarAvailable = false;
 
+    // Variable para activar o desactivar la integración del avatar (útil para pruebas sin el).
+    //Cambiar a true para activar el avatar, false para desactivarlo y probar sin él.
+    const AVATAR_ENABLED = true;
+
     // ---------------------------------------------------------------------
     // ESTADO GLOBAL DEL MÓDULO
     // ---------------------------------------------------------------------
@@ -383,6 +387,13 @@
 
     // Inicializa la integración del avatar con el contenedor de la vista
     function initAvatarIntegration() {
+        //APAGAR AVATAR PARA PRUEBAS SIN EL
+        if (!AVATAR_ENABLED) {
+            avatarAvailable = false;
+            setAvatarVisualState('unavailable');
+            return;
+        }
+
         if (!avatarContainer || !AvatarService) {
             setAvatarVisualState('unavailable');
             return;
@@ -568,10 +579,27 @@
     // Procesa los mensajes narrables y los manda a la cola del avatar
     function handleAvatarNarration(data = {}) {
         if (!avatarAvailable) {
+            // Si el avatar está apagado o no disponible, no debe dejar
+            // la UI bloqueada esperando una narración que nunca ocurrirá.
+            state.avatarIsSpeaking = false;
+            state.avatarIsPendingSpeech = false;
+
             if (data.completionModal) {
                 queueCompletionModal(data.completionModal);
                 maybeOpenPendingCompletionModal();
             }
+
+            applyUiState({});
+            updateMicButtonState();
+
+            // Si el flujo necesita autoavance, lo ejecutamos de inmediato
+            // porque no habrá cola de narración que lo dispare.
+            if (state.pendingAutoAdvance) {
+                maybeRunPendingAutoAdvance();
+                return;
+            }
+
+            maybeFocusInputAfterSpeech();
             return;
         }
 
@@ -780,6 +808,11 @@
             return;
         } finally {
             setLoading(false);
+            // Si el avatar está apagado y quedó un autoavance pendiente,
+            // lo disparamos después de salir del loading.
+            if (!avatarAvailable && state.pendingAutoAdvance) {
+                maybeRunPendingAutoAdvance();
+            }
         }
     }
 
@@ -832,6 +865,11 @@
             hideLessonLoader();
         } finally {
             setLoading(false);
+            // Si el avatar está apagado y quedó un autoavance pendiente,
+            // lo disparamos después de salir del loading.
+            if (!avatarAvailable && state.pendingAutoAdvance) {
+                maybeRunPendingAutoAdvance();
+            }
         }
     }
 
@@ -884,6 +922,11 @@
             renderSystemMessage('No se pudo enviar tu respuesta.');
         } finally {
             setLoading(false);
+            // Si el avatar está apagado y quedó un autoavance pendiente,
+            // lo disparamos después de salir del loading.
+            if (!avatarAvailable && state.pendingAutoAdvance) {
+                maybeRunPendingAutoAdvance();
+            }
         }
     }
 
