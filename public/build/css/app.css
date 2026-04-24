@@ -5133,6 +5133,10 @@ body:not(.login) {
   color: #EB4328;
   cursor: pointer;
 }
+.site-footer__a {
+  text-decoration: none;
+  color: inherit;
+}
 .site-footer__contact--i {
   font-size: 2.4rem;
 }
@@ -5594,6 +5598,8 @@ body:not(.login) {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  text-decoration: none;
+  color: inherit;
 }
 .site-header__user-info {
   display: none;

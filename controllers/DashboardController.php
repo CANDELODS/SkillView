@@ -22,7 +22,7 @@ class DashboardController
             'titulo' => 'Panel de administración'
         ]);
     }
-//----------------------------------ADMINISTRAR USUARIOS----------------------------------
+    //----------------------------------ADMINISTRAR USUARIOS----------------------------------
     public static function indexUsuarios(Router $router)
     {
         // Verificamos si el usuario está autenticado
@@ -109,10 +109,18 @@ class DashboardController
             $usuarios = Usuario::paginar('nombres', $registros_por_pagina, $paginacion->offset());
         }
 
-        // Cambiamos los valores 0 y 1 de la columna sexo por Femenino y Masculino
+        // Cambiamos los valores 0, 1 y 3 de la columna sexo por Femenino, Masculino y Prefiero no decirlo
         if (!empty($usuarios)) {
             foreach ($usuarios as $usuario) {
-                $usuario->sexo = $usuario->sexo ? 'Femenino' : 'Masculino';
+                if ((string)$usuario->sexo === '0') {
+                    $usuario->sexo = 'Masculino';
+                } elseif ((string)$usuario->sexo === '1') {
+                    $usuario->sexo = 'Femenino';
+                } elseif ((string)$usuario->sexo === '3') {
+                    $usuario->sexo = 'Prefiero no decirlo';
+                } else {
+                    $usuario->sexo = 'No definido';
+                }
             }
         }
 
@@ -213,9 +221,9 @@ class DashboardController
             }
         }
     }
-//----------------------------------FIN ADMINISTRAR USUARIOS----------------------------------
+    //----------------------------------FIN ADMINISTRAR USUARIOS----------------------------------
 
-//----------------------------------ADMINISTRAR HABILIDADES----------------------------------
+    //----------------------------------ADMINISTRAR HABILIDADES----------------------------------
     public static function indexHabilidades(Router $router)
     {
 
@@ -327,7 +335,7 @@ class DashboardController
             //Validar
             $alertas = $habilidad->validar();
             //Si no hay alertas, guardamos
-            if(empty($alertas)){
+            if (empty($alertas)) {
                 $resultado = $habilidad->guardar();
                 if ($resultado) {
                     $alertasExito[] = "La habilidad se creó correctamente";
@@ -421,5 +429,5 @@ class DashboardController
             }
         }
     }
-//----------------------------------FIN ADMINISTRAR HABILIDADES----------------------------------
+    //----------------------------------FIN ADMINISTRAR HABILIDADES----------------------------------
 }

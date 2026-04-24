@@ -251,7 +251,10 @@
                             id="nombres"
                             name="nombres"
                             value="<?php echo s($usuarioForm->nombres ?? ''); ?>"
-                            placeholder="Ej. Juan">
+                            placeholder="Ej. Juan"
+                            maxlength="25"
+                            pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+"
+                            title="Solo se permiten letras y espacios">
                     </div>
 
                     <div class="profile-form__field">
@@ -262,7 +265,10 @@
                             id="apellidos"
                             name="apellidos"
                             value="<?php echo s($usuarioForm->apellidos ?? ''); ?>"
-                            placeholder="Ej. Candelo">
+                            placeholder="Ej. Candelo"
+                            maxlength="25"
+                            pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+"
+                            title="Solo se permiten letras y espacios">
                     </div>
 
                     <div class="profile-form__field">
@@ -273,7 +279,10 @@
                             id="universidad"
                             name="universidad"
                             value="<?php echo s($usuarioForm->universidad ?? ''); ?>"
-                            placeholder="Ej. Unicomfacauca">
+                            placeholder="Ej. Unicomfacauca"
+                            maxlength="45"
+                            pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+"
+                            title="Solo se permiten letras y espacios">
                     </div>
 
                     <div class="profile-form__field">
@@ -284,7 +293,10 @@
                             id="carrera"
                             name="carrera"
                             value="<?php echo s($usuarioForm->carrera ?? ''); ?>"
-                            placeholder="Ej. Ingeniería de Sistemas">
+                            placeholder="Ej. Ingeniería de Sistemas"
+                            maxlength="45"
+                            pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+"
+                            title="Solo se permiten letras y espacios">
                     </div>
 
                     <div class="profile-form__actions">

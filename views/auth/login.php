@@ -30,7 +30,8 @@
             class="login__input"
             placeholder="••••••••"
             id="password"
-            name="password">
+            name="password"
+            maxlength="16">
 
         <input class="login__button" type="submit" value="Iniciar Sesión">
     </form>

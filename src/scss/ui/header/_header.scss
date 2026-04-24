@@ -24,7 +24,7 @@
 
     &__brand {
 
-        &--lesson{
+        &--lesson {
             @extend .site-header__brand;
             display: flex;
             align-items: center;
@@ -32,7 +32,7 @@
         }
     }
 
-    &__back{
+    &__back {
         font-size: 1.8rem;
         color: #fff;
         text-decoration: none;
@@ -82,9 +82,10 @@
         align-items: center;
         gap: 1.4rem;
 
-        &--lesson{
+        &--lesson {
             @extend .site-header__right;
             display: none;
+
             @include m.tablet {
                 display: flex;
             }
@@ -95,6 +96,8 @@
         display: flex;
         align-items: center;
         gap: .8rem;
+        text-decoration: none;
+        color: inherit;
     }
 
     &__user-info {

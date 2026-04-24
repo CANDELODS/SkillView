@@ -1,4 +1,4 @@
-<div 
+<div
   class="register"
   <?php echo (!empty($alertasExito)) ? 'data-registro-exitoso="1"' : ''; ?>>
 
@@ -31,6 +31,9 @@
           placeholder="Juan Sebastian"
           id="nombres"
           name="nombres"
+          maxlength="25"
+          pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+"
+          title="Solo se permiten letras y espacios"
           value="<?php echo $usuario->nombres; ?>">
       </div>
 
@@ -43,6 +46,9 @@
           placeholder="Pérez"
           id="apellidos"
           name="apellidos"
+          maxlength="25"
+          pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+"
+          title="Solo se permiten letras y espacios"
           value="<?php echo $usuario->apellidos; ?>">
       </div>
 
@@ -52,8 +58,8 @@
         <input
           class="register__input"
           type="number"
-          min="1"
-          max="30"
+          min="15"
+          max="35"
           placeholder="25"
           id="edad"
           name="edad"
@@ -64,9 +70,21 @@
       <div class="register__field--sexo">
         <label class="register__label" for="sexo">Sexo</label>
         <select class="register__input" id="sexo" name="sexo">
-          <option selected value="">Selecciona</option>
-          <option value="0">Masculino</option>
-          <option value="1">Femenino</option>
+          <option value="" <?php echo ($usuario->sexo === '' || $usuario->sexo === null) ? 'selected' : ''; ?>>
+            Selecciona
+          </option>
+
+          <option value="0" <?php echo ((string)$usuario->sexo === '0') ? 'selected' : ''; ?>>
+            Masculino
+          </option>
+
+          <option value="1" <?php echo ((string)$usuario->sexo === '1') ? 'selected' : ''; ?>>
+            Femenino
+          </option>
+
+          <option value="3" <?php echo ((string)$usuario->sexo === '3') ? 'selected' : ''; ?>>
+            Prefiero no decirlo
+          </option>
         </select>
       </div>
 
@@ -79,6 +97,9 @@
           placeholder="Unicomfacauca"
           id="universidad"
           name="universidad"
+          maxlength="45"
+          pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+"
+          title="Solo se permiten letras y espacios"
           value="<?php echo $usuario->universidad; ?>">
       </div>
 
@@ -91,6 +112,9 @@
           placeholder="Ingeniería de Sistemas"
           id="carrera"
           name="carrera"
+          maxlength="45"
+          pattern="[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+"
+          title="Solo se permiten letras y espacios"
           value="<?php echo $usuario->carrera; ?>">
       </div>
 
@@ -113,7 +137,9 @@
           type="password"
           placeholder="••••••••"
           id="password"
-          name="password">
+          name="password"
+          maxlength="16"
+          minlength="6">
       </div>
 
       <!-- Password 2 -->
@@ -124,7 +150,9 @@
           type="password"
           placeholder="••••••••"
           id="password2"
-          name="password2">
+          name="password2"
+          maxlength="16"
+          minlength="6">
       </div>
       <!-- Submit -->
       <button class="register__button" type="submit">Crear Cuenta</button>
@@ -138,8 +166,8 @@
     // Tomamos el primer mensaje de éxito (si existe) para mostrarlo en el modal
     $mensajeExito = '';
     if (!empty($alertasExito)) {
-        // Tomamos el primer mensaje de éxito
-        $mensajeExito = current($alertasExito);
+      // Tomamos el primer mensaje de éxito
+      $mensajeExito = current($alertasExito);
     }
     ?>
     <!--HTML PARA EL MODAL-->
