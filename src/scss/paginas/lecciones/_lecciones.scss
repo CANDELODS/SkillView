@@ -420,6 +420,38 @@
     }
 }
 
+.sv-avatarControls {
+    position: absolute;
+    right: 1rem;
+    bottom: 1rem;
+    display: flex;
+    gap: .6rem;
+    z-index: 20;
+}
+
+.sv-avatarControls__btn {
+    width: 3.4rem;
+    height: 3.4rem;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, .55);
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sv-avatarControls__btn:hover {
+    background: rgba(0, 0, 0, .75);
+}
+
+.sv-avatarControls__btn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
 @keyframes lessonPulse {
     0% {
         transform: scale(1);

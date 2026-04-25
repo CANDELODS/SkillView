@@ -34,7 +34,10 @@
         SPEECH_START: 'speechStart',
         SPEECH_END: 'speechEnd',
         ERROR: 'error',
-        SESSION_CLOSED: 'sessionClosed'
+        SESSION_CLOSED: 'sessionClosed',
+
+        // Evento que informa cuando el usuario mutea o reactiva el sonido.
+        MUTE_CHANGE: 'muteChange'
     });
 
     // -----------------------------------------------------------------
@@ -56,7 +59,7 @@
             },
             sessionStartTimeoutMs: DEFAULTS.sessionStartTimeoutMs,
             speechTimeoutMs: DEFAULTS.speechTimeoutMs,
-            keepAliveTimerId: null,
+            keepAliveIntervalMs: DEFAULTS.keepAliveIntervalMs,
             avatarId: DEFAULTS.avatarId,
             voiceId: DEFAULTS.voiceId
         },
@@ -72,6 +75,21 @@
         sessionActive: false,
         unavailable: false,
 
+        // Estado de mute del audio del avatar.
+        muted: false,
+
+        // Elementos de audio creados a partir de las pistas de LiveKit.
+        // Se guardan para poder mutearlos o reactivar sonido después.
+        audioElements: new Set(),
+
+        // Referencias a los controles visuales del avatar.
+        controlsEl: null,
+        muteButtonEl: null,
+        skipButtonEl: null,
+
+        // Resolver usado para terminar antes la espera estimada de una narración.
+        skipCurrentSpeechResolver: null,
+
         // Identificadores de la narración actual y de la tarea remota
         currentSpeechId: null,
         currentTaskId: null,
@@ -85,6 +103,7 @@
         // Referencias a timeouts y a elementos multimedia
         sessionTimeoutId: null,
         speechTimeoutId: null,
+        keepAliveTimerId: null,
         videoEl: null,
         room: null,
 
@@ -94,7 +113,8 @@
             speechStart: new Set(),
             speechEnd: new Set(),
             error: new Set(),
-            sessionClosed: new Set()
+            sessionClosed: new Set(),
+            muteChange: new Set()
         }
     };
 
@@ -171,6 +191,9 @@
         state.currentTaskId = null;
         state.speechPromise = null;
         state.speechTimeoutId = clearTimeoutSafe(state.speechTimeoutId);
+        state.skipCurrentSpeechResolver = null;
+
+        updateAvatarControls();
     }
 
     // -----------------------------------------------------------------
@@ -230,6 +253,11 @@
         return state.unavailable === true;
     }
 
+    // Consulta si el avatar se encuentra muteado.
+    function isMuted() {
+        return state.muted === true;
+    }
+
     // -----------------------------------------------------------------
     // INICIALIZAR EL SERVICIO
     // -----------------------------------------------------------------
@@ -245,7 +273,8 @@
             endpoints: {
                 createSession: (options.endpoints && options.endpoints.createSession) || DEFAULTS.endpoints.createSession,
                 sendTask: (options.endpoints && options.endpoints.sendTask) || DEFAULTS.endpoints.sendTask,
-                closeSession: (options.endpoints && options.endpoints.closeSession) || DEFAULTS.endpoints.closeSession
+                closeSession: (options.endpoints && options.endpoints.closeSession) || DEFAULTS.endpoints.closeSession,
+                keepAlive: (options.endpoints && options.endpoints.keepAlive) || DEFAULTS.endpoints.keepAlive
             },
             sessionStartTimeoutMs: options.sessionStartTimeoutMs || DEFAULTS.sessionStartTimeoutMs,
             speechTimeoutMs: options.speechTimeoutMs || DEFAULTS.speechTimeoutMs,
@@ -290,7 +319,142 @@
 
         // Aseguramos que exista el <video> donde se reproducirá el stream.
         ensureVideoElement();
+
+        // Creamos los controles visuales del avatar.
+        // Estos controles se reutilizan tanto en lecciones como en retos.
+        ensureAvatarControls();
+
         return true;
+    }
+
+    // -----------------------------------------------------------------
+    // CONTROLES DEL AVATAR
+    // -----------------------------------------------------------------
+    // Crea los botones visuales para mutear y saltar narración.
+    // Se generan desde AvatarService para que funcionen igual en lecciones y retos.
+    function ensureAvatarControls() {
+        if (!state.containerEl) return null;
+
+        var controls = state.containerEl.querySelector('[data-avatar-controls="true"]');
+
+        if (!controls) {
+            controls = document.createElement('div');
+            controls.className = 'sv-avatarControls';
+            controls.setAttribute('data-avatar-controls', 'true');
+
+            var muteButton = document.createElement('button');
+            muteButton.type = 'button';
+            muteButton.className = 'sv-avatarControls__btn';
+            muteButton.setAttribute('data-avatar-mute', 'true');
+
+            var skipButton = document.createElement('button');
+            skipButton.type = 'button';
+            skipButton.className = 'sv-avatarControls__btn';
+            skipButton.setAttribute('data-avatar-skip', 'true');
+
+            // Botón para alternar entre sonido activo y muteado.
+            muteButton.addEventListener('click', function () {
+                toggleMute();
+            });
+
+            // Botón para saltar la narración actual.
+            skipButton.addEventListener('click', function () {
+                skipCurrentSpeech();
+            });
+
+            controls.appendChild(muteButton);
+            controls.appendChild(skipButton);
+
+            state.containerEl.appendChild(controls);
+
+            state.controlsEl = controls;
+            state.muteButtonEl = muteButton;
+            state.skipButtonEl = skipButton;
+        }
+
+        updateAvatarControls();
+        return controls;
+    }
+
+    // Actualiza los textos, títulos, accesibilidad y estado de los botones.
+    function updateAvatarControls() {
+        if (state.muteButtonEl) {
+            state.muteButtonEl.textContent = state.muted ? '🔊' : '🔇';
+            state.muteButtonEl.title = state.muted ? 'Activar sonido' : 'Mutear narración';
+            state.muteButtonEl.setAttribute(
+                'aria-label',
+                state.muted ? 'Activar sonido del avatar' : 'Mutear narración del avatar'
+            );
+        }
+
+        if (state.skipButtonEl) {
+            state.skipButtonEl.textContent = '⏭';
+            state.skipButtonEl.title = 'Saltar narración actual';
+            state.skipButtonEl.setAttribute('aria-label', 'Saltar narración actual');
+            state.skipButtonEl.disabled = !state.speaking;
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // MUTE DEL AVATAR
+    // -----------------------------------------------------------------
+    // Aplica el estado mute a todos los elementos de audio del avatar.
+    function applyMuteState() {
+        state.audioElements.forEach(function (audioEl) {
+            if (!audioEl) return;
+            audioEl.muted = state.muted;
+        });
+
+        updateAvatarControls();
+    }
+
+    // Silencia la narración del avatar.
+    function mute() {
+        state.muted = true;
+        applyMuteState();
+
+        emit(EVENTS.MUTE_CHANGE, {
+            muted: true
+        });
+
+        return true;
+    }
+
+    // Reactiva el sonido del avatar.
+    function unmute() {
+        state.muted = false;
+        applyMuteState();
+
+        emit(EVENTS.MUTE_CHANGE, {
+            muted: false
+        });
+
+        return true;
+    }
+
+    // Alterna entre mutear y activar sonido.
+    function toggleMute() {
+        if (state.muted) {
+            return unmute();
+        }
+
+        return mute();
+    }
+
+    // -----------------------------------------------------------------
+    // SALTAR NARRACIÓN ACTUAL
+    // -----------------------------------------------------------------
+    // Finaliza localmente la espera de la narración actual.
+    // Esto permite que SkillView avance al siguiente mensaje o habilite el input.
+    function skipCurrentSpeech() {
+        if (!state.speaking) return false;
+
+        if (typeof state.skipCurrentSpeechResolver === 'function') {
+            state.skipCurrentSpeechResolver();
+            return true;
+        }
+
+        return false;
     }
 
     // -----------------------------------------------------------------
@@ -374,6 +538,8 @@
         var speechId = 'speech_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
         state.currentSpeechId = speechId;
         state.speaking = true;
+
+        updateAvatarControls();
 
         // Avisamos que el avatar empezó a hablar.
         emit(EVENTS.SPEECH_START, {
@@ -516,6 +682,18 @@
                 state.containerEl.removeAttribute('data-avatar-mounted');
             }
 
+            state.audioElements.forEach(function (audioEl) {
+                try {
+                    audioEl.remove();
+                } catch (e) { }
+            });
+
+            state.audioElements.clear();
+
+            state.controlsEl = null;
+            state.muteButtonEl = null;
+            state.skipButtonEl = null;
+
             state.videoEl = null;
             state.containerEl = null;
             state.mounted = false;
@@ -645,6 +823,20 @@
             if (track.kind === 'audio') {
                 var audioEl = track.attach();
                 audioEl.autoplay = true;
+                audioEl.muted = state.muted;
+                audioEl.style.display = 'none';
+
+                // Guardamos el elemento de audio para poder mutearlo o activarlo
+                // sin tener que volver a pedir una sesión a HeyGen.
+                state.audioElements.add(audioEl);
+
+                document.body.appendChild(audioEl);
+
+                audioEl.play().catch(function (error) {
+                    console.warn('[AvatarService] No se pudo reproducir audio automáticamente:', error);
+                });
+
+                updateAvatarControls();
             }
 
         });
@@ -750,9 +942,28 @@
     // -----------------------------------------------------------------
     // Como no estamos escuchando un evento real de “fin exacto” desde HeyGen,
     // estimamos la duración con base en la cantidad de palabras.
+    // Además, esta versión permite terminar la espera antes cuando el usuario
+    // presiona el botón “Saltar narración”.
     async function waitForSpeechCompletion(text) {
         var estimatedMs = estimateSpeechDurationMs(text);
-        await wait(estimatedMs);
+
+        return new Promise(function (resolve) {
+            var resolved = false;
+
+            function finish() {
+                if (resolved) return;
+
+                resolved = true;
+                clearTimeout(timeoutId);
+                state.skipCurrentSpeechResolver = null;
+                resolve();
+            }
+
+            var timeoutId = setTimeout(finish, estimatedMs);
+
+            // Esta función será llamada por skipCurrentSpeech().
+            state.skipCurrentSpeechResolver = finish;
+        });
     }
 
     // -----------------------------------------------------------------
@@ -830,6 +1041,11 @@
         isReady: isReady,
         isSpeaking: isSpeaking,
         isUnavailable: isUnavailable,
+        mute: mute,
+        unmute: unmute,
+        toggleMute: toggleMute,
+        isMuted: isMuted,
+        skipCurrentSpeech: skipCurrentSpeech,
         on: on,
         off: off,
         EVENTS: EVENTS
