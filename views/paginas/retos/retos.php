@@ -68,15 +68,18 @@
                                     <?php endforeach; ?>
                                 </div>
                                 <div class="challenges-card__timePoints">
-                                    <span class="challenges-card__time">
+                                    <div class="challenges-card__time">
                                         <i class="fa-regular fa-clock challenges-card__iTime"></i>
                                         <p class="challenges-card__pTime"><?php echo $reto->tiempo_min; ?> - <?php echo $reto->tiempo_max; ?> minutos</p>
-                                    </span>
+                                    </div>
 
-                                    <span class="challenges-card__points">
-                                        <i class="fa-solid fa-trophy challenges-card__iPoints"></i>
-                                        <p class="challenges-card__pPoints"><?php echo $reto->puntos; ?> puntos</p>
-                                    </span>
+                                    <div class="challenges-card__points">
+                                        <div class="challenges-card__divPoints">
+                                            <i class="fa-solid fa-trophy challenges-card__iPoints"></i>
+                                            <p class="challenges-card__pPoints"><?php echo $reto->puntos; ?> puntos</p>
+                                        </div>
+                                        <p class="challenges-card__minPoints">Mínimo para aprobar: <?php echo (int) ceil($reto->puntos * 0.70); ?> puntos</p>
+                                    </div>
                                 </div>
                             </div>
 

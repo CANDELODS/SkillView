@@ -1,146 +1,215 @@
 @use '../../base/variables' as v;
 @use '../../base/mixins' as m;
 
-.challenges-card{
+.challenges-card {
     background-color: white;
     border-radius: 1.4rem;
     border: 1px solid v.$input-gray;
     padding: 2.4rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+
+    // Divide la card en tres secciones:
+    // encabezado, contenido flexible y botón.
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+
     gap: 1.5rem;
     width: 100%;
-    max-width: 40rem;
-    transition: all 0.1s ease;
+    height: 100%;
 
-    &:hover{
+    // Evita que una card limite su tamaño dentro
+    // de la columna asignada por la cuadrícula.
+    max-width: none;
+    min-width: 0;
+
+    transition:
+        box-shadow 0.1s ease,
+        transform 0.1s ease,
+        outline-color 0.1s ease;
+
+    &:hover {
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         transform: translateY(-2px);
         outline: 2px solid v.$primary;
     }
 
-    @include m.tablet{
-        
-    }
-
-    &__top{
+    &__top {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
+        gap: 1rem;
+        min-width: 0;
     }
 
-    &__spanTop{
+    &__spanTop {
         width: 4.9rem;
         height: 4.9rem;
         border-radius: 1.2rem;
         background-color: v.$background-ca;
+
         display: grid;
         place-items: center;
+
+        // Evita que el icono se reduzca cuando
+        // la card tiene poco espacio.
+        flex-shrink: 0;
     }
-    
-    &__iTop{
+
+    &__iTop {
         color: v.$primary;
     }
 
-    &__difficult{
+    &__difficult {
         font-size: 1.2rem;
         font-weight: 500;
         background-color: oklch(0.96 0.01 30);
-        padding: .4rem;
-        border-radius: .8rem;
-        align-self: flex-start;
+        padding: 0.4rem;
+        border-radius: 0.8rem;
+        margin: 0;
+        white-space: nowrap;
     }
 
-    &__middle{
+    &__middle {
         display: flex;
         flex-direction: column;
         gap: 2rem;
+
+        // Permite que este bloque ocupe toda la fila
+        // central disponible de la card.
+        min-width: 0;
+        min-height: 0;
     }
 
-    &__tittle{
+    &__tittle {
         font-size: 2rem;
+        line-height: 1.2;
         margin: 0;
+
+        // Evita desbordamientos con títulos largos.
+        overflow-wrap: anywhere;
     }
 
-    &__descripcion{
+    &__descripcion {
         font-size: 1.4rem;
+        line-height: 1.25;
         color: v.$p-gray;
         margin: 0;
+        overflow-wrap: anywhere;
     }
 
-    &__tagContainer{
+    &__tagContainer {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
+
+        // Hace que las etiquetas pasen a otra línea
+        // cuando no caben en tablet.
+        flex-wrap: wrap;
+
         gap: 1rem;
+        min-width: 0;
     }
 
-    &__tag{
+    &__tag {
         font-size: 1.2rem;
         font-weight: 500;
-        padding: .4rem;
-        border-radius: .8rem;
+        padding: 0.4rem;
+        border-radius: 0.8rem;
         border: 1px solid v.$input-gray;
         margin: 0;
+
+        // Evita que el texto interno del tag
+        // se divida entre varias líneas.
+        white-space: nowrap;
     }
 
-    &__timePoints{
+    &__timePoints {
+        // Empuja tiempo y puntaje al final de la sección central.
+        // Esta es la propiedad principal para mantenerlos alineados
+        // entre todas las cards.
+        margin-top: auto;
+
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: end;
+        gap: 1rem;
+
+        width: 100%;
+        min-width: 0;
+    }
+
+    &__time {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        gap: 0.5rem;
+
+        min-width: 0;
     }
 
-    &__time{
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
-    }
-
-    &__iTime{
+    &__iTime {
         color: v.$p-gray;
         font-size: 1.5rem;
+        flex-shrink: 0;
     }
 
-    &__pTime{
+    &__pTime {
         font-size: 1.4rem;
         font-weight: 500;
         color: v.$p-gray;
         margin: 0;
-
+        white-space: nowrap;
     }
 
-    &__points{
+    &__points {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.5rem;
+
+        text-align: right;
+        min-width: max-content;
+    }
+
+    &__divPoints {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: .5rem;
+        gap: 0.5rem;
     }
 
-    &__iPoints{
+    &__iPoints {
         color: v.$primary;
         font-size: 1.5rem;
+        flex-shrink: 0;
     }
 
-    &__pPoints{
+    &__pPoints {
         font-size: 1.4rem;
         font-weight: 600;
         margin: 0;
-
+        white-space: nowrap;
     }
 
-    &__bottom{
-        // margin-top: 5rem
+    &__minPoints {
+        font-size: 1.2rem;
+        font-weight: 500;
+        color: v.$p-gray;
+        margin: 0;
+        white-space: nowrap;
     }
 
-    &__button{
+    &__bottom {
+        width: 100%;
+    }
+
+    &__button {
         @include m.boton(v.$primary, white);
-        border-radius: .8rem;
 
-        &--completed{
-            @include m.boton(v.$green, white);
-            opacity: .6;
-            &:hover{
+        border-radius: 0.8rem;
+
+        &--completed {
+            background-color: v.$green;
+            opacity: 0.6;
+
+            &:hover {
+                filter: none;
                 cursor: not-allowed;
             }
         }

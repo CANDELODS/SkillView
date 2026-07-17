@@ -315,6 +315,15 @@ Guía de scoreRatio:
 
 Solo marca accepted = true cuando la respuesta sea al menos ACCEPTABLE.
 
+Reglas estrictas para asignar scoreRatio:
+- Asigna el scoreRatio según la calidad real de la respuesta.
+- No aumentes el scoreRatio con el propósito de facilitar que el usuario complete el reto.
+- No premies una respuesta únicamente por ser extensa.
+- Una respuesta debe demostrar pertinencia, coherencia, aplicación práctica y alineación con la habilidad para obtener 0.70 o más.
+- Una respuesta apenas suficiente debe permanecer entre 0.50 y 0.69.
+- Reserva los valores superiores a 0.90 para respuestas especialmente claras, concretas, reflexivas y bien aplicadas.
+- El número de intento no debe aumentar ni reducir automáticamente el puntaje.
+
 Guía para feedbackSummary:
 - Debe tener entre 1 y 2 frases.
 - Debe sonar natural y profesional.
