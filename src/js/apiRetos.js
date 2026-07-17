@@ -50,7 +50,7 @@
 
     // Variable para activar o desactivar la integración del avatar (útil para pruebas sin el).
     //Cambiar a true para activar el avatar, false para desactivarlo y probar sin él.
-    const AVATAR_ENABLED = true;
+    const AVATAR_ENABLED = false;
 
     // ---------------------------------------------------------------------
     // ESTADO GLOBAL DEL FLUJO DEL RETO
