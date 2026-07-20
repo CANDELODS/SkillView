@@ -5,7 +5,7 @@ namespace Model;
 class Usuario extends ActiveRecord
 {
     protected static $tabla = 'usuarios';
-    protected static $columnasDB = ['id', 'nombres', 'apellidos', 'edad', 'sexo', 'correo', 'password', 'universidad', 'carrera', 'admin'];
+    protected static $columnasDB = ['id', 'nombres', 'apellidos', 'edad', 'sexo', 'correo', 'password', 'universidad', 'carrera', 'admin', 'debe_cambiar_password'];
 
     public $id;
     public $nombres;
@@ -18,6 +18,7 @@ class Usuario extends ActiveRecord
     public $universidad;
     public $carrera;
     public $admin;
+    public $debe_cambiar_password;
 
     public $password_actual;
     public $password_nuevo;
@@ -47,6 +48,7 @@ class Usuario extends ActiveRecord
         $this->universidad = $args['universidad'] ?? '';
         $this->carrera = $args['carrera'] ?? '';
         $this->admin = $args['admin'] ?? 0;
+        $this->debe_cambiar_password = $args['debe_cambiar_password'] ?? 0;
     }
 
     // Validar el Login de Usuarios
@@ -181,7 +183,7 @@ class Usuario extends ActiveRecord
             self::$alertas['error'][] = 'La contraseña Actual no puede ir vacio';
         }
         if (!$this->password_nuevo) {
-            self::$alertas['error'][] = 'La contraseña Nuevo no puede ir vacia';
+            self::$alertas['error'][] = 'La contraseña Nueva no puede ir vacia';
         }
         if (strlen($this->password_nuevo) < 6) {
             self::$alertas['error'][] = 'La contraseña debe contener al menos 6 caracteres';
@@ -321,5 +323,29 @@ class Usuario extends ActiveRecord
         if (!preg_match('/[^A-Za-z0-9]/', $password)) {
             self::setAlerta('error', 'La contraseña debe contener al menos un carácter especial');
         }
+    }
+
+    public function validarCambioPassword(): array
+    {
+        // Limpiamos alertas de validaciones anteriores.
+        self::$alertas = [];
+
+        // Aplicamos las reglas de fortaleza a la nueva contraseña.
+        $this->validarFortalezaPassword($this->password);
+
+        // Validamos la confirmación de la contraseña.
+        if ($this->password2 === '') {
+            self::setAlerta(
+                'error',
+                'Debes confirmar la nueva contraseña'
+            );
+        } elseif ($this->password !== $this->password2) {
+            self::setAlerta(
+                'error',
+                'Las contraseñas no coinciden'
+            );
+        }
+
+        return self::$alertas;
     }
 }

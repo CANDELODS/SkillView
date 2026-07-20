@@ -31,7 +31,9 @@
             placeholder="••••••••"
             id="password"
             name="password"
-            maxlength="16">
+            maxlength="16"
+            minlength="6"
+            required>
 
         <input class="login__button" type="submit" value="Iniciar Sesión">
     </form>
@@ -39,6 +41,9 @@
     <p class="login__register">
         ¿No tienes cuenta?
         <a href="/registro" class="login__register-link">Crea una</a>
+    </p>
+    <p class="login__register">
+        <a href="/recuperar-password" class="login__register-link">¿Olvidaste tu contraseña?</a>
     </p>
 
 </div>

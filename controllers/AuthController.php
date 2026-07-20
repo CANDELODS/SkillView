@@ -14,6 +14,17 @@ class AuthController
         $alertas = [];
         $login = true;
 
+        if (
+            isset($_GET['password_actualizado']) &&
+            $_GET['password_actualizado'] === '1'
+        ) {
+            Usuario::setAlerta(
+                'exito',
+                'Tu contraseña se actualizó correctamente. '
+                    . 'Ahora puedes iniciar sesión con tu nueva contraseña.'
+            );
+        }
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $usuario = new Usuario($_POST);
@@ -29,8 +40,29 @@ class AuthController
                     // El Usuario existe
                     if (password_verify($_POST['password'], $usuario->password)) {
 
-                        // Iniciar la sesión
-                        session_start();
+                        // Iniciamos la sesión para cualquier tipo de ingreso:
+                        // normal o con cambio obligatorio de contraseña.
+                        if (session_status() === PHP_SESSION_NONE) {
+                            session_start();
+                        }
+
+                        // Limpiamos cualquier información de una sesión anterior.
+                        $_SESSION = [];
+
+                        // Generamos un nuevo identificador de sesión.
+                        session_regenerate_id(true);
+
+                        // Si la contraseña fue restablecida por el administrador,
+                        // creamos solamente una sesión temporal.
+                        if ((int) $usuario->debe_cambiar_password === 1) {
+
+                            $_SESSION['cambio_password_usuario_id'] = (int) $usuario->id;
+
+                            header('Location: /cambiar-password');
+                            exit;
+                        }
+
+                        //Sesión normal
                         $_SESSION['id'] = $usuario->id;
                         $_SESSION['nombres'] = $usuario->nombres;
                         $_SESSION['apellidos'] = $usuario->apellidos;
@@ -158,6 +190,144 @@ class AuthController
             'alertas'      => $alertasVista,   // para alertas.php (sin 'exito')
             'alertasExito' => $alertasExito,   // solo éxito, para el modal
             'login'        => $login
+        ]);
+    }
+
+    public static function recuperarPassword(Router $router)
+    {
+        $login = true;
+        $alertas = [];
+        $mensajeRecuperacion = null;
+        $correo = '';
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+            $correo = strtolower(trim($_POST['correo'] ?? ''));
+
+            if (!$correo) {
+                $alertas['error'][] = 'El correo es obligatorio';
+            } elseif (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+                $alertas['error'][] =
+                    'Ingresa una dirección de correo electrónico válida';
+            } else {
+                /*
+             * Por seguridad es preferible mostrar un mensaje genérico,
+             * exista o no exista el correo.
+             */
+                $mensajeRecuperacion = 'Si el correo ingresado se encuentra registrado en '
+                    . 'SkillView, comunícate con el administrador mediante '
+                    . 'admin@skillview.com para solicitar el restablecimiento '
+                    . 'de tu contraseña.';
+            }
+        }
+
+        $router->render('auth/recuperar-password', [
+            'titulo' => 'Recuperar contraseña',
+            'login' => $login,
+            'alertas' => $alertas,
+            'mensajeRecuperacion' => $mensajeRecuperacion,
+            'correo' => $correo
+        ]);
+    }
+
+    public static function cambiarPassword(Router $router)
+    {
+        $login = true;
+        $alertas = [];
+
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        // Solo se puede acceder con una sesión temporal válida
+        $usuarioId = $_SESSION['cambio_password_usuario_id'] ?? null;
+
+        if (!$usuarioId) {
+            header('Location: /');
+            exit;
+        }
+
+        $usuarioId = filter_var($usuarioId, FILTER_VALIDATE_INT);
+
+        if (!$usuarioId) {
+            $_SESSION = [];
+            session_destroy();
+
+            header('Location: /');
+            exit;
+        }
+
+        $usuario = Usuario::find((int) $usuarioId);
+
+        // Verificar que el usuario exista y todavía deba cambiar la contraseña
+        if (
+            !$usuario ||
+            (int) $usuario->debe_cambiar_password !== 1
+        ) {
+            $_SESSION = [];
+            session_destroy();
+
+            header('Location: /');
+            exit;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+            // Guardamos el hash de la contraseña temporal
+            $passwordTemporalHash = $usuario->password;
+
+            // Recibimos la nueva contraseña
+            $usuario->password = $_POST['password'] ?? '';
+            $usuario->password2 = $_POST['password2'] ?? '';
+
+            $alertas = $usuario->validarCambioPassword();
+
+            /*
+         * Evitamos que el usuario escriba como nueva contraseña
+         * exactamente la misma contraseña temporal.
+         */
+            if (
+                empty($alertas) &&
+                password_verify(
+                    $usuario->password,
+                    $passwordTemporalHash
+                )
+            ) {
+                $alertas['error'][] =
+                    'La nueva contraseña debe ser diferente a la contraseña temporal';
+            }
+
+            if (empty($alertas)) {
+
+                // Hashear la nueva contraseña
+                $usuario->hashPassword();
+
+                // Ya no será necesario cambiarla en el próximo ingreso
+                $usuario->debe_cambiar_password = 0;
+
+                unset($usuario->password2);
+
+                $resultado = $usuario->guardar();
+
+                if ($resultado) {
+
+                    // Eliminamos completamente la sesión temporal
+                    $_SESSION = [];
+                    session_destroy();
+
+                    header('Location: /?password_actualizado=1');
+                    exit;
+                }
+
+                $alertas['error'][] =
+                    'No fue posible actualizar la contraseña. Intenta nuevamente.';
+            }
+        }
+
+        $router->render('auth/cambiar-password', [
+            'titulo' => 'Crear nueva contraseña',
+            'login' => $login,
+            'alertas' => $alertas
         ]);
     }
 }

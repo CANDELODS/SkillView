@@ -27,6 +27,12 @@ $router->post('/logout', [AuthController::class, 'logout']);
 $router->get('/registro', [AuthController::class, 'registro']);
 $router->post('/registro', [AuthController::class, 'registro']);
 
+//Cambiar Password
+$router->get('/recuperar-password', [AuthController::class, 'recuperarPassword']);
+$router->post('/recuperar-password', [AuthController::class, 'recuperarPassword']);
+$router->get('/cambiar-password', [AuthController::class, 'cambiarPassword']);
+$router->post('/cambiar-password', [AuthController::class, 'cambiarPassword']);
+
 //--------------------ÁREA DE ADMINISTRACIÓN--------------------
 $router->get('/admin/dashboard', [DashboardController::class, 'index']);
 //ADMINISTRAR USUARIOS

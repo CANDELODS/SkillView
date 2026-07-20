@@ -171,6 +171,9 @@ class DashboardController
                 if ($usuario->password) {
                     //Si el admin escribió una nueva contraseña...
                     $usuario->hashPassword();
+
+                    //Obligamos al usuario a cambiar la contraseña en su próximo inicio de sesión
+                    $usuario->debe_cambiar_password = 1;
                 } else {
                     //Si no escribió nada en password, mantenemos la contraseña original
                     $usuario->password = $passwordOriginal;

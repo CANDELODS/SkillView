@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
           alerta.remove();
         }, 500); // coincide con la duración del transition en CSS
-      }, 4000);
+      }, 8000);
     });
   }
   //---------------FIN OCULTAR ALERTAS DESPUES DE UNOS SEGUNDOS----------------//
