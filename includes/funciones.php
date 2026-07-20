@@ -1,27 +1,70 @@
 <?php
+
 use Model\Usuario;
 
-function debuguear($variable) : string {
+function debuguear($variable): string
+{
     echo "<pre>";
     var_dump($variable);
     echo "</pre>";
     exit;
 }
-function s($html) : string {
+function s($html): string
+{
     $s = htmlspecialchars($html);
     return $s;
 }
 
 function isAuth(): bool
 {
-    if (!isset($_SESSION)) {
+    if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
 
-    return isset($_SESSION['correo']) && !empty($_SESSION);
+    // No existe una sesión normal autenticada
+    if (
+        empty($_SESSION['id']) ||
+        empty($_SESSION['correo'])
+    ) {
+        return false;
+    }
+
+    $usuarioId = filter_var(
+        $_SESSION['id'],
+        FILTER_VALIDATE_INT
+    );
+
+    // El ID de la sesión no es válido
+    if (!$usuarioId) {
+        $_SESSION = [];
+        session_destroy();
+
+        return false;
+    }
+
+    // Consultar nuevamente el usuario en la base de datos
+    $usuario = Usuario::find((int) $usuarioId);
+
+    /*
+     * Se invalida la sesión si:
+     * - El usuario ya no existe.
+     * - Su cuenta está deshabilitada.
+     */
+    if (
+        !$usuario ||
+        (int) $usuario->habilitado !== 1
+    ) {
+        $_SESSION = [];
+        session_destroy();
+
+        return false;
+    }
+
+    return true;
 }
 
-function pagina_actual($path) : bool {
+function pagina_actual($path): bool
+{
     return str_contains($_SERVER['PATH_INFO'], $path) ? true : false;
 }
 
@@ -63,7 +106,7 @@ function obtenerDatosUsuarioHeader(int $usuarioId): array
     $datos['inicialesUsuario'] = mb_strtoupper(
         //mb_substr: Toma la primera letra del texto sin importar si tiene acentos o no.
         mb_substr($primerNombre, 0, 1, 'UTF-8') .
-        mb_substr($primerApellido, 0, 1, 'UTF-8'),
+            mb_substr($primerApellido, 0, 1, 'UTF-8'),
         'UTF-8'
     );
 

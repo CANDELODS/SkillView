@@ -5484,18 +5484,18 @@ body:not(.login) {
   gap: 2rem;
   grid-template-columns: repeat(2, 1fr);
   grid-auto-rows: auto;
-  grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "button button";
+  grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "habilitado habilitado" "button button";
   align-items: center;
 }
 .register__form--edit {
-  grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "button button" "buttonBack buttonBack";
+  grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "habilitado habilitado" "button button" "buttonBack buttonBack";
 }
 @media (min-width: 1024px) {
   .register__form--edit {
-    grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "button buttonBack";
+    grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "habilitado habilitado" "button buttonBack";
   }
 }
-.register__field, .register__field--contraseña2, .register__field--contraseña, .register__field--correo, .register__field--carrera, .register__field--universidad, .register__field--sexo, .register__field--edad, .register__field--apellidos, .register__field--nombres {
+.register__field, .register__field--habilitado, .register__field--contraseña2, .register__field--contraseña, .register__field--correo, .register__field--carrera, .register__field--universidad, .register__field--sexo, .register__field--edad, .register__field--apellidos, .register__field--nombres {
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -5528,6 +5528,19 @@ body:not(.login) {
 .register__field--contraseña2 {
   grid-area: contraseña2;
 }
+.register__field--habilitado {
+  text-align: left;
+  grid-area: habilitado;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+@media (min-width: 768px) {
+  .register__field--habilitado {
+    flex-direction: row;
+  }
+}
 .register__label {
   font-size: 1.4rem;
   font-weight: 600;
@@ -5549,6 +5562,10 @@ body:not(.login) {
 }
 .register__input::placeholder {
   color: oklch(50% 0.01 30deg);
+}
+.register__check--check {
+  transform: scale(2);
+  accent-color: #EB4328;
 }
 .register__button, .register__button--back {
   background-color: #EB4328;

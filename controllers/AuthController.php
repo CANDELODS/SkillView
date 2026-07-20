@@ -10,10 +10,11 @@ class AuthController
 {
     public static function login(Router $router)
     {
-
         $alertas = [];
         $login = true;
 
+        // Mensaje mostrado después de cambiar correctamente
+        // la contraseña temporal.
         if (
             isset($_GET['password_actualizado']) &&
             $_GET['password_actualizado'] === '1'
@@ -25,70 +26,114 @@ class AuthController
             );
         }
 
+        /*
+     * Este mensaje se utilizará si el usuario estaba en el flujo
+     * de cambio de contraseña y su cuenta fue deshabilitada.
+     */
+        if (
+            isset($_GET['cuenta_deshabilitada']) &&
+            $_GET['cuenta_deshabilitada'] === '1'
+        ) {
+            Usuario::setAlerta(
+                'error',
+                'Tu cuenta se encuentra deshabilitada. '
+                    . 'Comunícate con el administrador de SkillView.'
+            );
+        }
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-            $usuario = new Usuario($_POST);
+            // Este objeto contiene solamente las credenciales
+            // escritas en el formulario.
+            $credenciales = new Usuario($_POST);
 
-            $alertas = $usuario->validarLogin();
+            $alertas = $credenciales->validarLogin();
 
             if (empty($alertas)) {
-                // Verificar quel el usuario exista
-                $usuario = Usuario::where('correo', $usuario->correo);
+
+                // Buscar el usuario por correo
+                $usuario = Usuario::where(
+                    'correo',
+                    $credenciales->correo
+                );
+
                 if (!$usuario) {
-                    Usuario::setAlerta('error', 'El Usuario No Existe');
+                    Usuario::setAlerta(
+                        'error',
+                        'El usuario no existe'
+                    );
+                } elseif (
+                    !password_verify(
+                        $_POST['password'],
+                        $usuario->password
+                    )
+                ) {
+                    Usuario::setAlerta(
+                        'error',
+                        'Contraseña incorrecta'
+                    );
+                } elseif ((int) $usuario->habilitado !== 1) {
+                    /*
+                 * Aunque la contraseña sea correcta, un usuario
+                 * deshabilitado no puede obtener una sesión normal
+                 * ni una sesión temporal para cambiar la contraseña.
+                 */
+                    Usuario::setAlerta(
+                        'error',
+                        'Tu cuenta se encuentra deshabilitada. '
+                            . 'Comunícate con el administrador de SkillView.'
+                    );
                 } else {
-                    // El Usuario existe
-                    if (password_verify($_POST['password'], $usuario->password)) {
-
-                        // Iniciamos la sesión para cualquier tipo de ingreso:
-                        // normal o con cambio obligatorio de contraseña.
-                        if (session_status() === PHP_SESSION_NONE) {
-                            session_start();
-                        }
-
-                        // Limpiamos cualquier información de una sesión anterior.
-                        $_SESSION = [];
-
-                        // Generamos un nuevo identificador de sesión.
-                        session_regenerate_id(true);
-
-                        // Si la contraseña fue restablecida por el administrador,
-                        // creamos solamente una sesión temporal.
-                        if ((int) $usuario->debe_cambiar_password === 1) {
-
-                            $_SESSION['cambio_password_usuario_id'] = (int) $usuario->id;
-
-                            header('Location: /cambiar-password');
-                            exit;
-                        }
-
-                        //Sesión normal
-                        $_SESSION['id'] = $usuario->id;
-                        $_SESSION['nombres'] = $usuario->nombres;
-                        $_SESSION['apellidos'] = $usuario->apellidos;
-                        $_SESSION['edad'] = $usuario->edad;
-                        $_SESSION['sexo'] = $usuario->sexo;
-                        $_SESSION['correo'] = $usuario->correo;
-                        $_SESSION['universidad'] = $usuario->universidad;
-                        $_SESSION['carrera'] = $usuario->carrera;
-                        $_SESSION['admin'] = $usuario->admin ?? null;
-
-                        //Redireccionar
-                        if ($usuario->admin) {
-                            header('location: /admin/dashboard');
-                        } else {
-                            header('location: /principal');
-                        }
-                    } else {
-                        Usuario::setAlerta('error', 'Contraseña Incorrecta');
+                    // Iniciar la sesión para cualquier tipo de ingreso:
+                    // normal o con cambio obligatorio de contraseña.
+                    if (session_status() === PHP_SESSION_NONE) {
+                        session_start();
                     }
+
+                    // Limpiar cualquier información anterior
+                    $_SESSION = [];
+
+                    // Evitar reutilización del identificador de sesión
+                    session_regenerate_id(true);
+
+                    /*
+                 * Si la contraseña fue restablecida por el administrador,
+                 * se crea únicamente una sesión temporal.
+                 */
+                    if ((int) $usuario->debe_cambiar_password === 1) {
+
+                        $_SESSION['cambio_password_usuario_id'] =
+                            (int) $usuario->id;
+
+                        header('Location: /cambiar-password');
+                        exit;
+                    }
+
+                    // Sesión normal
+                    $_SESSION['id'] = $usuario->id;
+                    $_SESSION['nombres'] = $usuario->nombres;
+                    $_SESSION['apellidos'] = $usuario->apellidos;
+                    $_SESSION['edad'] = $usuario->edad;
+                    $_SESSION['sexo'] = $usuario->sexo;
+                    $_SESSION['correo'] = $usuario->correo;
+                    $_SESSION['universidad'] = $usuario->universidad;
+                    $_SESSION['carrera'] = $usuario->carrera;
+                    $_SESSION['admin'] = $usuario->admin ?? null;
+
+                    // Redireccionar según el rol
+                    if ((int) $usuario->admin === 1) {
+                        header('Location: /admin/dashboard');
+                    } else {
+                        header('Location: /principal');
+                    }
+
+                    exit;
                 }
             }
         }
 
         $alertas = Usuario::getAlertas();
 
-        // Render a la vista 
         $router->render('auth/login', [
             'titulo' => 'Iniciar Sesión',
             'alertas' => $alertas,
@@ -115,6 +160,14 @@ class AuthController
 
             // Sincronizar datos enviados por POST
             $usuario->sincronizar($_POST);
+
+            /*
+            * Forzar los valores administrativos del usuario.
+            * No se toman desde la petición enviada por el navegador.
+            */
+            $usuario->admin = 0;
+            $usuario->habilitado = 1;
+            $usuario->debe_cambiar_password = 0;
 
             // Validar datos
             $alertas = $usuario->validar_cuenta();
@@ -259,11 +312,26 @@ class AuthController
 
         $usuario = Usuario::find((int) $usuarioId);
 
-        // Verificar que el usuario exista y todavía deba cambiar la contraseña
-        if (
-            !$usuario ||
-            (int) $usuario->debe_cambiar_password !== 1
-        ) {
+        // Verificar que el usuario todavía exista
+        if (!$usuario) {
+            $_SESSION = [];
+            session_destroy();
+
+            header('Location: /');
+            exit;
+        }
+
+        // Verificar que la cuenta continúe habilitada
+        if ((int) $usuario->habilitado !== 1) {
+            $_SESSION = [];
+            session_destroy();
+
+            header('Location: /?cuenta_deshabilitada=1');
+            exit;
+        }
+
+        // Verificar que todavía deba cambiar la contraseña
+        if ((int) $usuario->debe_cambiar_password !== 1) {
             $_SESSION = [];
             session_destroy();
 

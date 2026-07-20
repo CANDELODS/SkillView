@@ -154,6 +154,26 @@
           maxlength="16"
           minlength="6">
       </div>
+
+      <!-- habilitado -->
+      <div class="register__field--habilitado">
+        <label class="register__label" for="habilitado">Usuario Habilitado</label>
+        <input type="hidden" name="habilitado"
+          value="0"
+          id="habilitado">
+        <input type="checkbox"
+          id="habilitado"
+          class="register__check--check"
+          name="habilitado"
+          value="1"
+          <?php if ($usuario->habilitado === '1') { ?>
+          checked>
+      <?php } else { ?>
+        >
+      <?php } ?>
+      </div>
+      <!-- Si el usuario en su atributo 'habilitado' es = 1 (Si) entonces agregamos el atributo checked 
+ al checkbox, de lo contrario no lo ponemos (Edición)-->
       <!-- Submit -->
       <button class="register__button" type="submit">Editar Usuario</button>
       <a href="/admin/usuarios" class="register__button--back">Volver</a>

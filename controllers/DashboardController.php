@@ -165,6 +165,21 @@ class DashboardController
             $usuario->sincronizar($_POST);
             //Validamos
             $alertas = $usuario->validar_edicion();
+            /*
+            * Evitar que el administrador que tiene la sesión abierta
+            * deshabilite accidentalmente su propia cuenta.
+            */
+            if (
+                (int) $usuario->id === (int) $_SESSION['id'] &&
+                (int) $usuario->habilitado === 0
+            ) {
+                // Restauramos visualmente el estado habilitado
+                $usuario->habilitado = 1;
+
+                $alertas['error'][] =
+                    'No puedes deshabilitar tu propia cuenta '
+                    . 'mientras tienes la sesión iniciada.';
+            }
             //Si no hay alertar, guardamos
             if (empty($alertas)) {
                 //Validamos si el admin escribió un nuevo password

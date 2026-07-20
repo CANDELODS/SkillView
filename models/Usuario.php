@@ -5,7 +5,7 @@ namespace Model;
 class Usuario extends ActiveRecord
 {
     protected static $tabla = 'usuarios';
-    protected static $columnasDB = ['id', 'nombres', 'apellidos', 'edad', 'sexo', 'correo', 'password', 'universidad', 'carrera', 'admin', 'debe_cambiar_password'];
+    protected static $columnasDB = ['id', 'nombres', 'apellidos', 'edad', 'sexo', 'correo', 'password', 'universidad', 'carrera', 'admin', 'debe_cambiar_password', 'habilitado'];
 
     public $id;
     public $nombres;
@@ -19,6 +19,7 @@ class Usuario extends ActiveRecord
     public $carrera;
     public $admin;
     public $debe_cambiar_password;
+    public $habilitado;
 
     public $password_actual;
     public $password_nuevo;
@@ -49,6 +50,7 @@ class Usuario extends ActiveRecord
         $this->carrera = $args['carrera'] ?? '';
         $this->admin = $args['admin'] ?? 0;
         $this->debe_cambiar_password = $args['debe_cambiar_password'] ?? 0;
+        $this->habilitado = $args['habilitado'] ?? null;
     }
 
     // Validar el Login de Usuarios
@@ -137,6 +139,17 @@ class Usuario extends ActiveRecord
 
         if (!filter_var($this->correo, FILTER_VALIDATE_EMAIL)) {
             self::setAlerta('error', 'Correo no válido');
+        }
+
+        if (
+            !in_array(
+                (string) $this->habilitado,
+                ['0', '1'],
+                true
+            )
+        ) {
+            self::$alertas['error'][] =
+                'El estado seleccionado no es válido';
         }
 
         // En edición de usuario, la contraseña es opcional.
