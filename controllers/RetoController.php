@@ -220,8 +220,32 @@ class RetoController
                 $userName
             );
         } catch (\Throwable $e) {
-            // Si la IA falla, se usa un fallback local para no romper el flujo.
-            $messages = self::buildInitialChallengeMessagesFallback($content, $userName);
+            error_log('Error IA startChallenge: ' . $e->getMessage());
+
+            // No se simulan mensajes de OpenAI con contenido local.
+            // Se bloquea el reto y el aviso se muestra dentro del chat.
+            $response = self::buildAIUnavailableResponse(
+                $flow,
+                '/retos'
+            );
+
+            // Conservamos la estructura normal de startChallenge para que
+            // apiRetos.js pueda sincronizar la información del reto.
+            $response['challenge'] = [
+                'id' => (int)$reto->id,
+                'title' => $content['title'] ?? '',
+                'skill' => [
+                    'id' => (int)$habilidad->id,
+                    'name' => $content['skillName'] ?? 'Habilidad'
+                ],
+                'difficulty' => $content['difficultyLabel'] ?? 'Básico',
+                'timeMin' => (int)($content['timeMin'] ?? 0),
+                'timeMax' => (int)($content['timeMax'] ?? 0),
+                'maxPoints' => (int)($content['maxPoints'] ?? 0)
+            ];
+
+            self::saveChallengeFlow($flow);
+            self::jsonResponse($response);
         }
 
         // Guarda el flujo inicial en sesión.
@@ -369,8 +393,17 @@ class RetoController
                         $userName
                     );
                 } catch (\Throwable $e) {
-                    // Si falla IA, se usa fallback local.
-                    $messages = self::buildChallengePromptFallback($content);
+                    error_log('Error IA turnChallenge intro: ' . $e->getMessage());
+
+                    // El reto permanece en intro y el usuario no puede
+                    // responder una consigna que no fue generada por OpenAI.
+                    $response = self::buildAIUnavailableResponse(
+                        $flow,
+                        '/retos'
+                    );
+
+                    self::saveChallengeFlow($flow);
+                    self::jsonResponse($response);
                 }
 
                 // Se avanza el flujo a la etapa donde el usuario ya puede responder.
@@ -490,11 +523,18 @@ class RetoController
                         $userName
                     );
                 } catch (\Throwable $e) {
-                    // Si la IA falla por razones técnicas, se devuelve error temporal controlado.
-                    self::jsonResponse(
-                        self::buildTemporaryAIErrorResponse($flow),
-                        503
+                    error_log('Error IA evaluación reto: ' . $e->getMessage());
+
+                    // Un error de conexión no consume intentos ni permite
+                    // continuar con una evaluación simulada.
+                    $response = self::buildAIUnavailableResponse(
+                        $flow,
+                        '/retos',
+                        $message
                     );
+
+                    self::saveChallengeFlow($flow);
+                    self::jsonResponse($response);
                 }
 
                 // Si la IA rechaza la respuesta.
@@ -679,11 +719,9 @@ class RetoController
                     );
                 }
 
-                // Se guarda la respuesta final del usuario.
-                $flow['answers']['challengeAnswer'] = $message;
-
-                // Se guarda la evaluación exitosa.
-                $flow['evaluation'] = [
+                // Preparamos la evaluación exitosa sin modificar todavía
+                // el flujo ni persistir el reto.
+                $successfulEvaluation = [
                     'accepted' => true,
                     'needsRetry' => false,
                     'retryReason' => null,
@@ -693,7 +731,38 @@ class RetoController
                     'feedbackSummary' => $aiEvaluation['feedbackSummary'] ?? null
                 ];
 
-                // Se actualiza el estado final del reto en sesión.
+                try {
+                    // El feedback final debe provenir de OpenAI antes de
+                    // completar y guardar el reto.
+                    $finalMessages = $challengeAI->generateFinalFeedbackMessages(
+                        $content['title'] ?? '',
+                        $content['skillName'] ?? 'Habilidad',
+                        $message,
+                        [
+                            ...$successfulEvaluation,
+                            'scoreAwarded' => $scoreAwarded,
+                            'maxScore' => (int)($flow['maxScore'] ?? 0)
+                        ],
+                        $content,
+                        $userName
+                    );
+                } catch (\Throwable $e) {
+                    error_log('Error IA feedback final reto: ' . $e->getMessage());
+
+                    $response = self::buildAIUnavailableResponse(
+                        $flow,
+                        '/retos',
+                        $message
+                    );
+
+                    self::saveChallengeFlow($flow);
+                    self::jsonResponse($response);
+                }
+
+                // Solo después de recibir el feedback final se completa el
+                // flujo y se guarda el resultado.
+                $flow['answers']['challengeAnswer'] = $message;
+                $flow['evaluation'] = $successfulEvaluation;
                 $flow['scoreAwarded'] = $scoreAwarded;
                 $flow['currentStage'] = 'complete';
                 $flow['nextExpectedAction'] = null;
@@ -724,25 +793,6 @@ class RetoController
                     'type' => 'text',
                     'text' => $message
                 ]];
-
-                try {
-                    // La IA genera el feedback final que se mostrará en el modal.
-                    $finalMessages = $challengeAI->generateFinalFeedbackMessages(
-                        $content['title'] ?? '',
-                        $content['skillName'] ?? 'Habilidad',
-                        $message,
-                        [
-                            ...$flow['evaluation'],
-                            'scoreAwarded' => $flow['scoreAwarded'],
-                            'maxScore' => $flow['maxScore']
-                        ],
-                        $content,
-                        $userName
-                    );
-                } catch (\Throwable $e) {
-                    // Si falla la IA, se usa feedback final local.
-                    $finalMessages = self::buildFinalChallengeFeedbackFallback($flow, $flow['evaluation']);
-                }
 
                 // Guarda el flow final actualizado.
                 self::saveChallengeFlow($flow);
@@ -1435,22 +1485,58 @@ class RetoController
         ];
     }
 
-    // Respuesta estándar cuando hay un fallo técnico temporal al usar la IA.
-    private static function buildTemporaryAIErrorResponse(array $flow): array
-    {
+    /**
+     * Construye una respuesta conversacional cuando OpenAI no está disponible.
+     *
+     * Se mantiene ok=true para que apiRetos.js procese el payload como una
+     * respuesta normal y renderice el mensaje en el chat. serviceError permite
+     * reconocer que la actividad fue detenida por un problema técnico.
+     *
+     * El reto no avanza, no consume intentos y no guarda progreso.
+     */
+    private static function buildAIUnavailableResponse(
+        array &$flow,
+        string $returnUrl,
+        ?string $userMessage = null
+    ): array {
+        $flow['nextExpectedAction'] = null;
+        $flow['inputEnabled'] = false;
+        $flow['requiresUserResponse'] = false;
+
+        $messages = [];
+
+        if ($userMessage !== null && trim($userMessage) !== '') {
+            $messages[] = [
+                'id' => 'msg_u_' . uniqid(),
+                'role' => 'user',
+                'type' => 'text',
+                'text' => trim($userMessage)
+            ];
+        }
+
+        $messages[] = [
+            'id' => 'msg_ai_connection_' . uniqid(),
+            'role' => 'assistant',
+            'type' => 'text',
+            'text' => 'En este momento no fue posible conectarse con el servicio de inteligencia artificial. Verifica tu conexión a internet e inténtalo nuevamente más tarde. Tu progreso y tus intentos no se verán afectados.'
+        ];
+
         return [
-            'ok' => false,
-            'error' => [
-                'code' => 'AI_TEMPORARY_ERROR',
-                'message' => 'Hubo un problema temporal al evaluar tu respuesta. Intenta enviarla nuevamente.'
+            'ok' => true,
+            'error' => null,
+            'serviceError' => [
+                'code' => 'AI_UNAVAILABLE',
+                'message' => 'El servicio de inteligencia artificial no está disponible.'
             ],
             'session' => self::sessionPayload($flow),
+            'messages' => $messages,
+            'redirectTo' => $returnUrl,
             'ui' => [
-                'showTyping' => false,
+                'showTyping' => true,
                 'showAvatarSpeaking' => false,
-                'composerPlaceholder' => 'Vuelve a enviar tu respuesta...',
-                'focusInput' => true,
-                'showReturnButton' => false
+                'composerPlaceholder' => 'Actividad pausada por falta de conexión',
+                'focusInput' => false,
+                'showReturnButton' => true
             ]
         ];
     }

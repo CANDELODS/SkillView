@@ -71,7 +71,10 @@
         speechRecognitionSupported: false,
         avatarIsSpeaking: false,
         avatarIsPendingSpeech: false,
-        pendingAutoAdvance: false
+        pendingAutoAdvance: false,
+        // Se activa cuando la IA o la conexión no están disponibles.
+        // Mientras sea true, el reto permanece pausado y el composer bloqueado.
+        serviceUnavailable: false
     };
 
     // ---------------------------------------------------------------------
@@ -492,6 +495,7 @@
 
     function shouldAutoAdvance() {
         return (
+            !state.serviceUnavailable &&
             state.nextExpectedAction === 'advance' &&
             !state.requiresUserResponse &&
             !state.completed
@@ -508,6 +512,7 @@
     }
 
     async function maybeRunPendingAutoAdvance() {
+        if (state.serviceUnavailable) return;
         if (!state.pendingAutoAdvance) return;
         if (state.isLoading) return;
         if (state.avatarIsSpeaking) return;
@@ -802,6 +807,13 @@
                 return;
             }
 
+            // El backend mantiene ok=true para que el mensaje técnico pueda
+            // renderizarse como una respuesta normal del asistente.
+            if (isAIUnavailableResponse(data)) {
+                handleAIUnavailable(data);
+                return;
+            }
+
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
@@ -814,8 +826,7 @@
             handleAvatarNarration(data);
         } catch (error) {
             console.error('Error al iniciar el reto:', error);
-            renderSystemMessage('Ocurrió un error al iniciar el reto.');
-            hideChallengeLoader();
+            handleConnectionFailure();
             return;
         } finally {
             setLoading(false);
@@ -857,6 +868,13 @@
                 return;
             }
 
+            // El backend mantiene ok=true para que el mensaje técnico pueda
+            // renderizarse como una respuesta normal del asistente.
+            if (isAIUnavailableResponse(data)) {
+                handleAIUnavailable(data);
+                return;
+            }
+
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
@@ -870,10 +888,8 @@
             handleAvatarNarration(data);
 
         } catch (error) {
-            removeTypingIndicator();
             console.error('Error en advance:', error);
-            renderSystemMessage('No se pudo avanzar en el reto.');
-            hideChallengeLoader();
+            handleConnectionFailure();
         } finally {
             setLoading(false);
             // Si el avatar está apagado y quedó un autoavance pendiente,
@@ -916,6 +932,13 @@
                 return;
             }
 
+            // El backend mantiene ok=true para que el mensaje técnico pueda
+            // renderizarse como una respuesta normal del asistente.
+            if (isAIUnavailableResponse(data)) {
+                handleAIUnavailable(data);
+                return;
+            }
+
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
@@ -928,9 +951,8 @@
             handleAvatarNarration(data);
 
         } catch (error) {
-            removeTypingIndicator();
             console.error('Error en reply:', error);
-            renderSystemMessage('No se pudo enviar tu respuesta.');
+            handleConnectionFailure(userMessage);
         } finally {
             setLoading(false);
             // Si el avatar está apagado y quedó un autoavance pendiente,
@@ -946,6 +968,7 @@
         event.preventDefault();
 
         if (
+            state.serviceUnavailable ||
             !state.inputEnabled ||
             !state.requiresUserResponse ||
             state.isLoading ||
@@ -1146,6 +1169,10 @@
 
     // Determina el placeholder correcto del composer.
     function resolveComposerPlaceholder(ui = {}) {
+        if (state.serviceUnavailable) {
+            return 'Actividad pausada por falta de conexión';
+        }
+
         if (state.avatarIsSpeaking) {
             return 'El avatar está hablando...';
         }
@@ -1192,8 +1219,109 @@
         }
     }
 
+
+    // ---------------------------------------------------------------------
+    // MANEJO DE INDISPONIBILIDAD DE IA / CONEXIÓN
+    // ---------------------------------------------------------------------
+    const AI_UNAVAILABLE_MESSAGE = 'En este momento no fue posible conectarse con el servicio de inteligencia artificial. Verifica tu conexión a internet e inténtalo nuevamente más tarde. Tu progreso y tus intentos no se verán afectados.';
+
+    // Reconoce la respuesta técnica normalizada enviada por el controlador.
+    function isAIUnavailableResponse(data) {
+        return Boolean(
+            data &&
+            (
+                (data.serviceError && data.serviceError.code === 'AI_UNAVAILABLE') ||
+                (data.error && data.error.code === 'AI_UNAVAILABLE')
+            )
+        );
+    }
+
+    // Pausa definitivamente el reto actual sin marcararlo como completado.
+    // No cambia intentos, puntaje ni progreso; únicamente bloquea la interfaz.
+    function pauseChallengeForUnavailableService() {
+        state.serviceUnavailable = true;
+        state.pendingAutoAdvance = false;
+        state.nextExpectedAction = null;
+        state.inputEnabled = false;
+        state.requiresUserResponse = false;
+        state.avatarIsSpeaking = false;
+        state.avatarIsPendingSpeech = false;
+
+        if (state.isListening) {
+            stopSpeechRecognition();
+        }
+
+        if (NarrationQueue && typeof NarrationQueue.clear === 'function') {
+            NarrationQueue.clear();
+        }
+    }
+
+    // Procesa la respuesta AI_UNAVAILABLE que sí alcanzó a llegar desde PHP.
+    function handleAIUnavailable(data = {}) {
+        pauseChallengeForUnavailableService();
+        removeTypingIndicator();
+        hideChallengeLoader();
+
+        if (data.session) {
+            applySessionState(data.session);
+        }
+
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+
+        if (messages.length > 0) {
+            renderMessages(messages);
+        } else {
+            renderMessages([{
+                role: 'assistant',
+                type: 'text',
+                text: AI_UNAVAILABLE_MESSAGE
+            }]);
+        }
+
+        applyUiState(data.ui || {
+            composerPlaceholder: 'Actividad pausada por falta de conexión',
+            focusInput: false
+        });
+    }
+
+    // Se usa cuando el navegador no recibió ninguna respuesta del backend,
+    // por ejemplo porque el equipo perdió totalmente la conexión.
+    function handleConnectionFailure(userMessage = '') {
+        pauseChallengeForUnavailableService();
+        removeTypingIndicator();
+        hideChallengeLoader();
+
+        const messages = [];
+        const cleanUserMessage = String(userMessage || '').trim();
+
+        if (cleanUserMessage) {
+            messages.push({
+                role: 'user',
+                type: 'text',
+                text: cleanUserMessage
+            });
+        }
+
+        messages.push({
+            role: 'assistant',
+            type: 'text',
+            text: AI_UNAVAILABLE_MESSAGE
+        });
+
+        renderMessages(messages);
+        applyUiState({
+            composerPlaceholder: 'Actividad pausada por falta de conexión',
+            focusInput: false
+        });
+    }
+
     // Maneja errores devueltos por backend.
     function handleApiError(data) {
+        if (isAIUnavailableResponse(data)) {
+            handleAIUnavailable(data);
+            return;
+        }
+
         state.avatarIsPendingSpeech = false;
         hideChallengeLoader();
         removeTypingIndicator();

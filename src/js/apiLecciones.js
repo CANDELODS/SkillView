@@ -54,7 +54,10 @@
         speechRecognitionSupported: false,
         avatarIsSpeaking: false,
         avatarIsPendingSpeech: false,
-        pendingAutoAdvance: false
+        pendingAutoAdvance: false,
+        // Se activa cuando la IA o la conexión no están disponibles.
+        // Mientras sea true, la actividad permanece pausada y el composer bloqueado.
+        serviceUnavailable: false
     };
 
     // ---------------------------------------------------------------------
@@ -491,6 +494,7 @@
     // Determina si el flujo debe autoavanzar sin intervención del usuario
     function shouldAutoAdvance() {
         return (
+            !state.serviceUnavailable &&
             state.nextExpectedAction === 'advance' &&
             !state.requiresUserResponse &&
             !state.completed
@@ -509,6 +513,7 @@
 
     // Ejecuta el autoavance pendiente si ya no hay narración en curso
     async function maybeRunPendingAutoAdvance() {
+        if (state.serviceUnavailable) return;
         if (!state.pendingAutoAdvance) return;
         if (state.isLoading) return;
         if (state.avatarIsSpeaking) return;
@@ -791,6 +796,13 @@
                 return;
             }
 
+            // El backend mantiene ok=true para que el mensaje técnico pueda
+            // renderizarse como una respuesta normal del asistente.
+            if (isAIUnavailableResponse(data)) {
+                handleAIUnavailable(data);
+                return;
+            }
+
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
@@ -803,8 +815,7 @@
             handleAvatarNarration(data);
         } catch (error) {
             console.error('Error al iniciar la lección:', error);
-            renderSystemMessage('Ocurrió un error al iniciar la lección.');
-            hideLessonLoader();
+            handleConnectionFailure();
             return;
         } finally {
             setLoading(false);
@@ -846,6 +857,13 @@
                 return;
             }
 
+            // El backend mantiene ok=true para que el mensaje técnico pueda
+            // renderizarse como una respuesta normal del asistente.
+            if (isAIUnavailableResponse(data)) {
+                handleAIUnavailable(data);
+                return;
+            }
+
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
@@ -859,10 +877,8 @@
             handleAvatarNarration(data);
 
         } catch (error) {
-            removeTypingIndicator();
             console.error('Error en advance:', error);
-            renderSystemMessage('No se pudo avanzar en la lección.');
-            hideLessonLoader();
+            handleConnectionFailure();
         } finally {
             setLoading(false);
             // Si el avatar está apagado y quedó un autoavance pendiente,
@@ -905,6 +921,13 @@
                 return;
             }
 
+            // El backend mantiene ok=true para que el mensaje técnico pueda
+            // renderizarse como una respuesta normal del asistente.
+            if (isAIUnavailableResponse(data)) {
+                handleAIUnavailable(data);
+                return;
+            }
+
             applySessionState(data.session);
             renderMessages(data.messages || []);
             applyUiState(data.ui || {});
@@ -917,9 +940,8 @@
             handleAvatarNarration(data);
 
         } catch (error) {
-            removeTypingIndicator();
             console.error('Error en reply:', error);
-            renderSystemMessage('No se pudo enviar tu respuesta.');
+            handleConnectionFailure(userMessage);
         } finally {
             setLoading(false);
             // Si el avatar está apagado y quedó un autoavance pendiente,
@@ -935,6 +957,7 @@
         event.preventDefault();
 
         if (
+            state.serviceUnavailable ||
             !state.inputEnabled ||
             !state.requiresUserResponse ||
             state.isLoading ||
@@ -1135,6 +1158,10 @@
 
     // Define qué placeholder debe mostrarse en el composer
     function resolveComposerPlaceholder(ui = {}) {
+        if (state.serviceUnavailable) {
+            return 'Actividad pausada por falta de conexión';
+        }
+
         if (state.avatarIsSpeaking) {
             return 'El avatar está hablando...';
         }
@@ -1179,8 +1206,109 @@
         }
     }
 
+
+    // ---------------------------------------------------------------------
+    // MANEJO DE INDISPONIBILIDAD DE IA / CONEXIÓN
+    // ---------------------------------------------------------------------
+    const AI_UNAVAILABLE_MESSAGE = 'En este momento no fue posible conectarse con el servicio de inteligencia artificial. Verifica tu conexión a internet e inténtalo nuevamente más tarde. Tu progreso y tus intentos no se verán afectados.';
+
+    // Reconoce la respuesta técnica normalizada enviada por el controlador.
+    function isAIUnavailableResponse(data) {
+        return Boolean(
+            data &&
+            (
+                (data.serviceError && data.serviceError.code === 'AI_UNAVAILABLE') ||
+                (data.error && data.error.code === 'AI_UNAVAILABLE')
+            )
+        );
+    }
+
+    // Pausa definitivamente la actividad actual sin marcarla como completada.
+    // No cambia intentos ni progreso; únicamente bloquea la interfaz.
+    function pauseLessonForUnavailableService() {
+        state.serviceUnavailable = true;
+        state.pendingAutoAdvance = false;
+        state.nextExpectedAction = null;
+        state.inputEnabled = false;
+        state.requiresUserResponse = false;
+        state.avatarIsSpeaking = false;
+        state.avatarIsPendingSpeech = false;
+
+        if (state.isListening) {
+            stopSpeechRecognition();
+        }
+
+        if (NarrationQueue && typeof NarrationQueue.clear === 'function') {
+            NarrationQueue.clear();
+        }
+    }
+
+    // Procesa la respuesta AI_UNAVAILABLE que sí alcanzó a llegar desde PHP.
+    function handleAIUnavailable(data = {}) {
+        pauseLessonForUnavailableService();
+        removeTypingIndicator();
+        hideLessonLoader();
+
+        if (data.session) {
+            applySessionState(data.session);
+        }
+
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+
+        if (messages.length > 0) {
+            renderMessages(messages);
+        } else {
+            renderMessages([{
+                role: 'assistant',
+                type: 'text',
+                text: AI_UNAVAILABLE_MESSAGE
+            }]);
+        }
+
+        applyUiState(data.ui || {
+            composerPlaceholder: 'Actividad pausada por falta de conexión',
+            focusInput: false
+        });
+    }
+
+    // Se usa cuando el navegador no recibió ninguna respuesta del backend,
+    // por ejemplo porque el equipo perdió totalmente la conexión.
+    function handleConnectionFailure(userMessage = '') {
+        pauseLessonForUnavailableService();
+        removeTypingIndicator();
+        hideLessonLoader();
+
+        const messages = [];
+        const cleanUserMessage = String(userMessage || '').trim();
+
+        if (cleanUserMessage) {
+            messages.push({
+                role: 'user',
+                type: 'text',
+                text: cleanUserMessage
+            });
+        }
+
+        messages.push({
+            role: 'assistant',
+            type: 'text',
+            text: AI_UNAVAILABLE_MESSAGE
+        });
+
+        renderMessages(messages);
+        applyUiState({
+            composerPlaceholder: 'Actividad pausada por falta de conexión',
+            focusInput: false
+        });
+    }
+
     // Maneja errores devueltos por la API
     function handleApiError(data) {
+        if (isAIUnavailableResponse(data)) {
+            handleAIUnavailable(data);
+            return;
+        }
+
         state.avatarIsPendingSpeech = false;
         hideLessonLoader();
         removeTypingIndicator();

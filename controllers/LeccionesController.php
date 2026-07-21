@@ -203,15 +203,35 @@ class LeccionesController
                 $contenido,
                 $userName
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log('Error IA startLeccion: ' . $e->getMessage());
 
-            // Fallback local para no romper la experiencia si OpenAI falla
-            $messages = self::buildInitialMessages(
-                $leccion->titulo,
-                $habilidad->nombre,
-                $contenido
+            // No usamos contenido local para simular la respuesta de OpenAI.
+            // La actividad queda bloqueada y el aviso se muestra dentro del chat.
+            $flow = &$_SESSION['lesson_flow'];
+
+            $response = self::buildAIUnavailableResponse(
+                $flow,
+                '/aprendizaje'
             );
+
+            // Conservamos los metadatos habituales del endpoint de inicio
+            // para no romper el contrato esperado por apiLecciones.js.
+            $response['lesson'] = [
+                'id' => (int)$leccion->id,
+                'title' => $leccion->titulo,
+                'order' => (int)$leccion->orden,
+                'type' => $tipoLeccion,
+                'skill' => [
+                    'id' => (int)$habilidad->id,
+                    'name' => $habilidad->nombre
+                ]
+            ];
+            $response['content'] = $contenido;
+            $response['session']['limits'] = $flow['limits'] ?? [];
+            $response['session']['failed'] = (bool)($flow['failed'] ?? false);
+
+            self::jsonResponse($response);
         }
 
         // 8) Responder JSON
@@ -408,11 +428,16 @@ class LeccionesController
                         $lessonType,
                         $userName
                     );
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     error_log('Error IA turnLeccion intro: ' . $e->getMessage());
 
-                    // Fallback local para no romper el flujo si OpenAI falla
-                    $messages = self::buildMicroPracticePromptMessages($content, $lessonType);
+                    // La etapa permanece en intro y no se habilita el compositor.
+                    self::jsonResponse(
+                        self::buildAIUnavailableResponse(
+                            $flow,
+                            '/aprendizaje'
+                        )
+                    );
                 }
 
                 // Actualizamos el estado:
@@ -568,13 +593,6 @@ class LeccionesController
                         ]);
                     }
 
-                    // Si la IA acepta la respuesta, recién ahí avanzamos
-                    $flow['answers']['microPractice'] = $message;
-                    $flow['currentStage'] = 'mini_eval_answer';
-                    $flow['nextExpectedAction'] = 'reply';
-                    $flow['inputEnabled'] = true;
-                    $flow['requiresUserResponse'] = true;
-
                     $evaluation = [
                         'accepted' => true,
                         'needsRetry' => false,
@@ -591,10 +609,27 @@ class LeccionesController
                             $lessonType,
                             $userName
                         );
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         error_log('Error IA turnLeccion mini-evaluación: ' . $e->getMessage());
-                        $messages = self::buildMiniEvaluationMessages($message, $content, $lessonType);
+
+                        // No avanzamos a mini_eval_answer si la IA no pudo
+                        // generar la pregunta correspondiente.
+                        self::jsonResponse(
+                            self::buildAIUnavailableResponse(
+                                $flow,
+                                '/aprendizaje',
+                                $message
+                            )
+                        );
                     }
+
+                    // Solo después de obtener correctamente la siguiente
+                    // pregunta se actualiza la máquina de estados.
+                    $flow['answers']['microPractice'] = $message;
+                    $flow['currentStage'] = 'mini_eval_answer';
+                    $flow['nextExpectedAction'] = 'reply';
+                    $flow['inputEnabled'] = true;
+                    $flow['requiresUserResponse'] = true;
                     self::jsonResponse([
                         'ok' => true,
                         'error' => null,
@@ -609,62 +644,18 @@ class LeccionesController
                             'showReturnButton' => false
                         ]
                     ]);
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     error_log('Error IA evaluación micro-práctica: ' . $e->getMessage());
 
-                    // fallback si falla OpenAI: usar validación local conservadora
-                    $flow['attempts']['microPractice'] = (int)($flow['attempts']['microPractice'] ?? 0) + 1;
-                    $remainingAttempts = (int)$flow['limits']['microPractice'] - (int)$flow['attempts']['microPractice'];
-
-                    if ($remainingAttempts <= 0) {
-                        self::buildFailedLessonResponse(
+                    // Un error técnico no cuenta como intento fallido.
+                    // Tampoco se cambia de etapa ni se guarda la respuesta.
+                    self::jsonResponse(
+                        self::buildAIUnavailableResponse(
                             $flow,
-                            'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la micro-práctica. Puedes volver a intentarlo más adelante.',
+                            '/aprendizaje',
                             $message
-                        );
-                    }
-                    $flow['currentStage'] = 'micro_practice_answer_retry';
-                    $flow['nextExpectedAction'] = 'reply';
-                    $flow['inputEnabled'] = true;
-                    $flow['requiresUserResponse'] = true;
-
-                    self::jsonResponse([
-                        'ok' => true,
-                        'error' => null,
-                        'session' => self::sessionPayload($flow),
-                        'evaluation' => [
-                            'accepted' => false,
-                            'needsRetry' => true,
-                            'retryReason' => 'EVALUATION_ERROR'
-                        ],
-                        'messages' => [
-                            [
-                                'id' => 'msg_u_' . uniqid(),
-                                'role' => 'user',
-                                'type' => 'text',
-                                'text' => $message
-                            ],
-                            [
-                                'id' => 'msg_a_' . uniqid(),
-                                'role' => 'assistant',
-                                'type' => 'text',
-                                'text' => 'No pude evaluar correctamente tu respuesta en este momento. Intenta reformularla de manera más clara y concreta.'
-                            ],
-                            [
-                                'id' => 'msg_a_' . uniqid(),
-                                'role' => 'assistant',
-                                'type' => 'text',
-                                'text' => self::buildAttemptsWarningMessage($remainingAttempts)
-                            ]
-                        ],
-                        'ui' => [
-                            'showTyping' => true,
-                            'showAvatarSpeaking' => true,
-                            'composerPlaceholder' => 'Reformula tu respuesta...',
-                            'focusInput' => true,
-                            'showReturnButton' => false
-                        ]
-                    ]);
+                        )
+                    );
                 }
                 break;
             // ============================================================
@@ -816,17 +807,43 @@ class LeccionesController
                     }
 
                     // -------------------- RESPUESTA ACEPTADA --------------------
-                    // Guardamos la respuesta del usuario.
-                    $flow['answers']['miniEvaluation'] = $message;
+                    // Preparamos una copia de las respuestas para solicitar el
+                    // feedback final sin modificar todavía la sesión ni la BD.
+                    $completedAnswers = $flow['answers'];
+                    $completedAnswers['miniEvaluation'] = $message;
 
-                    // Marcamos la lección como terminada en la sesión.
+                    try {
+                        $finalAssistantMessages = $lessonAIService->generateFinalFeedbackMessages(
+                            $lessonTittle,
+                            $skillName,
+                            $completedAnswers,
+                            $content,
+                            $lessonType,
+                            $userName
+                        );
+                    } catch (\Throwable $e) {
+                        error_log('Error IA turnLeccion feedback final: ' . $e->getMessage());
+
+                        // Si no hay feedback real de OpenAI, la lección no se
+                        // completa ni se persiste.
+                        self::jsonResponse(
+                            self::buildAIUnavailableResponse(
+                                $flow,
+                                '/aprendizaje',
+                                $message
+                            )
+                        );
+                    }
+
+                    // Solo después de recibir correctamente el feedback final
+                    // se actualiza la sesión y se guarda el progreso.
+                    $flow['answers'] = $completedAnswers;
                     $flow['currentStage'] = 'complete';
                     $flow['nextExpectedAction'] = null;
                     $flow['inputEnabled'] = false;
                     $flow['requiresUserResponse'] = false;
                     $flow['completed'] = true;
 
-                    // Persistimos el completado en la BD.
                     self::markLessonAsCompleted($idUsuario, $lessonId);
 
                     // Generamos evaluación final estructurada.
@@ -841,25 +858,6 @@ class LeccionesController
                             'text' => $message
                         ]
                     ];
-
-                    // Generamos los mensajes finales del asistente.
-                    try {
-
-                        $finalAssistantMessages = $lessonAIService->generateFinalFeedbackMessages(
-                            $lessonTittle,
-                            $skillName,
-                            $flow['answers'],
-                            $content,
-                            $lessonType,
-                            $userName
-                        );
-                    } catch (\Exception $e) {
-
-                        error_log('Error IA turnLeccion feedback final: ' . $e->getMessage());
-
-                        // Fallback local para no romper el flujo si OpenAI falla
-                        $finalAssistantMessages = self::buildFinalFeedbackMessages($flow['answers'], $content);
-                    }
                     // El chat solo mostrará el último mensaje real del usuario.
                     // El feedback final se mostrará en el modal.
                     $messages = $userFinalMessage;
@@ -892,58 +890,19 @@ class LeccionesController
                             'showReturnButton' => true
                         ]
                     ]);
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
 
                     error_log('Error IA evaluación mini-evaluación: ' . $e->getMessage());
 
-                    $flow['attempts']['miniEvaluation'] =
-                        (int)($flow['attempts']['miniEvaluation'] ?? 0) + 1;
-
-                    $remainingAttempts =
-                        (int)$flow['limits']['miniEvaluation'] -
-                        (int)$flow['attempts']['miniEvaluation'];
-
-                    if ($remainingAttempts <= 0) {
-
-                        self::buildFailedLessonResponse(
+                    // El fallo técnico no consume intentos, no completa la
+                    // lección y no modifica el progreso.
+                    self::jsonResponse(
+                        self::buildAIUnavailableResponse(
                             $flow,
-                            'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la mini-evaluación.',
+                            '/aprendizaje',
                             $message
-                        );
-                    }
-
-                    self::jsonResponse([
-                        'ok' => true,
-                        'error' => null,
-                        'session' => self::sessionPayload($flow),
-                        'messages' => [
-                            [
-                                'id' => 'msg_u_' . uniqid(),
-                                'role' => 'user',
-                                'type' => 'text',
-                                'text' => $message
-                            ],
-                            [
-                                'id' => 'msg_a_' . uniqid(),
-                                'role' => 'assistant',
-                                'type' => 'text',
-                                'text' => 'No pude evaluar correctamente tu respuesta. Intenta reformularla.'
-                            ],
-                            [
-                                'id' => 'msg_a_' . uniqid(),
-                                'role' => 'assistant',
-                                'type' => 'text',
-                                'text' => self::buildAttemptsWarningMessage($remainingAttempts)
-                            ]
-                        ],
-                        'ui' => [
-                            'showTyping' => true,
-                            'showAvatarSpeaking' => true,
-                            'composerPlaceholder' => 'Reformula tu respuesta...',
-                            'focusInput' => true,
-                            'showReturnButton' => false
-                        ]
-                    ]);
+                        )
+                    );
                 }
 
                 break;
@@ -1192,6 +1151,63 @@ class LeccionesController
     //---------------------------FIN HELPERS startLeccion---------------------------//
 
     //---------------------------HELPERS turnLeccion---------------------------//
+    /**
+     * Construye una respuesta conversacional cuando OpenAI no está disponible.
+     *
+     * Se devuelve ok=true para que el frontend procese la respuesta como un
+     * turno normal y pinte el mensaje dentro del chat. Aun así, serviceError
+     * permite identificar que no fue una respuesta pedagógica.
+     *
+     * La actividad queda bloqueada, no avanza de etapa, no consume intentos
+     * y no modifica el progreso del usuario.
+     */
+    private static function buildAIUnavailableResponse(
+        array &$flow,
+        string $returnUrl,
+        ?string $userMessage = null
+    ): array {
+        $flow['nextExpectedAction'] = null;
+        $flow['inputEnabled'] = false;
+        $flow['requiresUserResponse'] = false;
+
+        $messages = [];
+
+        if ($userMessage !== null && trim($userMessage) !== '') {
+            $messages[] = [
+                'id' => 'msg_u_' . uniqid(),
+                'role' => 'user',
+                'type' => 'text',
+                'text' => trim($userMessage)
+            ];
+        }
+
+        $messages[] = [
+            'id' => 'msg_a_connection_' . uniqid(),
+            'role' => 'assistant',
+            'type' => 'text',
+            'text' => 'En este momento no fue posible conectarse con el servicio de inteligencia artificial. Verifica tu conexión a internet e inténtalo nuevamente más tarde. Tu progreso y tus intentos no se verán afectados.'
+        ];
+
+        return [
+            'ok' => true,
+            'error' => null,
+            'serviceError' => [
+                'code' => 'AI_UNAVAILABLE',
+                'message' => 'El servicio de inteligencia artificial no está disponible.'
+            ],
+            'session' => self::sessionPayload($flow),
+            'messages' => $messages,
+            'redirectTo' => $returnUrl,
+            'ui' => [
+                'showTyping' => true,
+                'showAvatarSpeaking' => false,
+                'composerPlaceholder' => 'Actividad pausada por falta de conexión',
+                'focusInput' => false,
+                'showReturnButton' => true
+            ]
+        ];
+    }
+
     /**
      * Devuelve un error cuando el frontend manda una acción que no corresponde a la etapa actual.
      */
