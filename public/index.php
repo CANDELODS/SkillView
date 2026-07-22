@@ -46,7 +46,7 @@ $router->get('/admin/dashboard', [DashboardController::class, 'index']);
 $router->get('/admin/usuarios', [DashboardController::class, 'indexUsuarios']);
 $router->get('/admin/usuarios/editar', [DashboardController::class, 'editarUsuarios']);
 $router->post('/admin/usuarios/editar', [DashboardController::class, 'editarUsuarios']);
-$router->post('/admin/usuarios/eliminar', [DashboardController::class, 'eliminarUsuarios']);
+// $router->post('/admin/usuarios/eliminar', [DashboardController::class, 'eliminarUsuarios']);
 //ADMINISTRAR HABILIDADES
 $router->get('/admin/habilidades', [DashboardController::class, 'indexHabilidades']);
 $router->get('/admin/habilidades/crear', [DashboardController::class, 'crearHabilidades']);

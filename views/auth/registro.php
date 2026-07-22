@@ -126,7 +126,8 @@
           type="email"
           placeholder="tu@email.com"
           id="correo"
-          name="correo">
+          name="correo"
+          value="<?php echo $usuario->correo; ?>">
       </div>
 
       <!-- Password -->
