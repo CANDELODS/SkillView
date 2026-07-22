@@ -5,7 +5,7 @@ namespace Model;
 class Usuario extends ActiveRecord
 {
     protected static $tabla = 'usuarios';
-    protected static $columnasDB = ['id', 'nombres', 'apellidos', 'edad', 'sexo', 'correo', 'password', 'universidad', 'carrera', 'admin', 'debe_cambiar_password', 'habilitado'];
+    protected static $columnasDB = ['id', 'nombres', 'apellidos', 'edad', 'sexo', 'correo', 'password', 'universidad', 'carrera', 'admin', 'debe_cambiar_password', 'habilitado', 'token_recuperacion', 'token_expiracion'];
 
     public $id;
     public $nombres;
@@ -20,6 +20,8 @@ class Usuario extends ActiveRecord
     public $admin;
     public $debe_cambiar_password;
     public $habilitado;
+    public $token_recuperacion;
+    public $token_expiracion;
 
     public $password_actual;
     public $password_nuevo;
@@ -51,6 +53,8 @@ class Usuario extends ActiveRecord
         $this->admin = $args['admin'] ?? 0;
         $this->debe_cambiar_password = $args['debe_cambiar_password'] ?? 0;
         $this->habilitado = $args['habilitado'] ?? null;
+        $this->token_recuperacion = $args['token_recuperacion'] ?? '';
+        $this->token_expiracion = $args['token_expiracion'] ?? 0;
     }
 
     // Validar el Login de Usuarios
@@ -167,14 +171,30 @@ class Usuario extends ActiveRecord
     }
 
     // Valida un correo
-    public function validarcorreo()
+    public function validarCorreo(): array
     {
-        if (!$this->correo) {
-            self::$alertas['error'][] = 'El correo es Obligatorio';
+        self::$alertas = [];
+
+        $this->correo = strtolower(
+            trim($this->correo ?? '')
+        );
+
+        if ($this->correo === '') {
+            self::setAlerta(
+                'error',
+                'El correo es obligatorio'
+            );
+
+            return self::$alertas;
         }
+
         if (!filter_var($this->correo, FILTER_VALIDATE_EMAIL)) {
-            self::$alertas['error'][] = 'correo no válido';
+            self::setAlerta(
+                'error',
+                'Correo no válido'
+            );
         }
+
         return self::$alertas;
     }
 
@@ -360,5 +380,114 @@ class Usuario extends ActiveRecord
         }
 
         return self::$alertas;
+    }
+
+    /**
+     * Genera el token que se enviará por correo.
+     *
+     * El token original se devuelve al controlador,
+     * pero en la base de datos se almacena solamente
+     * su hash SHA-256.
+     */
+    public function crearTokenRecuperacion(int $duracionMinutos = 30): string
+    {
+        //Random_bytes 32 produce una cadena hexadecimal de 64 caracteres (Cada byte está entre 0 y 255).
+        //bin2hex convierte los datos binarios de random_bytes en una cadena hexadecimal fácil de transportar.
+        //Ejemplo: 0 1 2 3 4 5 6 7 8 9 a b c d e f Entonces... 32 bytes * 2 = 64 caracteres = 66f7e754934c02e3b5f4733b68c8451bc00df6202e743017c1c67695f5eb2c15
+        //Ese $tokenPlano se envía en el enlace
+        $tokenPlano = bin2hex(random_bytes(32));
+
+        // Guardamos solo el hash en la base de datos.
+        //hash() calcula un resumen del contenido utilizando el algoritmo SHA-256, el resultado también tiene 64 caracteres hexadecimales
+        $this->token_recuperacion = hash('sha256', $tokenPlano);
+        //Ejemplo: Token enviado abc123..., Hash almacenado: 9f86d081884c7d659a2feaa0c55ad015...
+        //Cuando llega el enlace, el sistema vuelve a aplicar: $tokenHash = hash('sha256', $token); y busca el resultado en la BD
+        // hash('sha256', 'mismo valor') Siempre produce el mismo resultado
+
+        // Momento exacto en el que vencerá el token.
+        //time() devuelve el momento actual expresado en segundos, ejemplo: 1784635200
+        //Em étodo recibe por ejemplo $duracionMinutos = 30, cada minuto tiene 60 segundos: 30 * 60 = 1800 segundos
+        //Entonces: 1784635200 + 1800 = 1784637000, Esto es igual a 30 minutos después
+        $this->token_expiracion = time() + ($duracionMinutos * 60);
+
+        // Este es el token que viajará en el enlace del correo, no se devuelve el hash porque el usuario debe recibir el valor original.
+        return $tokenPlano;
+    }
+
+    /**
+     * Comprueba que el token todavía no haya expirado.
+     */
+    public function tokenRecuperacionVigente(): bool
+    {
+        if (
+            $this->token_recuperacion === '' ||
+            (int) $this->token_expiracion <= 0
+        ) {
+            return false;
+        }
+
+        //Ejemplo: $tokenExpiración = 2000 y $tiempoActual = 1500, Entonces: 2000 >= 1500 = true (El token no ha vencido)
+        return (int) $this->token_expiracion >= time();
+    }
+
+    /**
+     * Invalida el enlace después de usarlo o expirar.
+     */
+    public function limpiarTokenRecuperacion(): void
+    {
+        $this->token_recuperacion = '';
+        $this->token_expiracion = 0;
+    }
+
+    /**
+     * Busca un usuario por correo de forma controlada.
+     */
+    //?self representa la clase donde está declarado el método, en este caso self = Usuario... o sea, Devuelve un Usuario o null
+    public static function buscarPorCorreoRecuperacion(string $correo): ?self {
+        $correo = strtolower(trim($correo));
+        $correo = self::$db->escape_string($correo);
+
+        $query = "
+        SELECT *
+        FROM " . static::$tabla . "
+        WHERE correo = '{$correo}'
+        LIMIT 1
+    ";
+
+        $resultado = self::consultarSQL($query);
+
+        return array_shift($resultado) ?: null;
+    }
+
+    /**
+     * Busca al usuario propietario del hash del token.
+     */
+    public static function buscarPorTokenRecuperacion(string $tokenHash): ?self {
+        // Un hash SHA-256 hexadecimal debe tener 64 caracteres.
+        //La expresión /^[a-f0-9]{64}$/ se interpreta así:
+        /*
+         ^           inicio del texto
+         [a-f0-9]    solo letras de a hasta f o números de 0 hasta 9
+         {64}        exactamente 64 caracteres
+         $           final del texto
+        */
+        if (!preg_match('/^[a-f0-9]{64}$/', $tokenHash)) {
+            return null;
+        }
+
+        //Capa adicional de protección para una consulta SQL construida mediante concatenación
+        $tokenHash = self::$db->escape_string($tokenHash);
+
+        $query = "
+        SELECT *
+        FROM " . static::$tabla . "
+        WHERE token_recuperacion = '{$tokenHash}'
+        LIMIT 1
+    ";
+
+        $resultado = self::consultarSQL($query);
+
+        //Devuelve el primer resultado si es verdadero, de lo contrario devuelve null.
+        return array_shift($resultado) ?: null;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Controllers;
 
+use Classes\Email;
 use Model\Usuario;
 use Model\usuarios_habilidades;
 use MVC\Router;
@@ -251,26 +252,90 @@ class AuthController
         $login = true;
         $alertas = [];
         $mensajeRecuperacion = null;
-        $correo = '';
+
+        $solicitud = new Usuario([
+            'correo' => $_POST['correo'] ?? ''
+        ]);
+
+    /*
+     * Este mensaje se muestra cuando el enlace recibido
+     * no existe, expiró o ya fue utilizado.
+     */
+        if (
+            isset($_GET['token_invalido']) &&
+            $_GET['token_invalido'] === '1'
+        ) {
+            $alertas['error'][] =
+                'El enlace de recuperación no es válido o ha expirado. '
+                . 'Solicita uno nuevo.';
+        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-            $correo = strtolower(trim($_POST['correo'] ?? ''));
+            $alertas = $solicitud->validarCorreo();
 
-            if (!$correo) {
-                $alertas['error'][] = 'El correo es obligatorio';
-            } elseif (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
-                $alertas['error'][] =
-                    'Ingresa una dirección de correo electrónico válida';
-            } else {
-                /*
-             * Por seguridad es preferible mostrar un mensaje genérico,
-             * exista o no exista el correo.
+            if (empty($alertas)) {
+
+            /*
+             * La búsqueda se realiza internamente.
+             * La respuesta pública siempre será genérica.
              */
-                $mensajeRecuperacion = 'Si el correo ingresado se encuentra registrado en '
-                    . 'SkillView, comunícate con el administrador mediante '
-                    . 'admin@skillview.com para solicitar el restablecimiento '
-                    . 'de tu contraseña.';
+                $usuario = Usuario::buscarPorCorreoRecuperacion(
+                    $solicitud->correo
+                );
+
+                if (
+                    $usuario &&
+                    (int) $usuario->habilitado === 1
+                ) {
+                    /*
+                 * Una nueva solicitud reemplaza cualquier token
+                 * generado anteriormente.
+                 */
+                    $tokenPlano =
+                        $usuario->crearTokenRecuperacion(30);
+
+                    $resultado = $usuario->guardar();
+
+                    if ($resultado) {
+                        $nombreCompleto = trim(
+                            $usuario->nombres
+                                . ' '
+                                . $usuario->apellidos
+                        );
+
+                        $email = new Email(
+                            $usuario->correo,
+                            $nombreCompleto,
+                            $tokenPlano
+                        );
+
+                        $enviado = $email->enviarRecuperacion();
+
+                        if (!$enviado) {
+                            /*
+                         * No informamos públicamente del error,
+                         * porque revelaría que la cuenta existe.
+                         */
+                            error_log(
+                                'Falló el correo de recuperación '
+                                    . 'para el usuario ID '
+                                    . (int) $usuario->id
+                            );
+                        }
+                    }
+                }
+
+                /*
+             * Se muestra exactamente el mismo mensaje:
+             * - Si el usuario existe.
+             * - Si no existe.
+             * - Si está deshabilitado.
+             */
+                $mensajeRecuperacion =
+                    'Si existe una cuenta habilitada asociada al '
+                    . 'correo ingresado, recibirás un mensaje con '
+                    . 'las instrucciones para restablecer tu contraseña.';
             }
         }
 
@@ -279,7 +344,7 @@ class AuthController
             'login' => $login,
             'alertas' => $alertas,
             'mensajeRecuperacion' => $mensajeRecuperacion,
-            'correo' => $correo
+            'correo' => $solicitud->correo
         ]);
     }
 
@@ -396,6 +461,115 @@ class AuthController
             'titulo' => 'Crear nueva contraseña',
             'login' => $login,
             'alertas' => $alertas
+        ]);
+    }
+
+    public static function restablecerPassword(Router $router)
+    {
+        $login = true;
+        $alertas = [];
+
+        /*
+     * En GET llega por la URL (Primera visita).
+     * En POST llega mediante un input oculto (El usuario envía la nueva contraseña).
+     */
+        $token = trim(
+            (string) (
+                $_POST['token']
+                ?? $_GET['token']
+                ?? ''
+            )
+        );
+
+        // El token original (Generado con bin2hex(random_bytes(32)))
+        //Debe contener números y letras entrea y f y tener 64 caracteres.
+        if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
+            header(
+                'Location: /recuperar-password?token_invalido=1'
+            );
+            exit;
+        }
+
+        // Generamos el mismo hash que se almacenó en la BD.
+        $tokenHash = hash('sha256', $token);
+
+        $usuario = Usuario::buscarPorTokenRecuperacion(
+            $tokenHash
+        );
+
+        /*
+     * Validar:
+     * - Que el token pertenezca a alguien.
+     * - Que la cuenta continúe habilitada.
+     * - Que el token no haya expirado.
+     */
+        if (
+            !$usuario ||
+            (int) $usuario->habilitado !== 1 ||
+            !$usuario->tokenRecuperacionVigente()
+        ) {
+            /*
+         * Si encontramos al usuario, invalidamos el token
+         * expirado o perteneciente a una cuenta deshabilitada.
+         */
+            if ($usuario) {
+                $usuario->limpiarTokenRecuperacion();
+                $usuario->guardar();
+            }
+
+            header(
+                'Location: /recuperar-password?token_invalido=1'
+            );
+            exit;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+            $usuario->password =
+                $_POST['password'] ?? '';
+
+            $usuario->password2 =
+                $_POST['password2'] ?? '';
+
+            $alertas = $usuario->validarCambioPassword();
+
+            if (empty($alertas)) {
+
+                // Guardar la nueva contraseña hasheada.
+                $usuario->hashPassword();
+
+            /*
+             * El usuario ya estableció su propia contraseña,
+             * por lo que no debe cambiarla nuevamente al iniciar.
+             */
+                $usuario->debe_cambiar_password = 0;
+
+                // El enlace se vuelve inutilizable.
+                $usuario->limpiarTokenRecuperacion();
+
+                //Eliminar propiedad no persistente
+                unset($usuario->password2);
+
+                $resultado = $usuario->guardar();
+
+                if ($resultado) {
+                    header(
+                        'Location: /?password_actualizado=1'
+                    );
+                    exit;
+                }
+
+                $alertas['error'][] =
+                    'No fue posible actualizar la contraseña. '
+                    . 'Intenta nuevamente.';
+            }
+        }
+
+        $router->render('auth/restablecer-password', [
+            'titulo' => 'Restablecer contraseña',
+            'login' => $login,
+            'alertas' => $alertas,
+            'token' => $token
         ]);
     }
 }

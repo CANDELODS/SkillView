@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 require_once __DIR__ . '/../includes/app.php';
 
@@ -27,11 +27,18 @@ $router->post('/logout', [AuthController::class, 'logout']);
 $router->get('/registro', [AuthController::class, 'registro']);
 $router->post('/registro', [AuthController::class, 'registro']);
 
-//Cambiar Password
+//CAMBIAR PASSWORD
+//recuperar-password: Solicita el correo y envía el enlace
 $router->get('/recuperar-password', [AuthController::class, 'recuperarPassword']);
 $router->post('/recuperar-password', [AuthController::class, 'recuperarPassword']);
+//cambiar-password: Cambio obligatorio después de iniciar sesión con una contraseña temporal del admin
 $router->get('/cambiar-password', [AuthController::class, 'cambiarPassword']);
 $router->post('/cambiar-password', [AuthController::class, 'cambiarPassword']);
+
+// RECUPERACIÓN AUTOMÁTICA MEDIANTE CORREO
+//restablecer-password: Recibe el token y permite establecer la contraseña.
+$router->get('/restablecer-password', [AuthController::class, 'restablecerPassword']);
+$router->post('/restablecer-password', [AuthController::class, 'restablecerPassword']);
 
 //--------------------ÁREA DE ADMINISTRACIÓN--------------------
 $router->get('/admin/dashboard', [DashboardController::class, 'index']);
