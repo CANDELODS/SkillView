@@ -163,6 +163,12 @@ class AuthController
             $usuario->sincronizar($_POST);
 
             /*
+            * Un checkbox desmarcado no llega dentro de $_POST.
+            * Convertimos expresamente su estado a 1 o 0.
+            */
+            $usuario->autoriza_tratamiento_datos = isset($_POST['autoriza_tratamiento_datos']) &&
+                $_POST['autoriza_tratamiento_datos'] === '1' ? 1 : 0;
+            /*
             * Forzar los valores administrativos del usuario.
             * No se toman desde la petición enviada por el navegador.
             */
@@ -257,7 +263,7 @@ class AuthController
             'correo' => $_POST['correo'] ?? ''
         ]);
 
-    /*
+        /*
      * Este mensaje se muestra cuando el enlace recibido
      * no existe, expiró o ya fue utilizado.
      */
@@ -276,7 +282,7 @@ class AuthController
 
             if (empty($alertas)) {
 
-            /*
+                /*
              * La búsqueda se realiza internamente.
              * La respuesta pública siempre será genérica.
              */
@@ -538,7 +544,7 @@ class AuthController
                 // Guardar la nueva contraseña hasheada.
                 $usuario->hashPassword();
 
-            /*
+                /*
              * El usuario ya estableció su propia contraseña,
              * por lo que no debe cambiarla nuevamente al iniciar.
              */

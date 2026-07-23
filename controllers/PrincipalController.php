@@ -5,8 +5,10 @@ namespace Controllers;
 use Model\Usuario;
 use MVC\Router;
 
-class PrincipalController {
-    public static function index(Router $router) {
+class PrincipalController
+{
+    public static function index(Router $router)
+    {
         // Verificamos si el usuario está autenticado
         if (!isAuth()) {
             header('Location: /');
@@ -24,12 +26,21 @@ class PrincipalController {
         ]);
     }
 
-    public static function notFound(Router $router) {
+    public static function notFound(Router $router)
+    {
         $login = true;
         // Render a la vista 
         $router->render('paginas/404', [
             'titulo' => 'Página No Encontrada',
             'login' => $login
+        ]);
+    }
+
+    public static function politicaTratamientoDatos(Router $router)
+    {
+        $router->render('paginas/politica-tratamiento-datos', [
+            'titulo' => 'Política de Tratamiento de Datos Personales',
+            'login' => true
         ]);
     }
 }

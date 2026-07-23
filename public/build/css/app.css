@@ -4346,6 +4346,171 @@ body:not(.login) {
   line-height: 2.4rem;
 }
 
+.data-policy {
+  min-height: 100vh;
+  padding: 3rem 0 5rem;
+  background-color: #FEF5F4;
+  color: #1E293B;
+}
+@media (min-width: 768px) {
+  .data-policy {
+    padding: 5rem 0 7rem;
+  }
+}
+.data-policy__container {
+  width: min(95%, 80rem);
+  margin: 0 auto;
+  padding: 2.5rem 2rem;
+  background-color: white;
+  border: 1px solid #EFC7BD;
+  border-radius: 1.6rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+}
+@media (min-width: 768px) {
+  .data-policy__container {
+    padding: 4rem;
+  }
+}
+@media (min-width: 1024px) {
+  .data-policy__container {
+    padding: 5rem;
+  }
+}
+.data-policy__header {
+  padding-bottom: 2.5rem;
+  margin-bottom: 3rem;
+  text-align: center;
+  border-bottom: 1px solid oklch(90% 0.01 30deg);
+}
+@media (min-width: 768px) {
+  .data-policy__header {
+    padding-bottom: 3rem;
+    margin-bottom: 4rem;
+  }
+}
+.data-policy__title {
+  margin: 0 0 1.5rem;
+  color: #1E293B;
+  font-size: 2.8rem;
+  line-height: 1.2;
+}
+@media (min-width: 768px) {
+  .data-policy__title {
+    font-size: 3.6rem;
+  }
+}
+@media (min-width: 1024px) {
+  .data-policy__title {
+    font-size: 4rem;
+  }
+}
+.data-policy__intro {
+  max-width: 65rem;
+  margin: 0 auto;
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.6rem;
+  line-height: 1.7;
+}
+@media (min-width: 768px) {
+  .data-policy__intro {
+    font-size: 1.8rem;
+  }
+}
+.data-policy__section {
+  padding: 2rem 0;
+}
+@media (min-width: 768px) {
+  .data-policy__section {
+    padding: 2.5rem 0;
+  }
+}
+.data-policy__section + .data-policy__section {
+  border-top: 1px solid oklch(90% 0.01 30deg);
+}
+.data-policy__subtitle {
+  margin: 0 0 1.5rem;
+  padding-left: 1.2rem;
+  color: #A22915;
+  font-size: 2rem;
+  line-height: 1.3;
+  border-left: 0.4rem solid #EB4328;
+}
+@media (min-width: 768px) {
+  .data-policy__subtitle {
+    font-size: 2.2rem;
+  }
+}
+.data-policy__text {
+  margin: 0;
+  color: #413c3c;
+  font-size: 1.6rem;
+  line-height: 1.8;
+  text-align: left;
+}
+@media (min-width: 768px) {
+  .data-policy__text {
+    font-size: 1.7rem;
+    text-align: justify;
+  }
+}
+.data-policy__text + .data-policy__text {
+  margin-top: 1.2rem;
+}
+.data-policy__text strong {
+  color: #1E293B;
+  font-weight: 700;
+}
+.data-policy__text a {
+  color: #EB4328;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.3rem;
+  transition: color 0.2s ease;
+}
+.data-policy__text a:hover {
+  color: #A22915;
+}
+.data-policy__actions {
+  display: flex;
+  justify-content: center;
+  padding-top: 3rem;
+  margin-top: 2rem;
+  border-top: 1px solid oklch(90% 0.01 30deg);
+}
+.data-policy__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 1.4rem 2.5rem;
+  color: white;
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-align: center;
+  background-color: #EB4328;
+  border: none;
+  border-radius: 10px;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+@media (min-width: 480px) {
+  .data-policy__back {
+    width: auto;
+    min-width: 22rem;
+  }
+}
+.data-policy__back:hover {
+  background-color: #A22915;
+  box-shadow: 0 0.6rem 1.5rem rgba(162, 41, 21, 0.2);
+  transform: translateY(-0.2rem);
+}
+.data-policy__back:active {
+  transform: translateY(0);
+}
+.data-policy__back:focus-visible {
+  outline: 0.3rem solid rgba(235, 67, 40, 0.3);
+  outline-offset: 0.3rem;
+}
+
 /* ====== CARDS DEL DASHBOARD ====== */
 .admin-card {
   background-color: #fff;
@@ -5239,11 +5404,13 @@ body:not(.login) {
 
 .login {
   background: #FEF5F4;
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 1rem;
+  padding: 3rem 1rem;
+  overflow-x: hidden;
 }
 .login__card {
   background: #fff;
@@ -5418,7 +5585,6 @@ body:not(.login) {
   }
 }
 .register, .register--edit {
-  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -5484,18 +5650,18 @@ body:not(.login) {
   gap: 2rem;
   grid-template-columns: repeat(2, 1fr);
   grid-auto-rows: auto;
-  grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "habilitado habilitado" "button button";
+  grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "habilitado habilitado" "privacy privacy" "button button";
   align-items: center;
 }
 .register__form--edit {
-  grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "habilitado habilitado" "button button" "buttonBack buttonBack";
+  grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "habilitado habilitado" "privacy privacy" "button button" "buttonBack buttonBack";
 }
 @media (min-width: 1024px) {
   .register__form--edit {
-    grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "habilitado habilitado" "button buttonBack";
+    grid-template-areas: "nombres apellidos" "edad sexo" "universidad carrera" "correo correo" "contraseña contraseña" "contraseña2 contraseña2" "habilitado habilitado" "privacy privacy" "button buttonBack";
   }
 }
-.register__field, .register__field--habilitado, .register__field--contraseña2, .register__field--contraseña, .register__field--correo, .register__field--carrera, .register__field--universidad, .register__field--sexo, .register__field--edad, .register__field--apellidos, .register__field--nombres {
+.register__field, .register__field--privacy, .register__field--habilitado, .register__field--contraseña2, .register__field--contraseña, .register__field--correo, .register__field--carrera, .register__field--universidad, .register__field--sexo, .register__field--edad, .register__field--apellidos, .register__field--nombres {
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -5541,11 +5707,19 @@ body:not(.login) {
     flex-direction: row;
   }
 }
-.register__label {
+.register__field--privacy {
+  grid-area: privacy;
+}
+.register__label, .register__label--privacy {
   font-size: 1.4rem;
   font-weight: 600;
   color: black;
   text-align: left;
+}
+.register__label--privacy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 .register__input {
   width: 100%;
@@ -5566,6 +5740,27 @@ body:not(.login) {
 .register__check--check {
   transform: scale(2);
   accent-color: #EB4328;
+}
+.register__privacy-check {
+  width: 2.8rem;
+  height: 2.8rem;
+  margin-top: 0.3rem;
+  accent-color: #EB4328;
+  cursor: pointer;
+}
+.register__privacy-text {
+  color: oklch(50% 0.01 30deg);
+  font-size: 1.4rem;
+  line-height: 1.5;
+  margin-top: 0.5rem;
+}
+.register__privacy-link {
+  color: #EB4328;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.register__privacy-link:hover {
+  color: #A22915;
 }
 .register__button, .register__button--back {
   background-color: #EB4328;

@@ -5,7 +5,7 @@ namespace Model;
 class Usuario extends ActiveRecord
 {
     protected static $tabla = 'usuarios';
-    protected static $columnasDB = ['id', 'nombres', 'apellidos', 'edad', 'sexo', 'correo', 'password', 'universidad', 'carrera', 'admin', 'debe_cambiar_password', 'habilitado', 'token_recuperacion', 'token_expiracion'];
+    protected static $columnasDB = ['id', 'nombres', 'apellidos', 'edad', 'sexo', 'correo', 'password', 'universidad', 'carrera', 'admin', 'debe_cambiar_password', 'habilitado', 'token_recuperacion', 'token_expiracion', 'autoriza_tratamiento_datos'];
 
     public $id;
     public $nombres;
@@ -22,6 +22,7 @@ class Usuario extends ActiveRecord
     public $habilitado;
     public $token_recuperacion;
     public $token_expiracion;
+    public $autoriza_tratamiento_datos;
 
     public $password_actual;
     public $password_nuevo;
@@ -55,6 +56,7 @@ class Usuario extends ActiveRecord
         $this->habilitado = $args['habilitado'] ?? null;
         $this->token_recuperacion = $args['token_recuperacion'] ?? '';
         $this->token_expiracion = $args['token_expiracion'] ?? 0;
+        $this->autoriza_tratamiento_datos = $args['autoriza_tratamiento_datos'] ?? 0;
     }
 
     // Validar el Login de Usuarios
@@ -107,6 +109,13 @@ class Usuario extends ActiveRecord
 
         if (!filter_var($this->correo, FILTER_VALIDATE_EMAIL)) {
             self::setAlerta('error', 'Correo no válido');
+        }
+
+        if ((string) $this->autoriza_tratamiento_datos !== '1') {
+            self::setAlerta(
+                'error',
+                'Debes autorizar el tratamiento de tus datos personales para crear una cuenta'
+            );
         }
         // Valida la fortaleza mínima de la contraseña.
         // La contraseña debe tener entre 6 y 16 caracteres,
@@ -443,7 +452,8 @@ class Usuario extends ActiveRecord
      * Busca un usuario por correo de forma controlada.
      */
     //?self representa la clase donde está declarado el método, en este caso self = Usuario... o sea, Devuelve un Usuario o null
-    public static function buscarPorCorreoRecuperacion(string $correo): ?self {
+    public static function buscarPorCorreoRecuperacion(string $correo): ?self
+    {
         $correo = strtolower(trim($correo));
         $correo = self::$db->escape_string($correo);
 
@@ -462,7 +472,8 @@ class Usuario extends ActiveRecord
     /**
      * Busca al usuario propietario del hash del token.
      */
-    public static function buscarPorTokenRecuperacion(string $tokenHash): ?self {
+    public static function buscarPorTokenRecuperacion(string $tokenHash): ?self
+    {
         // Un hash SHA-256 hexadecimal debe tener 64 caracteres.
         //La expresión /^[a-f0-9]{64}$/ se interpreta así:
         /*

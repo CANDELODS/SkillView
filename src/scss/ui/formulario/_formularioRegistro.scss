@@ -2,7 +2,7 @@
 @use 'base/variables' as v;
 
 .register {
-    height: 100vh;
+    // height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -86,6 +86,7 @@
             "contraseña contraseña"
             "contraseña2 contraseña2"
             "habilitado habilitado"
+            "privacy privacy"
             "button button";
         align-items: center;
 
@@ -99,6 +100,7 @@
                 "contraseña contraseña"
                 "contraseña2 contraseña2"
                 "habilitado habilitado"
+                "privacy privacy"
                 "button button"
                 "buttonBack buttonBack";
 
@@ -111,6 +113,7 @@
                     "contraseña contraseña"
                     "contraseña2 contraseña2"
                     "habilitado habilitado"
+                    "privacy privacy"
                     "button buttonBack";
             }
         }
@@ -181,6 +184,11 @@
                 flex-direction: row;
             }
         }
+
+        &--privacy {
+            @extend .register__field;
+            grid-area: privacy;
+        }
     }
 
     // LABELS
@@ -189,6 +197,13 @@
         font-weight: 600;
         color: black;
         text-align: left;
+
+        &--privacy {
+            @extend .register__label;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
     }
 
     // INPUTS
@@ -215,6 +230,31 @@
         &--check {
             transform: scale(2);
             accent-color: v.$primary;
+        }
+    }
+
+    &__privacy-check {
+        width: 2.8rem;
+        height: 2.8rem;
+        margin-top: .3rem;
+        accent-color: v.$primary;
+        cursor: pointer;
+    }
+
+    &__privacy-text {
+        color: v.$p-gray;
+        font-size: 1.4rem;
+        line-height: 1.5;
+        margin-top: .5rem;
+    }
+
+    &__privacy-link {
+        color: v.$primary;
+        font-weight: v.$bold;
+        text-decoration: underline;
+
+        &:hover {
+            color: v.$primary-dark;
         }
     }
 

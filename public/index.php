@@ -40,6 +40,9 @@ $router->post('/cambiar-password', [AuthController::class, 'cambiarPassword']);
 $router->get('/restablecer-password', [AuthController::class, 'restablecerPassword']);
 $router->post('/restablecer-password', [AuthController::class, 'restablecerPassword']);
 
+//POLÍTICA TRATAMIENTO DE DATOS
+$router->get('/politica-tratamiento-datos', [PrincipalController::class, 'politicaTratamientoDatos']);
+
 //--------------------ÁREA DE ADMINISTRACIÓN--------------------
 $router->get('/admin/dashboard', [DashboardController::class, 'index']);
 //ADMINISTRAR USUARIOS

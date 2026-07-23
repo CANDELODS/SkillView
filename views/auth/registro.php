@@ -155,6 +155,29 @@
           maxlength="16"
           minlength="6">
       </div>
+
+      <!-- Política -->
+      <div class="register__field--privacy">
+
+        <label class="register__label--privacy" for="autoriza_tratamiento_datos">
+          <input class="register__privacy-check" type="checkbox" id="autoriza_tratamiento_datos"
+            name="autoriza_tratamiento_datos"
+            value="1"
+            <?php
+            echo (string) $usuario->autoriza_tratamiento_datos === '1' ? 'checked' : '';
+            ?>>
+          <span class="register__privacy-text">
+            He leído y autorizo de manera previa, expresa e informada
+            el tratamiento de mis datos personales de acuerdo con la
+
+            <a class="register__privacy-link" href="/politica-tratamiento-datos" target="_blank" rel="noopener noreferrer">
+              Política de Tratamiento de Datos Personales
+            </a>.
+
+          </span>
+        </label>
+
+      </div>
       <!-- Submit -->
       <button class="register__button" type="submit">Crear Cuenta</button>
 
