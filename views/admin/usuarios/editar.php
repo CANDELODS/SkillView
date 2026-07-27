@@ -58,7 +58,7 @@
         <input
           class="register__input"
           type="number"
-          min="15"
+          min="18"
           max="35"
           placeholder="25"
           id="edad"
