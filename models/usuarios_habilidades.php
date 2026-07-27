@@ -7,6 +7,7 @@ namespace Model;
 use Model\ActiveRecord;
 use Model\usuarios_lecciones;
 use Model\usuarios_retos;
+use Classes\ProgresoService;
 
 // Modelo que representa la tabla usuarios_habilidades.
 // Esta tabla guarda el progreso consolidado del usuario por cada habilidad blanda.
@@ -159,18 +160,14 @@ class usuarios_habilidades extends ActiveRecord
      */
     public static function calcularNivelPorProgreso(float $progreso): int
     {
-        // Si el progreso es 67 o más, el nivel es Avanzado.
-        if ($progreso >= 67) {
-            return 3;
-        }
+        $nivelTexto = ProgresoService::determinarNivel($progreso);
 
-        // Si el progreso es 34 o más, el nivel es Intermedio.
-        if ($progreso >= 34) {
-            return 2;
-        }
-
-        // En cualquier otro caso, queda en Básico.
-        return 1;
+        return match ($nivelTexto) {
+            'Básico' => 1,
+            'Intermedio' => 2,
+            'Avanzado' => 3,
+            default => 1
+        };
     }
 
     /**
@@ -252,42 +249,45 @@ class usuarios_habilidades extends ActiveRecord
         $retosCompletados = usuarios_retos::totalCompletadosPorHabilidad($idUsuario, $idHabilidad);
 
         // -------------------------
-        // PORCENTAJE DE LECCIONES Y RETOS
+        // PORCENTAJE DE LECCIONES
         // -------------------------
-        // Calcula el porcentaje de avance en lecciones.
-        // Si no hay lecciones, se mantiene en 0 para evitar división por cero.
-        $porcentajeLecciones = 0;
+        // ProgresoService recibe porcentajes entre 0 y 100,
+        // por lo que la proporción se multiplica por 100.
+        $porcentajeLecciones = 0.0;
+
         if ($totalLecciones > 0) {
-            $porcentajeLecciones = $leccionesCompletadas / $totalLecciones;
+            $porcentajeLecciones =
+                ($leccionesCompletadas / $totalLecciones) * 100;
+
+            // Garantiza que el porcentaje no sea mayor a 100
+            // ante posibles datos duplicados o inconsistentes.
+            $porcentajeLecciones = min(100.0, $porcentajeLecciones);
         }
 
-        // Calcula el porcentaje de avance en retos.
-        // Si no hay retos, se mantiene en 0.
-        $porcentajeRetos = 0;
+        // -------------------------
+        // PORCENTAJE DE RETOS
+        // -------------------------
+        $porcentajeRetos = 0.0;
+
         if ($totalRetos > 0) {
-            $porcentajeRetos = $retosCompletados / $totalRetos;
+            $porcentajeRetos =
+                ($retosCompletados / $totalRetos) * 100;
+
+            $porcentajeRetos = min(100.0, $porcentajeRetos);
         }
 
         // -------------------------
-        // PROGRESO FINAL (50% + 50%)
+        // PROGRESO CONSOLIDADO
         // -------------------------
-        // La regla de negocio de SkillView define que:
-        // - las lecciones representan el 50% del progreso,
-        // - los retos representan el otro 50%.
-        //
-        // Por eso cada porcentaje se multiplica por 50.
-        $progreso =
-            ($porcentajeLecciones * 50) +
-            ($porcentajeRetos * 50);
+        // La fórmula 50 % lecciones + 50 % retos
+        // ahora se encuentra centralizada en ProgresoService.
+        $progreso = ProgresoService::calcularProgreso(
+            $porcentajeLecciones,
+            $porcentajeRetos
+        );
 
-        // Redondea el resultado a 2 decimales para mantener consistencia visual y numérica.
-        $progreso = round($progreso, 2);
-
-        // -------------------------
-        // NIVEL SEGÚN PROGRESO
-        // -------------------------
-        // Convierte el porcentaje final a un nivel numérico:
-        // 1, 2 o 3.
+        // Convierte el nivel textual del servicio al valor
+        // numérico almacenado en la base de datos.
         $nivel = self::calcularNivelPorProgreso($progreso);
 
         // Fecha actual para registrar cuándo se recalculó el progreso.

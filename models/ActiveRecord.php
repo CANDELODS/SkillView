@@ -1,6 +1,9 @@
 <?php
+
 namespace Model;
-class ActiveRecord {
+
+class ActiveRecord
+{
 
     // Base DE DATOS
     protected static $db;
@@ -9,36 +12,41 @@ class ActiveRecord {
 
     // Alertas y Mensajes
     protected static $alertas = [];
-    
+
     // Definir la conexión a la BD - includes/database.php
-    public static function setDB($database) {
+    public static function setDB($database)
+    {
         self::$db = $database;
     }
 
     // Setear un tipo de Alerta
-    public static function setAlerta($tipo, $mensaje) {
+    public static function setAlerta($tipo, $mensaje)
+    {
         static::$alertas[$tipo][] = $mensaje;
     }
 
     // Obtener las alertas
-    public static function getAlertas() {
+    public static function getAlertas()
+    {
         return static::$alertas;
     }
 
     // Validación que se hereda en modelos
-    public function validar() {
+    public function validar()
+    {
         static::$alertas = [];
         return static::$alertas;
     }
 
     // Consulta SQL para crear un objeto en Memoria (Active Record)
-    public static function consultarSQL($query) {
+    public static function consultarSQL($query)
+    {
         // Consultar la base de datos
         $resultado = self::$db->query($query);
 
         // Iterar los resultados
         $array = [];
-        while($registro = $resultado->fetch_assoc()) {
+        while ($registro = $resultado->fetch_assoc()) {
             $array[] = static::crearObjeto($registro);
         }
 
@@ -50,11 +58,12 @@ class ActiveRecord {
     }
 
     // Crea el objeto en memoria que es igual al de la BD
-    protected static function crearObjeto($registro) {
+    protected static function crearObjeto($registro)
+    {
         $objeto = new static;
 
-        foreach($registro as $key => $value ) {
-            if(property_exists( $objeto, $key  )) {
+        foreach ($registro as $key => $value) {
+            if (property_exists($objeto, $key)) {
                 $objeto->$key = $value;
             }
         }
@@ -62,38 +71,42 @@ class ActiveRecord {
     }
 
     // Identificar y unir los atributos de la BD
-    public function atributos() {
+    public function atributos()
+    {
         $atributos = [];
-        foreach(static::$columnasDB as $columna) {
-            if($columna === 'id') continue;
+        foreach (static::$columnasDB as $columna) {
+            if ($columna === 'id') continue;
             $atributos[$columna] = $this->$columna;
         }
         return $atributos;
     }
 
     // Sanitizar los datos antes de guardarlos en la BD
-    public function sanitizarAtributos() {
+    public function sanitizarAtributos()
+    {
         $atributos = $this->atributos();
         $sanitizado = [];
-        foreach($atributos as $key => $value ) {
+        foreach ($atributos as $key => $value) {
             $sanitizado[$key] = self::$db->escape_string($value);
         }
         return $sanitizado;
     }
 
     // Sincroniza BD con Objetos en memoria
-    public function sincronizar($args=[]) { 
-        foreach($args as $key => $value) {
-          if(property_exists($this, $key) && !is_null($value)) {
-            $this->$key = $value;
-          }
+    public function sincronizar($args = [])
+    {
+        foreach ($args as $key => $value) {
+            if (property_exists($this, $key) && !is_null($value)) {
+                $this->$key = $value;
+            }
         }
     }
 
     // Registros - CRUD
-    public function guardar() {
+    public function guardar()
+    {
         $resultado = '';
-        if(!is_null($this->id)) {
+        if (!is_null($this->id)) {
             // actualizar
             $resultado = $this->actualizar();
         } else {
@@ -104,42 +117,52 @@ class ActiveRecord {
     }
 
     // Obtener todos los Registros
-    public static function all() {
+    public static function all()
+    {
         $query = "SELECT * FROM " . static::$tabla . " ORDER BY id DESC";
         $resultado = self::consultarSQL($query);
         return $resultado;
     }
 
     // Busca un registro por su id
-    public static function find($id) {
-        $query = "SELECT * FROM " . static::$tabla  ." WHERE id = ${id}";
+    public static function find($id)
+    {
+        $query = "SELECT * FROM " . static::$tabla . " WHERE id = {$id}";
         $resultado = self::consultarSQL($query);
-        return array_shift( $resultado ) ;
+        return array_shift($resultado);
     }
 
     // Obtener Registros con cierta cantidad
-    public static function get($limite) {
-        $query = "SELECT * FROM " . static::$tabla . " LIMIT ${limite} ORDER BY id DESC" ;
+    public static function get($limite)
+    {
+        $limite = (int)$limite;
+
+        $query = "SELECT * FROM " . static::$tabla . "
+              ORDER BY id DESC
+              LIMIT {$limite}";
+
         $resultado = self::consultarSQL($query);
-        return array_shift( $resultado ) ;
+        return array_shift($resultado);
     }
 
     // Busqueda Where con Columna 
-    public static function where($columna, $valor) {
-        $query = "SELECT * FROM " . static::$tabla . " WHERE ${columna} = '${valor}'";
+    public static function where($columna, $valor)
+    {
+        $query = "SELECT * FROM " . static::$tabla . " WHERE {$columna} = '{$valor}'";
         $resultado = self::consultarSQL($query);
-        return array_shift( $resultado ) ;
+        return array_shift($resultado);
     }
 
     // crea un nuevo registro
-    public function crear() {
+    public function crear()
+    {
         // Sanitizar los datos
         $atributos = $this->sanitizarAtributos();
 
         // Insertar en la base de datos
         $query = " INSERT INTO " . static::$tabla . " ( ";
         $query .= join(', ', array_keys($atributos));
-        $query .= " ) VALUES (' "; 
+        $query .= " ) VALUES (' ";
         $query .= join("', '", array_values($atributos));
         $query .= " ') ";
 
@@ -148,27 +171,28 @@ class ActiveRecord {
         // Resultado de la consulta
         $resultado = self::$db->query($query);
         return [
-           'resultado' =>  $resultado,
-           'id' => self::$db->insert_id
+            'resultado' =>  $resultado,
+            'id' => self::$db->insert_id
         ];
     }
 
     // Actualizar el registro
-    public function actualizar() {
+    public function actualizar()
+    {
         // Sanitizar los datos
         $atributos = $this->sanitizarAtributos();
 
         // Iterar para ir agregando cada campo de la BD
         $valores = [];
-        foreach($atributos as $key => $value) {
+        foreach ($atributos as $key => $value) {
             $valores[] = "{$key}='{$value}'";
         }
 
         // Consulta SQL
-        $query = "UPDATE " . static::$tabla ." SET ";
-        $query .=  join(', ', $valores );
+        $query = "UPDATE " . static::$tabla . " SET ";
+        $query .=  join(', ', $valores);
         $query .= " WHERE id = '" . self::$db->escape_string($this->id) . "' ";
-        $query .= " LIMIT 1 "; 
+        $query .= " LIMIT 1 ";
 
         // Actualizar BD
         $resultado = self::$db->query($query);
@@ -176,14 +200,15 @@ class ActiveRecord {
     }
 
     // Eliminar un Registro por su ID
-    public function eliminar() {
+    public function eliminar()
+    {
         $query = "DELETE FROM "  . static::$tabla . " WHERE id = " . self::$db->escape_string($this->id) . " LIMIT 1";
         $resultado = self::$db->query($query);
         return $resultado;
     }
 
     //------------------PAGINACIÓN Y BUSQUEDA------------------//
-        //Traer el total de registros
+    //Traer el total de registros
     public static function total()
     {
         $query = "SELECT COUNT(*) FROM " . static::$tabla;
@@ -197,39 +222,46 @@ class ActiveRecord {
     //Paginar Registros
     public static function paginar($ordenar, $porPagina, $offset)
     {
-        $query = "SELECT * FROM " . static::$tabla . " ORDER BY ${ordenar} ASC LIMIT ${porPagina} OFFSET ${offset} ";
-        $resultado = self::consultarSQL($query);
-        return $resultado;
+        $porPagina = (int)$porPagina;
+        $offset = (int)$offset;
+
+        $query = "SELECT * FROM " . static::$tabla . "
+              ORDER BY {$ordenar} ASC
+              LIMIT {$porPagina}
+              OFFSET {$offset}";
+
+        return self::consultarSQL($query);
     }
 
     // Buscar por varias columnas usando LIKE
-    public static function buscar($termino, $columnas = []) {
-    // Escapar el término
-    $termino = self::$db->escape_string($termino);
+    public static function buscar($termino, $columnas = [])
+    {
+        // Escapar el término
+        $termino = self::$db->escape_string($termino);
 
-    // Si no hay columnas, no buscamos
-    if (empty($columnas)) return [];
+        // Si no hay columnas, no buscamos
+        if (empty($columnas)) return [];
 
-    // Construimos el WHERE dinámico
-    $where = [];
-    foreach ($columnas as $columna) {
-        $where[] = "{$columna} LIKE '%{$termino}%'";
-    }
-    /*
+        // Construimos el WHERE dinámico
+        $where = [];
+        foreach ($columnas as $columna) {
+            $where[] = "{$columna} LIKE '%{$termino}%'";
+        }
+        /*
     "nombres LIKE '%yos%'",
     "apellidos LIKE '%yos%'",
     "correo LIKE '%yos%'"
     */
 
-    // Unimos todas las condiciones con OR
-    //Join une todos los elementos de un array en una sola cadena, usando un separador: join($separador, $array)
-    $whereSQL = join(" OR ", $where);
+        // Unimos todas las condiciones con OR
+        //Join une todos los elementos de un array en una sola cadena, usando un separador: join($separador, $array)
+        $whereSQL = join(" OR ", $where);
 
-    //nombres LIKE '%yos%' OR apellidos LIKE '%yos%' OR correo LIKE '%yos%'
+        //nombres LIKE '%yos%' OR apellidos LIKE '%yos%' OR correo LIKE '%yos%'
 
-    $query = "SELECT * FROM " . static::$tabla . " WHERE {$whereSQL} ORDER BY id DESC";
+        $query = "SELECT * FROM " . static::$tabla . " WHERE {$whereSQL} ORDER BY id DESC";
 
-    /*
+        /*
     SELECT * FROM usuarios 
     WHERE nombres LIKE '%yos%' 
     OR apellidos LIKE '%yos%' 
@@ -237,54 +269,56 @@ class ActiveRecord {
     ORDER BY id DESC;
     */
 
-    return self::consultarSQL($query);
+        return self::consultarSQL($query);
     }
 
     // Total de registros que cumplen una búsqueda
-    public static function totalBusqueda($termino, $columnas = []) {
+    public static function totalBusqueda($termino, $columnas = [])
+    {
 
-    $termino = self::$db->escape_string($termino);
+        $termino = self::$db->escape_string($termino);
 
-    if (empty($columnas)) return 0;
+        if (empty($columnas)) return 0;
 
-    $where = [];
-    foreach ($columnas as $columna) {
-        $where[] = "{$columna} LIKE '%{$termino}%'";
-    }
+        $where = [];
+        foreach ($columnas as $columna) {
+            $where[] = "{$columna} LIKE '%{$termino}%'";
+        }
 
-    $whereSQL = join(" OR ", $where);
+        $whereSQL = join(" OR ", $where);
 
-    $query = "SELECT COUNT(*) FROM " . static::$tabla . " WHERE {$whereSQL}";
-    /*
+        $query = "SELECT COUNT(*) FROM " . static::$tabla . " WHERE {$whereSQL}";
+        /*
     SELECT COUNT(*) 
     FROM usuarios
     WHERE nombres LIKE '%juan%' OR apellidos LIKE '%juan%' OR correo LIKE '%juan%'
     */
-    $resultado = self::$db->query($query);
-    $total = $resultado->fetch_array();
-    return array_shift($total);
+        $resultado = self::$db->query($query);
+        $total = $resultado->fetch_array();
+        return array_shift($total);
     }
 
     // Registros paginados que cumplen una búsqueda
-    public static function paginarBusqueda($termino, $columnas = [], $ordenar, $porPagina, $offset) {
+    public static function paginarBusqueda($termino, $columnas, $ordenar, $porPagina, $offset)
+    {
 
-    $termino = self::$db->escape_string($termino);
+        $termino = self::$db->escape_string($termino);
 
-    if (empty($columnas)) return [];
+        if (empty($columnas)) return [];
 
-    $where = [];
-    foreach ($columnas as $columna) {
-        $where[] = "{$columna} LIKE '%{$termino}%'";
-    }
+        $where = [];
+        foreach ($columnas as $columna) {
+            $where[] = "{$columna} LIKE '%{$termino}%'";
+        }
 
-    $whereSQL = join(" OR ", $where);
+        $whereSQL = join(" OR ", $where);
 
-    $query = "SELECT * FROM " . static::$tabla . " 
+        $query = "SELECT * FROM " . static::$tabla . " 
               WHERE {$whereSQL}
               ORDER BY {$ordenar} ASC
               LIMIT {$porPagina} OFFSET {$offset}";
 
-    /*
+        /*
     SELECT * 
     FROM usuarios 
     WHERE nombres LIKE '%juan%' OR apellidos LIKE '%juan%' OR correo LIKE '%juan%'
@@ -293,28 +327,31 @@ class ActiveRecord {
 
     */
 
-    return self::consultarSQL($query);
+        return self::consultarSQL($query);
     }
     //------------------FIN PAGINACIÓN Y BUSQUEDA------------------//
 
     //------------------APRENDIZAJE CARDS------------------//
     //Traer el total (Número) de registros dependiendo de una condición
-        public static function totalIf($columna = '', $valor = '')
+    public static function totalIf($columna = '', $valor = '')
     {
         $query = "SELECT COUNT(*) FROM " . static::$tabla;
-        if ($columna) {
-            $query .= " WHERE ${columna} = ${valor}";
+
+        if ($columna !== '') {
+            $query .= " WHERE {$columna} = {$valor}";
         }
+
         $resultado = self::$db->query($query);
-        $total = $resultado->fetch_array(); //Traemos Los Resultados
-        return array_shift($total); //Array Shift Extrae El Primer Registro Del Arreglo
+        $total = $resultado->fetch_array();
+
+        return array_shift($total);
     }
 
     // Busqueda Where con Columna y sin array_shift para traer todos los resultados
-    public static function whereSAF($columna, $valor) {
-        $query = "SELECT * FROM " . static::$tabla . " WHERE ${columna} = '${valor}'";
-        $resultado = self::consultarSQL($query);
-        return $resultado;
+    public static function whereSAF($columna, $valor)
+    {
+        $query = "SELECT * FROM " . static::$tabla . " WHERE {$columna} = '{$valor}'";
+        return self::consultarSQL($query);
     }
     //------------------FIN APRENDIZAJE CARDS------------------//
 }
