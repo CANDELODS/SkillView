@@ -29,7 +29,7 @@ class Usuario extends ActiveRecord
 
     // Constantes de validación centralizadas.
     // Se usan para evitar números "quemados" dentro de los métodos y facilitar cambios futuros.
-    private const EDAD_MINIMA = 15;
+    private const EDAD_MINIMA = 18;
     private const EDAD_MAXIMA = 35;
     private const PASSWORD_MIN = 6;
     private const PASSWORD_MAX = 16;
@@ -93,7 +93,7 @@ class Usuario extends ActiveRecord
         $this->validarTextoSinNumeros($this->nombres, 'El nombre', 25);
         $this->validarTextoSinNumeros($this->apellidos, 'El apellido', 25);
         // Valida que la edad esté dentro del rango definido para la población objetivo.
-        // En SkillView se limita entre 15 y 35 años.
+        // En SkillView se limita entre 18 y 35 años.
         $this->validarEdad();
         // Valida que el sexo corresponda a una opción permitida:
         // 0 = Masculino
@@ -324,7 +324,7 @@ class Usuario extends ActiveRecord
         $edad = filter_var($this->edad, FILTER_VALIDATE_INT);
 
         if ($edad === false || $edad < self::EDAD_MINIMA || $edad > self::EDAD_MAXIMA) {
-            self::setAlerta('error', 'La edad debe estar entre 15 y 35 años');
+            self::setAlerta('error', 'La edad debe estar entre 18 y 35 años');
         }
     }
 
