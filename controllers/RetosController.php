@@ -2,6 +2,8 @@
 
 namespace Controllers;
 
+use Classes\PorcentajeActividadService;
+use Classes\ProgresoService;
 use MVC\Router;
 use Model\Retos;
 use Model\Logros;
@@ -67,12 +69,16 @@ class RetosController
             $totalHab = $totalesHab[$idHab] ?? 0;
             $compHab  = $lookupCompletados[$idHab] ?? 0;
 
-            $porcentaje = ($totalHab > 0) ? (int) round(($compHab / $totalHab) * 100) : 0;
+            $porcentaje =
+                PorcentajeActividadService::calcular(
+                    (int) $compHab,
+                    (int) $totalHab
+                );
 
             // Asignamos nivel según el porcentaje
-            $nivel = 'Básico';
-            if ($porcentaje >= 70) $nivel = 'Intermedio';
-            if ($porcentaje >= 90) $nivel = 'Avanzado';
+            $nivel = ProgresoService::determinarNivel(
+                $porcentaje
+            );
 
             $progresoPorHabilidad[] = [
                 'nombre' => $hab->nombre,

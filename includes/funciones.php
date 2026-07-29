@@ -1,61 +1,97 @@
 <?php
 
+use Classes\FuncionesAuxiliaresService;
 use Model\Usuario;
 
-function debuguear($variable): string
+/**
+ * Muestra una variable con formato legible
+ * y detiene la ejecución.
+ */
+function debuguear($variable): void
 {
-    echo "<pre>";
+    echo '<pre>';
     var_dump($variable);
-    echo "</pre>";
+    echo '</pre>';
     exit;
 }
+
+/**
+ * Escapa contenido antes de mostrarlo en HTML.
+ */
 function s($html): string
 {
-    $s = htmlspecialchars($html);
-    return $s;
+    return FuncionesAuxiliaresService::sanitizarHtml(
+        $html
+    );
 }
 
+/**
+ * Comprueba que exista una sesión normal válida
+ * y que el usuario continúe habilitado.
+ */
 function isAuth(): bool
 {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
 
-    // No existe una sesión normal autenticada
-    if (
-        empty($_SESSION['id']) ||
-        empty($_SESSION['correo'])
-    ) {
-        return false;
-    }
-
-    $usuarioId = filter_var(
-        $_SESSION['id'],
-        FILTER_VALIDATE_INT
-    );
-
-    // El ID de la sesión no es válido
-    if (!$usuarioId) {
-        $_SESSION = [];
-        session_destroy();
-
-        return false;
-    }
-
-    // Consultar nuevamente el usuario en la base de datos
-    $usuario = Usuario::find((int) $usuarioId);
+    $sesion = $_SESSION ?? [];
 
     /*
-     * Se invalida la sesión si:
-     * - El usuario ya no existe.
-     * - Su cuenta está deshabilitada.
+     * Si faltan los datos básicos, no existe
+     * una sesión normal autenticada.
      */
     if (
-        !$usuario ||
-        (int) $usuario->habilitado !== 1
+        empty($sesion['id'])
+        || trim(
+            (string)($sesion['correo'] ?? '')
+        ) === ''
+    ) {
+        return false;
+    }
+
+    /*
+     * Valida localmente el identificador y el correo
+     * antes de realizar una consulta en MySQL.
+     */
+    if (
+        !FuncionesAuxiliaresService::
+            sesionTieneCredencialesValidas(
+                $sesion
+            )
     ) {
         $_SESSION = [];
-        session_destroy();
+
+        if (
+            session_status()
+            === PHP_SESSION_ACTIVE
+        ) {
+            session_destroy();
+        }
+
+        return false;
+    }
+
+    $usuarioId = (int) $sesion['id'];
+
+    /*
+     * Se consulta nuevamente el usuario para confirmar
+     * que todavía exista y continúe habilitado.
+     */
+    $usuario = Usuario::find($usuarioId);
+
+    if (
+        !$usuario
+        || (int) $usuario->habilitado !== 1
+    ) {
+        $_SESSION = [];
+
+        if (
+            session_status()
+            === PHP_SESSION_ACTIVE
+        ) {
+            session_destroy();
+        }
 
         return false;
     }
@@ -63,52 +99,45 @@ function isAuth(): bool
     return true;
 }
 
+/**
+ * Indica si la ruta recibida corresponde
+ * a la página actual o a una subruta.
+ */
 function pagina_actual($path): bool
 {
-    return str_contains($_SERVER['PATH_INFO'], $path) ? true : false;
+    return FuncionesAuxiliaresService::esPaginaActual(
+        $_SERVER['PATH_INFO'] ?? null,
+        (string) $path
+    );
 }
 
-function obtenerDatosUsuarioHeader(int $usuarioId): array
-{
-    // Valores por defecto
-    $datos = [
-        'nombreUsuario'    => 'Juan Candelo',
-        'inicialesUsuario' => 'JC'
-    ];
+/**
+ * Obtiene el nombre corto y las iniciales
+ * que se muestran en el encabezado.
+ */
+function obtenerDatosUsuarioHeader(
+    int $usuarioId
+): array {
+    $datosPorDefecto =
+        FuncionesAuxiliaresService::
+            construirDatosHeader(
+                null,
+                null
+            );
+
+    if ($usuarioId <= 0) {
+        return $datosPorDefecto;
+    }
 
     $usuario = Usuario::find($usuarioId);
 
     if (!$usuario) {
-        return $datos;
+        return $datosPorDefecto;
     }
 
-    // Tomamos nombres y apellidos desde la BD
-    $nombres   = trim($usuario->nombres ?? '');
-    $apellidos = trim($usuario->apellidos ?? '');
-
-    // preg_split divide un string en partes por medio de una expresión regular como separador
-    //Soporta tabulaciones, saltos de linea y más. /\s+/ = Cualquier espacio en blanco (Espacio normal, tab, salto de línea, etc)
-    //+ = Uno o más. "Juan Sebastian" -> ["Juan", "Sebastian"]
-    $nParts = preg_split('/\s+/', $nombres);
-    $aParts = preg_split('/\s+/', $apellidos);
-    //Obtenemos la primer parte del arreglo
-    $primerNombre   = $nParts[0] ?? '';
-    $primerApellido = $aParts[0] ?? '';
-
-    // Nombre corto: "PrimerNombre PrimerApellido"
-    $nombreCorto = trim($primerNombre . ' ' . $primerApellido);
-    if ($nombreCorto !== '') {
-        $datos['nombreUsuario'] = $nombreCorto;
-    }
-
-    // Iniciales usando mb_substr por si hay acentos
-    //Además nos devuelve el tecto en MAYUSCULA
-    $datos['inicialesUsuario'] = mb_strtoupper(
-        //mb_substr: Toma la primera letra del texto sin importar si tiene acentos o no.
-        mb_substr($primerNombre, 0, 1, 'UTF-8') .
-            mb_substr($primerApellido, 0, 1, 'UTF-8'),
-        'UTF-8'
-    );
-
-    return $datos;
+    return FuncionesAuxiliaresService::
+        construirDatosHeader(
+            $usuario->nombres ?? null,
+            $usuario->apellidos ?? null
+        );
 }

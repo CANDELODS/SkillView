@@ -2,6 +2,7 @@
 
 namespace Controllers;
 
+use Classes\LogroService;
 use Model\Logros;
 use Model\usuarios_logros;
 use MVC\Router;
@@ -11,21 +12,7 @@ class LogrosController
 
     private static function formatearFechaLogro(?string $fecha): string
     {
-        if (empty($fecha)) {
-            return '';
-        }
-
-        $timestamp = strtotime($fecha);
-        if (!$timestamp) {
-            return '';
-        }
-
-        $meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-        $dia  = (int) date('d', $timestamp);
-        $mes  = $meses[(int)date('m', $timestamp) - 1] ?? date('m', $timestamp);
-        $anio = date('Y', $timestamp);
-
-        return "{$dia} {$mes} {$anio}";
+        return LogroService::formatearFecha($fecha);
     }
 
     public static function index(Router $router)
@@ -50,19 +37,11 @@ class LogrosController
         $logrosDesbloqueados = [];
         $logrosBloqueados = [];
 
-        // 4) Definir etiquetas para tipos de logros
-        $tags = [
-            1 => 'Habilidad',
-            2 => 'Puntaje',
-            3 => 'Retos',
-            4 => 'Desempeño'
-        ];
-
         foreach ($logros as $logro) {
             $idLogro = (int) $logro->id;
             //Validamos el tipo de logro y asignamos la etiqueta correspondiente
             $tipo = (int) ($logro->tipo ?? 0);
-            $logro->tag_texto = $tags[$tipo] ?? 'General';
+            $logro->tag_texto = LogroService::etiquetaTipo($tipo);
 
             if (isset($logrosLookup[$idLogro])) {
                 // Logro desbloqueado

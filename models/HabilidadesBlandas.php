@@ -24,19 +24,89 @@ class HabilidadesBlandas extends ActiveRecord
     }
 
     //----------------------------ADMIN----------------------------
-    public function validar()
+    /**
+     * Valida los datos utilizados para crear o editar
+     * una habilidad blanda.
+     */
+    public function validar(): array
     {
-        if (!$this->nombre) {
-            self::$alertas['error'][] = 'El Nombre es Obligatorio';
+        // Evita que las alertas de validaciones anteriores
+        // se mezclen con la validación actual.
+        self::$alertas = [];
+
+        // Normalizar campos de texto.
+        $this->nombre = trim(
+            (string) $this->nombre
+        );
+
+        $this->descripcion = trim(
+            (string) $this->descripcion
+        );
+
+        $this->tag = $this->normalizarTags(
+            (string) $this->tag
+        );
+
+        if ($this->nombre === '') {
+            self::setAlerta(
+                'error',
+                'El nombre es obligatorio'
+            );
         }
-        if (!$this->descripcion) {
-            self::$alertas['error'][] = 'La descripción es Obligatoria';
+
+        if ($this->descripcion === '') {
+            self::setAlerta(
+                'error',
+                'La descripción es obligatoria'
+            );
         }
-        if (!$this->tag) {
-            self::$alertas['error'][] = 'Los tags son obligatorios';
+
+        if ($this->tag === '') {
+            self::setAlerta(
+                'error',
+                'Los tags son obligatorios'
+            );
+        }
+
+        /*
+     * Las únicas opciones permitidas son:
+     * 0 = Deshabilitada
+     * 1 = Habilitada
+     */
+        if (
+            !in_array(
+                (string) $this->habilitado,
+                ['0', '1'],
+                true
+            )
+        ) {
+            self::setAlerta(
+                'error',
+                'El estado seleccionado no es válido'
+            );
         }
 
         return self::$alertas;
+    }
+
+    /**
+     * Elimina espacios innecesarios y elementos vacíos
+     * de una cadena de etiquetas separadas por comas.
+     */
+    private function normalizarTags(string $tags): string
+    {
+        $listaTags = array_map(
+            'trim',
+            explode(',', $tags)
+        );
+
+        $listaTags = array_filter(
+            $listaTags,
+            static fn(string $tag): bool =>
+            $tag !== ''
+        );
+
+        return implode(', ', $listaTags);
     }
 
     // Busca y devuelve las habilidades que coincidan con el término de búsqueda

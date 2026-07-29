@@ -2,6 +2,8 @@
 
 namespace Model;
 
+use Classes\LogroService;
+
 class Logros extends ActiveRecord
 {
     protected static $tabla = 'logros';
@@ -67,23 +69,16 @@ class Logros extends ActiveRecord
     /**
      * Mapa fijo entre nombre de habilidad y slug usado en iconos/logros
      */
-    public static function slugHabilidad(string $nombreHabilidad): ?string
-    {
-        $mapa = [
-            'Autoconfianza' => 'autoconfianza',
-            'Manejo del Estrés' => 'estres',
-            'Inteligencia Emocional' => 'inteligencia-emocional',
-            'Comunicación Asertiva' => 'comunicacion-asertiva',
-            'Comunicación No Verbal' => 'comunicacion-no-verbal',
-            'Empatía y Escucha Activa' => 'empatia-y-escucha-activa',
-            'Trabajo en Equipo' => 'trabajo-en-equipo',
-            'Responsabilidad' => 'responsabilidad',
-            'Adaptabilidad' => 'adaptabilidad',
-            'Actitud Positiva' => 'actitud-positiva',
-            'Liderazgo' => 'liderazgo'
-        ];
-
-        return $mapa[$nombreHabilidad] ?? null;
+    /**
+     * Devuelve el slug utilizado para identificar
+     * los iconos relacionados con cada habilidad.
+     */
+    public static function slugHabilidad(
+        string $nombreHabilidad
+    ): ?string {
+        return LogroService::slugHabilidad(
+            $nombreHabilidad
+        );
     }
 
     /**
@@ -182,18 +177,25 @@ class Logros extends ActiveRecord
             $leccionesCompletadas = (int)($rowCompletadas['completadas'] ?? 0);
 
             // 5. Si completó todas las lecciones de la habilidad, revisar el logro correspondiente
-            if ($leccionesCompletadas >= $totalLecciones) {
-                $iconoEsperado = 'logros/habilidad_' . $slug;
+            if (LogroService::habilidadCompletada($totalLecciones, $leccionesCompletadas)) {
+                $iconoEsperado = LogroService::iconoHabilidad($nombreHabilidad);
+                /*
+                * Si la habilidad no tiene un icono asociado
+                * en LogroService, se continúa con la siguiente.
+                */
+                if ($iconoEsperado === null) {
+                    continue;
+                }
 
                 foreach ($logrosTipoHabilidad as $logro) {
                     if ($logro->icono === $iconoEsperado) {
-                        $yaExiste = usuarios_logros::existeLogroUsuario($idUsuario, (int)$logro->id);
+                        $yaExiste = usuarios_logros::existeLogroUsuario($idUsuario, (int) $logro->id);
 
                         if (!$yaExiste) {
-                            $registrado = usuarios_logros::registrarLogro($idUsuario, (int)$logro->id);
+                            $registrado = usuarios_logros::registrarLogro($idUsuario, (int) $logro->id);
 
                             if ($registrado) {
-                                $nuevosLogrosIds[] = (int)$logro->id;
+                                $nuevosLogrosIds[] = (int) $logro->id;
                             }
                         }
                     }
@@ -267,10 +269,6 @@ class Logros extends ActiveRecord
         $completado = (int)($usuarioReto['completado'] ?? 0);
         $puntajeObtenido = (float)($usuarioReto['puntaje_obtenido'] ?? 0);
 
-        if ($completado !== 1) {
-            return [];
-        }
-
         // 3. Buscar logros tipo 4 (Desempeño)
         $sqlLogros = "SELECT *
                   FROM " . static::$tabla . "
@@ -285,12 +283,17 @@ class Logros extends ActiveRecord
         }
 
         $nuevosLogrosIds = [];
-        $iconoEsperado = 'logros/desempeno_' . $slug;
+        $iconoEsperado = LogroService::iconoDesempeno($nombreHabilidad);
+        if ($iconoEsperado === null) {
+            return [];
+        }
 
         foreach ($logrosTipoDesempeno as $logro) {
-            if (
-                $logro->icono === $iconoEsperado &&
-                $puntajeObtenido >= (float)$logro->valor_objetivo
+            if ($logro->icono === $iconoEsperado && LogroService::retoCumpleDesempeno(
+                    $completado,
+                    $puntajeObtenido,
+                    (float) $logro->valor_objetivo
+                )
             ) {
                 $yaExiste = usuarios_logros::existeLogroUsuario($idUsuario, (int)$logro->id);
 

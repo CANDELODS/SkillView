@@ -3,6 +3,7 @@
 namespace Controllers;
 
 use Classes\LessonAIService;
+use Classes\SoporteIAService;
 use Model\HabilidadesBlandas;
 use Model\Lecciones;
 use Model\Logros;
@@ -1161,51 +1162,13 @@ class LeccionesController
      * La actividad queda bloqueada, no avanza de etapa, no consume intentos
      * y no modifica el progreso del usuario.
      */
-    private static function buildAIUnavailableResponse(
-        array &$flow,
-        string $returnUrl,
-        ?string $userMessage = null
-    ): array {
-        $flow['nextExpectedAction'] = null;
-        $flow['inputEnabled'] = false;
-        $flow['requiresUserResponse'] = false;
-
-        $messages = [];
-
-        if ($userMessage !== null && trim($userMessage) !== '') {
-            $messages[] = [
-                'id' => 'msg_u_' . uniqid(),
-                'role' => 'user',
-                'type' => 'text',
-                'text' => trim($userMessage)
-            ];
-        }
-
-        $messages[] = [
-            'id' => 'msg_a_connection_' . uniqid(),
-            'role' => 'assistant',
-            'type' => 'text',
-            'text' => 'En este momento no fue posible conectarse con el servicio de inteligencia artificial. Verifica tu conexión a internet e inténtalo nuevamente más tarde. Tu progreso y tus intentos no se verán afectados.'
-        ];
-
-        return [
-            'ok' => true,
-            'error' => null,
-            'serviceError' => [
-                'code' => 'AI_UNAVAILABLE',
-                'message' => 'El servicio de inteligencia artificial no está disponible.'
-            ],
-            'session' => self::sessionPayload($flow),
-            'messages' => $messages,
-            'redirectTo' => $returnUrl,
-            'ui' => [
-                'showTyping' => true,
-                'showAvatarSpeaking' => false,
-                'composerPlaceholder' => 'Actividad pausada por falta de conexión',
-                'focusInput' => false,
-                'showReturnButton' => true
-            ]
-        ];
+    private static function buildAIUnavailableResponse(array &$flow,string $returnUrl,
+        ?string $userMessage = null): array {
+        return SoporteIAService::construirRespuestaLeccionNoDisponible(
+                $flow,
+                $returnUrl,
+                $userMessage
+            );
     }
 
     /**
@@ -1258,68 +1221,16 @@ class LeccionesController
 
     private static function validateBasicMicroPracticeAnswer(string $message): array
     {
-        $message = trim(mb_strtolower($message));
-
-        $invalidShortAnswers = [
-            'no',
-            'si',
-            'sí',
-            'nose',
-            'no se',
-            'no sé',
-            'xd',
-            'asdf',
-            '123',
-            'ok',
-            'idk'
-        ];
-
-        if ($message === '') {
-            return [
-                'valid' => false,
-                'reason' => 'EMPTY'
-            ];
-        }
-
-        if (in_array($message, $invalidShortAnswers, true)) {
-            return [
-                'valid' => false,
-                'reason' => 'TOO_GENERIC'
-            ];
-        }
-
-        if (mb_strlen($message) < 12) {
-            return [
-                'valid' => false,
-                'reason' => 'TOO_SHORT'
-            ];
-        }
-
-        $words = preg_split('/\s+/u', $message);
-        if (count($words) < 4) {
-            return [
-                'valid' => false,
-                'reason' => 'TOO_SHORT'
-            ];
-        }
-
-        return [
-            'valid' => true,
-            'reason' => null
-        ];
+        return SoporteIAService::validarRespuestaMicroPractica(
+            $message
+        );
     }
 
     private static function buildAttemptsWarningMessage(int $remainingAttempts): string
     {
-        if ($remainingAttempts <= 0) {
-            return 'Has agotado los intentos disponibles para esta fase de la lección.';
-        }
-
-        if ($remainingAttempts === 1) {
-            return 'Te queda 1 intento más para responder correctamente esta parte.';
-        }
-
-        return "Te quedan {$remainingAttempts} intentos más para responder correctamente esta parte.";
+        return SoporteIAService::mensajeIntentosLeccion(
+            $remainingAttempts
+        );
     }
 
     private static function buildFailedLessonResponse(array $flow, string $assistantMessage, string $userMessage = ''): void

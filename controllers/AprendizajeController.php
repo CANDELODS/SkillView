@@ -2,15 +2,15 @@
 
 namespace Controllers;
 
+use Classes\RutaAprendizajeService;
+use Classes\PorcentajeActividadService;
 use Model\HabilidadesBlandas;
 use Model\Lecciones;
-use Model\Usuario;
 use Model\usuarios_lecciones;
 use MVC\Router;
 
 class AprendizajeController
 {
-
     public static function index(Router $router)
     {
         // Verificamos si el usuario está autenticado
@@ -20,111 +20,185 @@ class AprendizajeController
         }
 
         $login = false;
-        $datosUsuario = obtenerDatosUsuarioHeader($_SESSION['id']);
-        // Id del usuario logueado
+
+        $datosUsuario = obtenerDatosUsuarioHeader(
+            $_SESSION['id']
+        );
+
+        // ID del usuario autenticado
         $idUsuario = $_SESSION['id'] ?? null;
 
-        // 1) Traer habilidades habilitadas
+        // --------------------------------------------------
+        // 1. OBTENER HABILIDADES HABILITADAS
+        // --------------------------------------------------
+
         $habilidades = HabilidadesBlandas::habilitadas();
 
-        // 2) Para cada habilidad, calcular total lecciones y completadas para este usuario
+        // --------------------------------------------------
+        // 2. CALCULAR PROGRESO DE LECCIONES POR HABILIDAD
+        // --------------------------------------------------
+
         foreach ($habilidades as $habilidad) {
 
-            // Total de lecciones de esa habilidad
-            $totalLecciones = Lecciones::totalPorHabilidad($habilidad->id);
+            // Total de lecciones habilitadas de la habilidad
+            $totalLecciones = Lecciones::totalPorHabilidad(
+                $habilidad->id
+            );
 
-            // Lecciones completadas por el usuario en esa habilidad
-            $leccionesCompletadas = usuarios_lecciones::totalCompletadasPorHabilidad($idUsuario, $habilidad->id);
+            // Lecciones completadas por el usuario
+            $leccionesCompletadas =
+                usuarios_lecciones::totalCompletadasPorHabilidad(
+                    $idUsuario,
+                    $habilidad->id
+                );
 
-            // Guardamos estos datos directamente en el objeto para que la vista los use
-            $habilidad->total_lecciones = $totalLecciones;
-            $habilidad->lecciones_completadas = $leccionesCompletadas;
-            $habilidad->porcentaje_progreso = $totalLecciones > 0
-                ? ($leccionesCompletadas / $totalLecciones) * 100 : 0;
+            // Agregamos la información al objeto
+            $habilidad->total_lecciones =
+                (int) $totalLecciones;
+
+            $habilidad->lecciones_completadas =
+                (int) $leccionesCompletadas;
+
+            // Evitar división por cero
+            $habilidad->porcentaje_progreso =
+                PorcentajeActividadService::calcular(
+                    (int) $leccionesCompletadas,
+                    (int) $totalLecciones
+                );
         }
 
-        // 3) Calcular estado de cada habilidad (completed, current, upcoming, locked)
-        //    Regla: 
-        //      - completed: completadas == total y total > 0
-        //      - current: primera habilidad (por orden) donde completadas < total
-        //      - upcoming: las siguientes
-        //      - locked: si total == 0 (por ahora, casi no usarás esto)
+        // --------------------------------------------------
+        // 3. DETERMINAR LA SECUENCIALIDAD DEL APRENDIZAJE
+        // --------------------------------------------------
 
-        $indiceActual = null;
-        //El indiceActual será la posición del array $habilidades
-        //$index => 0, 1, 2, 3... (Posición)
-        //$habilidad → objeto HabilidadesBlandas con los campos + los que le añadimos.
-        //BUSCAMOS LA PRIMERA HABILIDAD QUE NO ESTÁ COMPLETA (SERÁ LA ACTUAL)
-        foreach ($habilidades as $index => $habilidad) {
-            //Si la habilidad tiene lecciones y el usuario no las ha completado todas entonces...
+        /*
+         * Preparamos únicamente los datos que necesita
+         * RutaAprendizajeService para determinar los estados.
+         */
+        $datosRuta = array_map(
+            static function ($habilidad): array {
+                return [
+                    'total_lecciones' =>
+                    (int) $habilidad->total_lecciones,
+
+                    'lecciones_completadas' =>
+                    (int) $habilidad->lecciones_completadas
+                ];
+            },
+            $habilidades
+        );
+
+        /*
+         * El servicio devuelve un estado por cada habilidad:
+         *
+         * completed = habilidad completada
+         * current   = primera habilidad pendiente
+         * locked    = habilidad posterior o sin lecciones
+         */
+        $estados =
+            RutaAprendizajeService::determinarEstados(
+                $datosRuta
+            );
+
+        // Asignar cada estado al objeto correspondiente
+        foreach ($habilidades as $indice => $habilidad) {
+            $habilidad->estado =
+                $estados[$indice]
+                ?? RutaAprendizajeService::ESTADO_BLOQUEADO;
+        }
+
+        // --------------------------------------------------
+        // 4. DATOS DEL RESUMEN GENERAL DE PROGRESO
+        // --------------------------------------------------
+
+        // Total de lecciones habilitadas del sistema
+        $totalLeccionesSistema = Lecciones::total();
+
+        // Total de lecciones completadas por el usuario
+        $leccionesCompletadasUsuario =
+            usuarios_lecciones::totalCompletadasUsuario(
+                $idUsuario
+            );
+
+        // --------------------------------------------------
+        // 5. ASIGNAR LA LECCIÓN ACTUAL PARA EL MODAL
+        // --------------------------------------------------
+
+        foreach ($habilidades as $habilidad) {
+
+            /*
+             * Solo buscamos una lección cuando la habilidad
+             * tiene contenido y todavía no está completada.
+             */
             if (
-                $habilidad->total_lecciones > 0 &&
-                $habilidad->lecciones_completadas < $habilidad->total_lecciones
+                $habilidad->estado !==
+                RutaAprendizajeService::ESTADO_COMPLETADO
+                &&
+                $habilidad->total_lecciones > 0
             ) {
-                //Guardamos la posición en $indiceActual
-                $indiceActual = $index;
-                //Salimos del ForEach dado que ya tenemos la primera pendiente (En otras palabras la actual)
-                break;
-            }
-        }
-        //Asignamos el estado a cada habilidad
-        foreach ($habilidades as $index => $habilidad) {
-
-            if ($habilidad->total_lecciones === 0) {
-                $habilidad->estado = 'locked';
-                //Salta al siguiente ciclo del foreach y no evalúa el resto de condiciones.
-                continue;
-            }
-            //Si el usuario a completado todas las lecciones entonces...
-            if ($habilidad->lecciones_completadas >= $habilidad->total_lecciones) {
-                $habilidad->estado = 'completed';
-            }
-            //Nos aseguramos que haya una habilidad actual (Si el usuario ya terminó todas, $indiceActual queda en null).
-            //Validamos si la habilidad que estamos recorriendo es justamente la que marcamos como actual en el primer foreach.
-            elseif ($indiceActual !== null && $index === $indiceActual) {
-                $habilidad->estado = 'current';
-            }
-            //Todas las que vengan depués de la actual = bloqueadas
-            else {
-                $habilidad->estado = 'locked';
-            }
-        }
-
-        // 4) Datos para el resumen general de progreso
-        $totalLeccionesSistema = Lecciones::total(); // todas las lecciones habilitadas en el sistema
-        $leccionesCompletadasUsuario = usuarios_lecciones::totalCompletadasUsuario($idUsuario);
-
-        // 5) Asignar lección actual para el modal
-        foreach ($habilidades as $habilidad) {
-
-            // Solo tiene sentido buscar lección actual si la habilidad NO está completada
-            if ($habilidad->estado !== 'completed' && $habilidad->total_lecciones > 0) {
-                $habilidad->leccion_actual = Lecciones::leccionActualPorUsuarioYHabilidad($idUsuario, $habilidad->id);
+                $habilidad->leccion_actual =
+                    Lecciones::leccionActualPorUsuarioYHabilidad(
+                        $idUsuario,
+                        $habilidad->id
+                    );
             } else {
                 $habilidad->leccion_actual = null;
             }
         }
-        // Evitamos división por cero
-        $porcentajeProgreso = 0;
-        if ($totalLeccionesSistema > 0) {
-            $porcentajeProgreso = ($leccionesCompletadasUsuario / $totalLeccionesSistema) * 100;
-        }
 
-        // Evaluar logros nuevos tipo 1 (habilidad completada) y asignarlos si el usuario los alcanzó
-        $logrosRecientes = $_SESSION['logros_recientes'] ?? [];
+        // --------------------------------------------------
+        // 6. PORCENTAJE GENERAL DE LECCIONES
+        // --------------------------------------------------
+
+        $porcentajeProgreso =
+            PorcentajeActividadService::calcular(
+                (int) $leccionesCompletadasUsuario,
+                (int) $totalLeccionesSistema
+            );
+
+        // --------------------------------------------------
+        // 7. LOGROS RECIENTES
+        // --------------------------------------------------
+
+        $logrosRecientes =
+            $_SESSION['logros_recientes'] ?? [];
+
         unset($_SESSION['logros_recientes']);
 
-        // Render a la vista 
-        $router->render('paginas/aprendizaje/aprendizaje', [
-            'titulo' => 'Desarrolla tus habilidades paso a paso',
-            'login' => $login,
-            'habilidades' => $habilidades, // aquí viene todo lo de cada card
-            'totalLeccionesSistema' => $totalLeccionesSistema,
-            'leccionesCompletadasUsuario' => $leccionesCompletadasUsuario,
-            'porcentajeProgreso' => $porcentajeProgreso,
-            'nombreUsuario'    => $datosUsuario['nombreUsuario'],
-            'inicialesUsuario' => $datosUsuario['inicialesUsuario'],
-            'logrosRecientes' => $logrosRecientes
-        ]);
+        // --------------------------------------------------
+        // 8. RENDERIZAR LA VISTA
+        // --------------------------------------------------
+
+        $router->render(
+            'paginas/aprendizaje/aprendizaje',
+            [
+                'titulo' =>
+                'Desarrolla tus habilidades paso a paso',
+
+                'login' =>
+                $login,
+
+                'habilidades' =>
+                $habilidades,
+
+                'totalLeccionesSistema' =>
+                $totalLeccionesSistema,
+
+                'leccionesCompletadasUsuario' =>
+                $leccionesCompletadasUsuario,
+
+                'porcentajeProgreso' =>
+                $porcentajeProgreso,
+
+                'nombreUsuario' =>
+                $datosUsuario['nombreUsuario'],
+
+                'inicialesUsuario' =>
+                $datosUsuario['inicialesUsuario'],
+
+                'logrosRecientes' =>
+                $logrosRecientes
+            ]
+        );
     }
 }

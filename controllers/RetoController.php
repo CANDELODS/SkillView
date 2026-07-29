@@ -3,6 +3,7 @@
 namespace Controllers;
 
 use Classes\ChallengeAIService;
+use Classes\SoporteIAService;
 use Model\HabilidadesBlandas;
 use Model\Logros;
 use Model\Retos;
@@ -1163,73 +1164,7 @@ class RetoController
     // Sirve para filtrar respuestas vacías, demasiado cortas o absurdamente genéricas.
     private static function validateBasicChallengeAnswer(string $message): array
     {
-        $message = trim($message);
-
-        // Caso 1: respuesta vacía.
-        if ($message === '') {
-            return [
-                'valid' => false,
-                'reason' => 'EMPTY_RESPONSE',
-                'message' => 'Tu respuesta está vacía. Intenta escribir una idea completa.'
-            ];
-        }
-
-        // Caso 2: respuesta demasiado corta.
-        if (mb_strlen($message) < 12) {
-            return [
-                'valid' => false,
-                'reason' => 'TOO_SHORT',
-                'message' => 'Tu respuesta es demasiado corta. Intenta desarrollar mejor tu idea.'
-            ];
-        }
-
-        // Caso 3: menos de 3 palabras útiles.
-        $words = preg_split('/\s+/u', $message, -1, PREG_SPLIT_NO_EMPTY);
-        if (!$words || count($words) < 3) {
-            return [
-                'valid' => false,
-                'reason' => 'INSUFFICIENT_DEVELOPMENT',
-                'message' => 'Tu respuesta necesita un poco más de desarrollo.'
-            ];
-        }
-
-        // Caso 4: no contiene letras ni números útiles.
-        if (!preg_match('/[a-záéíóúñ0-9]/iu', $message)) {
-            return [
-                'valid' => false,
-                'reason' => 'INVALID_CONTENT',
-                'message' => 'Tu respuesta no contiene contenido válido. Intenta escribir una idea clara.'
-            ];
-        }
-
-        // Caso 5: respuestas demasiado genéricas conocidas.
-        $generic = [
-            'si',
-            'sí',
-            'no',
-            'ok',
-            'bien',
-            'normal',
-            'pensaria mejor',
-            'pensaría mejor',
-            'lo haria bien',
-            'lo haría bien'
-        ];
-
-        if (in_array(mb_strtolower($message), $generic, true)) {
-            return [
-                'valid' => false,
-                'reason' => 'TOO_GENERIC',
-                'message' => 'Tu respuesta es demasiado general. Intenta ser más específico.'
-            ];
-        }
-
-        // Si pasa todas las validaciones, se considera válida para enviar a IA.
-        return [
-            'valid' => true,
-            'reason' => null,
-            'message' => null
-        ];
+        return SoporteIAService::validarRespuestaReto($message);
     }
 
     // Traduce razones de validación local a razones compatibles con el sistema de retry.
@@ -1291,15 +1226,9 @@ class RetoController
     // Genera el texto que indica al usuario cuántos intentos le quedan.
     private static function buildAttemptsWarningMessage(int $remainingAttempts): string
     {
-        if ($remainingAttempts <= 0) {
-            return 'No te quedan más intentos en este reto.';
-        }
-
-        if ($remainingAttempts === 1) {
-            return 'Te queda 1 intento.';
-        }
-
-        return "Te quedan {$remainingAttempts} intentos.";
+        return SoporteIAService::mensajeIntentosReto(
+            $remainingAttempts
+        );
     }
 
     // Mensajes iniciales fallback si la IA falla al iniciar el reto.
@@ -1494,51 +1423,13 @@ class RetoController
      *
      * El reto no avanza, no consume intentos y no guarda progreso.
      */
-    private static function buildAIUnavailableResponse(
-        array &$flow,
-        string $returnUrl,
-        ?string $userMessage = null
-    ): array {
-        $flow['nextExpectedAction'] = null;
-        $flow['inputEnabled'] = false;
-        $flow['requiresUserResponse'] = false;
-
-        $messages = [];
-
-        if ($userMessage !== null && trim($userMessage) !== '') {
-            $messages[] = [
-                'id' => 'msg_u_' . uniqid(),
-                'role' => 'user',
-                'type' => 'text',
-                'text' => trim($userMessage)
-            ];
-        }
-
-        $messages[] = [
-            'id' => 'msg_ai_connection_' . uniqid(),
-            'role' => 'assistant',
-            'type' => 'text',
-            'text' => 'En este momento no fue posible conectarse con el servicio de inteligencia artificial. Verifica tu conexión a internet e inténtalo nuevamente más tarde. Tu progreso y tus intentos no se verán afectados.'
-        ];
-
-        return [
-            'ok' => true,
-            'error' => null,
-            'serviceError' => [
-                'code' => 'AI_UNAVAILABLE',
-                'message' => 'El servicio de inteligencia artificial no está disponible.'
-            ],
-            'session' => self::sessionPayload($flow),
-            'messages' => $messages,
-            'redirectTo' => $returnUrl,
-            'ui' => [
-                'showTyping' => true,
-                'showAvatarSpeaking' => false,
-                'composerPlaceholder' => 'Actividad pausada por falta de conexión',
-                'focusInput' => false,
-                'showReturnButton' => true
-            ]
-        ];
+    private static function buildAIUnavailableResponse(array &$flow, string $returnUrl,
+        ?string $userMessage = null): array {
+        return SoporteIAService::construirRespuestaRetoNoDisponible(
+                $flow,
+                $returnUrl,
+                $userMessage
+            );
     }
 
     // Construye la respuesta estándar de retry.
