@@ -2,6 +2,7 @@
 
 namespace Controllers;
 
+use Classes\UsuarioEdicionAdminService;
 use Classes\Paginacion;
 use Model\HabilidadesBlandas;
 use Model\Usuario;
@@ -159,50 +160,22 @@ class DashboardController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            //Guardamos el hash original antes de sincronizar
-            $passwordOriginal = $usuario->password;
-            //Sincronizamos con los datos del formulario
-            $usuario->sincronizar($_POST);
-            //Validamos
-            $alertas = $usuario->validar_edicion();
+            $resultadoEdicion = UsuarioEdicionAdminService::editar((int) $id,(int) ($_SESSION['id'] ?? 0),
+                    $_POST);
+
             /*
-            * Evitar que el administrador que tiene la sesión abierta
-            * deshabilite accidentalmente su propia cuenta.
+            * Se utiliza el objeto devuelto para conservar
+            * los valores ingresados cuando existe un error
+            * y los valores persistidos cuando fue exitoso.
             */
-            if (
-                (int) $usuario->id === (int) $_SESSION['id'] &&
-                (int) $usuario->habilitado === 0
-            ) {
-                // Restauramos visualmente el estado habilitado
-                $usuario->habilitado = 1;
-
-                $alertas['error'][] =
-                    'No puedes deshabilitar tu propia cuenta '
-                    . 'mientras tienes la sesión iniciada.';
+            if ($resultadoEdicion['usuario'] instanceof Usuario) {
+                $usuario = $resultadoEdicion['usuario'];
             }
-            //Si no hay alertar, guardamos
-            if (empty($alertas)) {
-                //Validamos si el admin escribió un nuevo password
-                if ($usuario->password) {
-                    //Si el admin escribió una nueva contraseña...
-                    $usuario->hashPassword();
 
-                    //Obligamos al usuario a cambiar la contraseña en su próximo inicio de sesión
-                    $usuario->debe_cambiar_password = 1;
-                } else {
-                    //Si no escribió nada en password, mantenemos la contraseña original
-                    $usuario->password = $passwordOriginal;
-                }
-                // Eliminar password2
-                unset($usuario->password2);
-                //Actualizamos el usuarios
-                $resultado = $usuario->guardar();
+            $alertas = $resultadoEdicion['alertas'];
 
-                if ($resultado) {
-                    $alertasExito[] = "El usuario de actualizó correctamente";
-                } else {
-                    $alertas['error'][] = "Ocurrió un error al guardar el usuario";
-                }
+            if ($resultadoEdicion['ok']) {
+                $alertasExito[] = 'El usuario se actualizó correctamente';
             }
         }
         // Render a la vista 

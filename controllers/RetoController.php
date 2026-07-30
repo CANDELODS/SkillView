@@ -4,6 +4,7 @@ namespace Controllers;
 
 use Classes\ChallengeAIService;
 use Classes\SoporteIAService;
+use Classes\RetoProgresoService;
 use Model\HabilidadesBlandas;
 use Model\Logros;
 use Model\Retos;
@@ -1049,67 +1050,117 @@ class RetoController
         return max(0, $limit - $used);
     }
 
-    // Persiste un reto exitoso en base de datos y desencadena efectos secundarios:
-    // - guarda usuarios_retos,
-    // - recalcula progreso de habilidad,
-    // - evalúa logros,
-    // - guarda logros recientes en sesión.
-    private static function persistCompletedChallenge(int $idUsuario, array $flow): bool
-    {
-        $idUsuario = (int)$idUsuario;
-        $challengeId = (int)($flow['challengeId'] ?? 0);
-        $skillId = (int)($flow['skillId'] ?? 0);
-        $scoreAwarded = (int)($flow['scoreAwarded'] ?? 0);
-        $completed = (bool)($flow['completed'] ?? false);
-        $passed = (bool)($flow['passed'] ?? false);
+    /**
+     * Persiste el reto aprobado, actualiza el progreso
+     * y evalúa los logros asociados con el resultado.
+     */
+    private static function persistCompletedChallenge(int $idUsuario, array $flow): bool {
+        $challengeId =
+            (int) (
+                $flow['challengeId']
+                ?? 0
+            );
 
-        // Validación de integridad.
-        if ($idUsuario <= 0 || $challengeId <= 0 || $skillId <= 0) {
+        $skillId =
+            (int) (
+                $flow['skillId']
+                ?? 0
+            );
+
+        $scoreAwarded =
+            (int) (
+                $flow['scoreAwarded']
+                ?? 0
+            );
+
+        $minimumScore =
+            (int) (
+                $flow['minimumScore']
+                ?? 0
+            );
+
+        $completed =
+            (bool) (
+                $flow['completed']
+                ?? false
+            );
+
+        $passed =
+            (bool) (
+                $flow['passed']
+                ?? false
+            );
+
+        $resultado =
+            RetoProgresoService::completarReto(
+                $idUsuario,
+                $challengeId,
+                $skillId,
+                $scoreAwarded,
+                $minimumScore,
+                $completed && $passed
+            );
+
+        if (!$resultado['ok']) {
             return false;
         }
 
-        // Solo persiste si el reto realmente terminó y fue aprobado.
-        if (!$completed || !$passed) {
-            return false;
-        }
-
-        // Guarda o actualiza el reto en la tabla usuarios_retos.
-        $saved = usuarios_retos::marcarComoCompletado($idUsuario, $challengeId, $scoreAwarded);
-
-        if (!$saved) {
-            return false;
-        }
-
-        // Recalcular progreso de la habilidad
-        self::recalculateUserSkillProgress($idUsuario, $skillId);
-
-        // Evaluar logros nuevos tipo 4 (desempeño)
-        $nuevosLogros = Logros::evaluarYAsignarNuevosPorReto($idUsuario, $challengeId);
+        /*
+     * Después de persistir el reto se conservó
+     * la evaluación de logros existente.
+     */
+        $nuevosLogros =
+            Logros::evaluarYAsignarNuevosPorReto(
+                $idUsuario,
+                $challengeId
+            );
 
         if (!empty($nuevosLogros)) {
-            // Garantiza que la sesión esté activa antes de usarla.
-            if (session_status() !== PHP_SESSION_ACTIVE) {
+            if (
+                session_status()
+                !== PHP_SESSION_ACTIVE
+            ) {
                 session_start();
             }
 
-            // Lee logros recientes ya existentes en sesión.
-            $logrosSesionActual = $_SESSION['logros_recientes'] ?? [];
+            $logrosSesionActual =
+                $_SESSION['logros_recientes']
+                ?? [];
 
-            // Formatea los logros nuevos para que puedan mostrarse fácilmente en frontend.
-            $logrosNuevosFormateados = array_map(function ($logro) {
-                return [
-                    'id' => $logro->id,
-                    'nombre' => $logro->nombre,
-                    'descripcion' => $logro->descripcion,
-                    'icono' => $logro->icono,
-                    'tipo' => $logro->tipo,
-                    'valor_objetivo' => $logro->valor_objetivo,
-                    'fecha_obtenido' => date('Y-m-d')
-                ];
-            }, $nuevosLogros);
+            $logrosNuevosFormateados =
+                array_map(
+                    static function ($logro): array {
+                        return [
+                            'id' =>
+                            $logro->id,
 
-            // Fusiona logros anteriores + logros nuevos.
-            $_SESSION['logros_recientes'] = array_merge($logrosSesionActual, $logrosNuevosFormateados);
+                            'nombre' =>
+                            $logro->nombre,
+
+                            'descripcion' =>
+                            $logro->descripcion,
+
+                            'icono' =>
+                            $logro->icono,
+
+                            'tipo' =>
+                            $logro->tipo,
+
+                            'valor_objetivo' =>
+                            $logro->valor_objetivo,
+
+                            'fecha_obtenido' =>
+                            date('Y-m-d')
+                        ];
+                    },
+                    $nuevosLogros
+                );
+
+            $_SESSION['logros_recientes'] =
+                array_merge(
+                    $logrosSesionActual,
+                    $logrosNuevosFormateados
+                );
         }
 
         return true;
@@ -1423,13 +1474,16 @@ class RetoController
      *
      * El reto no avanza, no consume intentos y no guarda progreso.
      */
-    private static function buildAIUnavailableResponse(array &$flow, string $returnUrl,
-        ?string $userMessage = null): array {
+    private static function buildAIUnavailableResponse(
+        array &$flow,
+        string $returnUrl,
+        ?string $userMessage = null
+    ): array {
         return SoporteIAService::construirRespuestaRetoNoDisponible(
-                $flow,
-                $returnUrl,
-                $userMessage
-            );
+            $flow,
+            $returnUrl,
+            $userMessage
+        );
     }
 
     // Construye la respuesta estándar de retry.

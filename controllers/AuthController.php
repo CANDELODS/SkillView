@@ -2,6 +2,7 @@
 
 namespace Controllers;
 
+use Classes\AutenticacionService;
 use Classes\Email;
 use Model\Usuario;
 use Model\usuarios_habilidades;
@@ -51,82 +52,60 @@ class AuthController
             $alertas = $credenciales->validarLogin();
 
             if (empty($alertas)) {
-
-                // Buscar el usuario por correo
-                $usuario = Usuario::where(
-                    'correo',
-                    $credenciales->correo
-                );
-
-                if (!$usuario) {
-                    Usuario::setAlerta(
-                        'error',
-                        'El usuario no existe'
+                $resultadoAutenticacion =
+                    AutenticacionService::autenticar(
+                        $usuario->correo,
+                        (string) (
+                            $_POST['password']
+                            ?? ''
+                        )
                     );
-                } elseif (
-                    !password_verify(
-                        $_POST['password'],
-                        $usuario->password
+
+                $estado =
+                    $resultadoAutenticacion['estado'];
+
+                /*
+                * Los resultados rechazados generan una alerta
+                * y no crean datos de sesión.
+                */
+                if (
+                    in_array(
+                        $estado,
+                        [
+                            AutenticacionService::USUARIO_NO_EXISTE,
+                            AutenticacionService::PASSWORD_INCORRECTA,
+                            AutenticacionService::CUENTA_DESHABILITADA
+                        ],
+                        true
                     )
                 ) {
                     Usuario::setAlerta(
                         'error',
-                        'Contraseña incorrecta'
-                    );
-                } elseif ((int) $usuario->habilitado !== 1) {
-                    /*
-                 * Aunque la contraseña sea correcta, un usuario
-                 * deshabilitado no puede obtener una sesión normal
-                 * ni una sesión temporal para cambiar la contraseña.
-                 */
-                    Usuario::setAlerta(
-                        'error',
-                        'Tu cuenta se encuentra deshabilitada. '
-                            . 'Comunícate con el administrador de SkillView.'
+                        (string) $resultadoAutenticacion['mensaje']
                     );
                 } else {
-                    // Iniciar la sesión para cualquier tipo de ingreso:
-                    // normal o con cambio obligatorio de contraseña.
-                    if (session_status() === PHP_SESSION_NONE) {
+                    if (
+                        session_status()
+                        === PHP_SESSION_NONE
+                    ) {
                         session_start();
                     }
 
-                    // Limpiar cualquier información anterior
+                    /*
+                    * Evita conservar información de una sesión
+                    * anterior antes de asignar la nueva.
+                    */
                     $_SESSION = [];
 
-                    // Evitar reutilización del identificador de sesión
                     session_regenerate_id(true);
 
-                    /*
-                 * Si la contraseña fue restablecida por el administrador,
-                 * se crea únicamente una sesión temporal.
-                 */
-                    if ((int) $usuario->debe_cambiar_password === 1) {
+                    $_SESSION =
+                        $resultadoAutenticacion['sesion'];
 
-                        $_SESSION['cambio_password_usuario_id'] =
-                            (int) $usuario->id;
-
-                        header('Location: /cambiar-password');
-                        exit;
-                    }
-
-                    // Sesión normal
-                    $_SESSION['id'] = $usuario->id;
-                    $_SESSION['nombres'] = $usuario->nombres;
-                    $_SESSION['apellidos'] = $usuario->apellidos;
-                    $_SESSION['edad'] = $usuario->edad;
-                    $_SESSION['sexo'] = $usuario->sexo;
-                    $_SESSION['correo'] = $usuario->correo;
-                    $_SESSION['universidad'] = $usuario->universidad;
-                    $_SESSION['carrera'] = $usuario->carrera;
-                    $_SESSION['admin'] = $usuario->admin ?? null;
-
-                    // Redireccionar según el rol
-                    if ((int) $usuario->admin === 1) {
-                        header('Location: /admin/dashboard');
-                    } else {
-                        header('Location: /principal');
-                    }
+                    header(
+                        'Location: '
+                            . $resultadoAutenticacion['redireccion']
+                    );
 
                     exit;
                 }

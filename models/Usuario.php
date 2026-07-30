@@ -296,6 +296,31 @@ class Usuario extends ActiveRecord
         return static::paginarBusqueda($termino, ['nombres', 'apellidos', 'correo'], $ordenar, $porPagina, $offset);
     }
 
+    /**
+     * Comprueba si un correo pertenece a un usuario
+     * diferente del que está siendo editado.
+     */
+    public static function correoEnUsoPorOtroUsuario(string $correo, int $idUsuario): bool {
+        $correo = self::$db->escape_string(mb_strtolower(trim($correo),'UTF-8'));
+
+        $idUsuario = (int) $idUsuario;
+
+        $query = "
+        SELECT COUNT(*) AS total
+        FROM " . static::$tabla . "
+        WHERE LOWER(correo) = '{$correo}'
+          AND id <> {$idUsuario}
+    ";
+
+        $resultado = self::$db->query($query);
+
+        $fila = $resultado->fetch_assoc();
+
+        $resultado->free();
+
+        return (int) ($fila['total'] ?? 0) > 0;
+    }
+
     // Esta validación se usa en el perfil del usuario.
     // No valida edad, sexo, correo ni contraseña, porque desde perfil
     // el usuario solo puede actualizar nombres, apellidos, universidad y carrera.

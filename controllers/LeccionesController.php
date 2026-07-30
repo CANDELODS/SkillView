@@ -4,6 +4,7 @@ namespace Controllers;
 
 use Classes\LessonAIService;
 use Classes\SoporteIAService;
+use Classes\LeccionProgresoService;
 use Model\HabilidadesBlandas;
 use Model\Lecciones;
 use Model\Logros;
@@ -1162,13 +1163,16 @@ class LeccionesController
      * La actividad queda bloqueada, no avanza de etapa, no consume intentos
      * y no modifica el progreso del usuario.
      */
-    private static function buildAIUnavailableResponse(array &$flow,string $returnUrl,
-        ?string $userMessage = null): array {
+    private static function buildAIUnavailableResponse(
+        array &$flow,
+        string $returnUrl,
+        ?string $userMessage = null
+    ): array {
         return SoporteIAService::construirRespuestaLeccionNoDisponible(
-                $flow,
-                $returnUrl,
-                $userMessage
-            );
+            $flow,
+            $returnUrl,
+            $userMessage
+        );
     }
 
     /**
@@ -1433,39 +1437,57 @@ class LeccionesController
     }
 
     /**
-     * Llama al modelo usuarios_lecciones para guardar en la base de datos que la lección ya fue completada.
+     * Registra la lección, recalcula el progreso y evalúa
+     * los logros relacionados con la habilidad completada.
      */
-    private static function markLessonAsCompleted(int $idUsuario, int $lessonId): void
-    {
-        // 1) Marcar la lección como completada
-        usuarios_lecciones::marcarComoCompletada($idUsuario, $lessonId);
-
-        // 2) Obtener la habilidad de esa lección
-        $lesson = Lecciones::find($lessonId);
-        if (!$lesson) {
+    private static function markLessonAsCompleted(int $idUsuario, int $lessonId): void {
+        $resultado =
+            LeccionProgresoService::completarLeccion($idUsuario, $lessonId);
+        /*
+        * Si la lección no pudo registrarse, no se
+        * continúa con la evaluación de logros.
+        */
+        if (!$resultado['ok']) {
             return;
         }
-        $idHabilidad = (int)$lesson->id_habilidades;
 
-        // 3) Recalcular progreso de habilidad
-        usuarios_habilidades::recalcularProgresoHabilidad($idUsuario, $idHabilidad);
+        $nuevosLogros =
+            Logros::evaluarYAsignarNuevosPorLeccion(
+                $idUsuario
+            );
 
-        //4) Evaluar si se desbloquea un logro nuevo por completar esta habilidad
-        $nuevosLogros = Logros::evaluarYAsignarNuevosPorLeccion($idUsuario);
-
-        if (!empty($nuevosLogros)) {
-            $_SESSION['logros_recientes'] = array_map(function ($logro) {
-                return [
-                    'id' => $logro->id,
-                    'nombre' => $logro->nombre,
-                    'descripcion' => $logro->descripcion,
-                    'icono' => $logro->icono,
-                    'tipo' => $logro->tipo,
-                    'valor_objetivo' => $logro->valor_objetivo,
-                    'fecha_obtenido' => date('Y-m-d')
-                ];
-            }, $nuevosLogros);
+        if (empty($nuevosLogros)) {
+            return;
         }
+
+        $_SESSION['logros_recientes'] =
+            array_map(
+                static function ($logro): array {
+                    return [
+                        'id' =>
+                        $logro->id,
+
+                        'nombre' =>
+                        $logro->nombre,
+
+                        'descripcion' =>
+                        $logro->descripcion,
+
+                        'icono' =>
+                        $logro->icono,
+
+                        'tipo' =>
+                        $logro->tipo,
+
+                        'valor_objetivo' =>
+                        $logro->valor_objetivo,
+
+                        'fecha_obtenido' =>
+                        date('Y-m-d')
+                    ];
+                },
+                $nuevosLogros
+            );
     }
     //---------------------------FIN HELPERS turnLeccion---------------------------//
 }
