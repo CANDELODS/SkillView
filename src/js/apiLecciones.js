@@ -57,7 +57,17 @@
         pendingAutoAdvance: false,
         // Se activa cuando la IA o la conexión no están disponibles.
         // Mientras sea true, la actividad permanece pausada y el composer bloqueado.
-        serviceUnavailable: false
+        serviceUnavailable: false,
+
+        /*
+        * Conserva la última configuración de interfaz
+        * recibida desde el backend.
+        */
+        lastUi: {
+            composerPlaceholder: 'Escribe tu respuesta.',
+            focusInput: false,
+            showReturnButton: false
+        }
     };
 
     // ---------------------------------------------------------------------
@@ -1127,22 +1137,42 @@
         state.completed = Boolean(session.completed);
     }
 
-    // Aplica el estado de UI al input, botón enviar y micrófono
-    function applyUiState(ui) {
-        const safeUi = ui || {};
+    /**
+     * Aplica el estado visual al compositor.
+     *
+     * Cuando la API envía una configuración nueva,
+     * esta se conserva para poder restaurarla después
+     * de finalizar el estado de carga.
+     */
+    function applyUiState(ui = null) {
+        const receivedUi =
+            ui && typeof ui === 'object'
+                ? ui
+                : null;
+
+        /*
+         * Solo actualizamos lastUi cuando realmente
+         * se recibió información desde la API.
+         *
+         * Un objeto vacío no debe borrar el
+         * composerPlaceholder anterior.
+         */
+        if (receivedUi && Object.keys(receivedUi).length > 0) {
+            state.lastUi = { ...state.lastUi, ...receivedUi };
+        }
+
+        const safeUi = state.lastUi || {};
+
         const placeholder = resolveComposerPlaceholder(safeUi);
+
         const focusInput = Boolean(safeUi.focusInput);
 
         textInput.placeholder = placeholder;
 
-        const shouldDisableComposer =
-            state.isLoading ||
-            !state.inputEnabled ||
-            state.completed ||
-            state.avatarIsSpeaking ||
-            state.avatarIsPendingSpeech;
+        const shouldDisableComposer = state.isLoading || !state.inputEnabled || state.completed || state.avatarIsSpeaking || state.avatarIsPendingSpeech;
 
         textInput.disabled = shouldDisableComposer;
+
         sendButton.disabled = shouldDisableComposer;
 
         if (micButton) {
@@ -1181,10 +1211,23 @@
         return 'Escribe tu respuesta...';
     }
 
-    // Marca si el sistema está cargando
+    /**
+     * Modifica el estado de carga sin perder
+     * la última configuración visual recibida.
+     */
     function setLoading(isLoading) {
-        state.isLoading = isLoading;
-        applyUiState({});
+        state.isLoading =
+            Boolean(isLoading);
+
+        /*
+         * applyUiState() reutiliza state.lastUi.
+         *
+         * Mientras isLoading sea true, el resolver
+         * seguirá mostrando el mensaje de espera.
+         * Cuando vuelva a false, restaurará el
+         * placeholder correspondiente a la etapa.
+         */
+        applyUiState();
     }
 
     // Procesa información de finalización de la lección

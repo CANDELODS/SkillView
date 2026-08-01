@@ -74,7 +74,12 @@
         pendingAutoAdvance: false,
         // Se activa cuando la IA o la conexión no están disponibles.
         // Mientras sea true, el reto permanece pausado y el composer bloqueado.
-        serviceUnavailable: false
+        serviceUnavailable: false,
+        lastUi: {
+            composerPlaceholder: 'Escribe tu respuesta.',
+            focusInput: false,
+            showReturnButton: false
+        }
     };
 
     // ---------------------------------------------------------------------
@@ -1138,22 +1143,32 @@
         state.completed = Boolean(session.completed);
     }
 
-    // Aplica visualmente el estado actual a input, enviar y micrófono.
-    function applyUiState(ui) {
-        const safeUi = ui || {};
+    function applyUiState(ui = null) {
+        const receivedUi =
+            ui && typeof ui === 'object'
+                ? ui
+                : null;
+
+        /*
+         * Solo se actualiza la configuración guardada
+         * cuando la respuesta contiene información real.
+         */
+        if (receivedUi && Object.keys(receivedUi).length > 0) {
+            state.lastUi = { ...state.lastUi, ...receivedUi };
+        }
+
+        const safeUi = state.lastUi || {};
+
         const placeholder = resolveComposerPlaceholder(safeUi);
+
         const focusInput = Boolean(safeUi.focusInput);
 
         textInput.placeholder = placeholder;
 
-        const shouldDisableComposer =
-            state.isLoading ||
-            !state.inputEnabled ||
-            state.completed ||
-            state.avatarIsSpeaking ||
-            state.avatarIsPendingSpeech;
+        const shouldDisableComposer = state.isLoading || !state.inputEnabled || state.completed || state.failed || state.avatarIsSpeaking || state.avatarIsPendingSpeech;
 
         textInput.disabled = shouldDisableComposer;
+
         sendButton.disabled = shouldDisableComposer;
 
         if (micButton) {
@@ -1192,10 +1207,15 @@
         return 'Escribe tu respuesta...';
     }
 
-    // Marca loading on/off y recalcula UI.
     function setLoading(isLoading) {
-        state.isLoading = isLoading;
-        applyUiState({});
+        state.isLoading =
+            Boolean(isLoading);
+
+        /*
+         * Se reutiliza la última configuración
+         * recibida desde la API.
+         */
+        applyUiState();
     }
 
     // Procesa finalización del reto.
