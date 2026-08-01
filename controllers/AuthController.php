@@ -52,14 +52,11 @@ class AuthController
             $alertas = $credenciales->validarLogin();
 
             if (empty($alertas)) {
-                $resultadoAutenticacion =
-                    AutenticacionService::autenticar(
-                        $usuario->correo,
-                        (string) (
-                            $_POST['password']
-                            ?? ''
-                        )
-                    );
+                $correo = trim((string) ($_POST['correo'] ?? ''));
+
+                $password = (string) ($_POST['password'] ?? '');
+
+                $resultadoAutenticacion = AutenticacionService::autenticar($correo, $password);
 
                 $estado =
                     $resultadoAutenticacion['estado'];
@@ -121,13 +118,63 @@ class AuthController
         ]);
     }
 
-    public static function logout()
+    /**
+     * Elimina la sesión autenticada y redirige
+     * al formulario de inicio de sesión.
+     */
+    public static function logout(): void
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            session_start();
-            $_SESSION = [];
-            header('Location: /');
+        /*
+     * El cierre de sesión solo se permite
+     * mediante una petición POST.
+     */
+        if (
+            $_SERVER['REQUEST_METHOD']
+            !== 'POST'
+        ) {
+            header('Location: /404');
+            exit;
         }
+
+        if (
+            session_status()
+            === PHP_SESSION_NONE
+        ) {
+            session_start();
+        }
+
+        /*
+     * Eliminar todas las variables almacenadas.
+     */
+        $_SESSION = [];
+
+        /*
+     * Eliminar la cookie que contiene
+     * el identificador de la sesión.
+     */
+        if (ini_get('session.use_cookies')) {
+            $parametros =
+                session_get_cookie_params();
+
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $parametros['path'],
+                $parametros['domain'],
+                $parametros['secure'],
+                $parametros['httponly']
+            );
+        }
+
+        /*
+     * Invalidar definitivamente la sesión
+     * almacenada en el servidor.
+     */
+        session_destroy();
+
+        header('Location: /');
+        exit;
     }
 
     public static function registro(Router $router)

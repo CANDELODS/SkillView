@@ -10,13 +10,36 @@ use MVC\Router;
 
 class DashboardController
 {
-    public static function index(Router $router)
+
+    /**
+     * Protege todas las funciones pertenecientes
+     * al panel administrativo.
+     */
+    private static function protegerRutaAdministrativa(): void
     {
-        // Verificamos si el usuario está autenticado
+        /*
+     * Sin sesión, se dirige al formulario
+     * público de inicio de sesión.
+     */
         if (!isAuth()) {
             header('Location: /');
             exit;
         }
+
+        /*
+     * Una sesión general no tiene autorización
+     * para ingresar al área administrativa.
+     */
+        if (!isAdmin()) {
+            header('Location: /principal');
+            exit;
+        }
+    }
+
+    public static function index(Router $router)
+    {
+        // Verificamos si el usuario está autenticado y es un administrador
+        self::protegerRutaAdministrativa();
 
         // Render a la vista 
         $router->render('admin/dashboard/index', [
@@ -26,11 +49,8 @@ class DashboardController
     //----------------------------------ADMINISTRAR USUARIOS----------------------------------
     public static function indexUsuarios(Router $router)
     {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        // Verificamos si el usuario está autenticado y es un administrador
+        self::protegerRutaAdministrativa();
 
         // Obtenemos la búsqueda desde la URL
         $busqueda = $_GET['busqueda'] ?? '';
@@ -136,11 +156,9 @@ class DashboardController
 
     public static function editarUsuarios(Router $router)
     {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        // Verificamos si el usuario está autenticado y es un administrador
+        self::protegerRutaAdministrativa();
+
         $alertas = [];
         $alertasExito = [];
         //Validar el id que llega por la URL
@@ -160,8 +178,11 @@ class DashboardController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $resultadoEdicion = UsuarioEdicionAdminService::editar((int) $id,(int) ($_SESSION['id'] ?? 0),
-                    $_POST);
+            $resultadoEdicion = UsuarioEdicionAdminService::editar(
+                (int) $id,
+                (int) ($_SESSION['id'] ?? 0),
+                $_POST
+            );
 
             /*
             * Se utiliza el objeto devuelto para conservar
@@ -189,11 +210,8 @@ class DashboardController
 
     // public static function eliminarUsuarios()
     // {
-    //     // Verificamos si el usuario está autenticado
-    //     if (!isAuth()) {
-    //         header('Location: /');
-    //         exit;
-    //     }
+    // Verificamos si el usuario está autenticado y es un administrador
+    // self::protegerRutaAdministrativa();
 
     //     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     //         $id = $_POST['id'];
@@ -218,11 +236,8 @@ class DashboardController
     public static function indexHabilidades(Router $router)
     {
 
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        // Verificamos si el usuario está autenticado y es un administrador
+        self::protegerRutaAdministrativa();
 
         // Obtenemos la búsqueda desde la URL
         $busqueda = $_GET['busqueda'] ?? '';
@@ -316,11 +331,8 @@ class DashboardController
         $alertas = [];
         $alertasExito = [];
         $habilidad = new HabilidadesBlandas;
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        // Verificamos si el usuario está autenticado y es un administrador
+        self::protegerRutaAdministrativa();
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $habilidad->sincronizar($_POST);
             //Validar
@@ -346,11 +358,8 @@ class DashboardController
 
     public static function editarHabilidades(Router $router)
     {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        // Verificamos si el usuario está autenticado y es un administrador
+        self::protegerRutaAdministrativa();
         $alertas = [];
         $alertasExito = [];
         //Validar el id que llega por la URL
@@ -397,11 +406,8 @@ class DashboardController
 
     public static function eliminarHabilidades()
     {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        // Verificamos si el usuario está autenticado y es un administrador
+        self::protegerRutaAdministrativa();
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = $_POST['id'];

@@ -100,6 +100,24 @@ function isAuth(): bool
 }
 
 /**
+ * Comprueba que la sesión pertenezca
+ * a una cuenta administrativa.
+ */
+function isAdmin(): bool
+{
+    /*
+     * isAuth() también se encarga de iniciar
+     * la sesión cuando todavía no está activa.
+     */
+    if (!isAuth()) {
+        return false;
+    }
+
+    return isset($_SESSION['admin'])
+        && (int) $_SESSION['admin'] === 1;
+}
+
+/**
  * Indica si la ruta recibida corresponde
  * a la página actual o a una subruta.
  */
