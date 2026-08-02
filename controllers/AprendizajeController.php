@@ -127,22 +127,26 @@ class AprendizajeController
         foreach ($habilidades as $habilidad) {
 
             /*
-             * Solo buscamos una lección cuando la habilidad
-             * tiene contenido y todavía no está completada.
-             */
+     * La lección actual solo debe consultarse para
+     * la habilidad identificada como current.
+     *
+     * Las habilidades completed no tienen una
+     * actividad pendiente y las locked todavía
+     * no pueden iniciarse.
+     */
             if (
-                $habilidad->estado !==
-                RutaAprendizajeService::ESTADO_COMPLETADO
-                &&
-                $habilidad->total_lecciones > 0
+                $habilidad->estado ===
+                RutaAprendizajeService::ESTADO_ACTUAL
             ) {
                 $habilidad->leccion_actual =
-                    Lecciones::leccionActualPorUsuarioYHabilidad(
+                    Lecciones
+                    ::leccionActualPorUsuarioYHabilidad(
                         $idUsuario,
                         $habilidad->id
                     );
             } else {
-                $habilidad->leccion_actual = null;
+                $habilidad->leccion_actual =
+                    null;
             }
         }
 

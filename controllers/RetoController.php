@@ -5,6 +5,7 @@ namespace Controllers;
 use Classes\ChallengeAIService;
 use Classes\SoporteIAService;
 use Classes\RetoProgresoService;
+use Classes\RetoEstadoService;
 use Model\HabilidadesBlandas;
 use Model\Logros;
 use Model\Retos;
@@ -22,7 +23,7 @@ use MVC\Router;
 class RetoController
 {
     // Porcentaje mínimo de puntos que debe alcanzar el usuario para aprobar un reto.
-    private const MIN_PASSING_RATIO = 0.70;
+    private const MIN_PASSING_RATIO = RetoEstadoService::MIN_PASSING_RATIO;
 
     // Método que renderiza la vista principal de un reto individual.
     // Este método NO ejecuta la IA todavía.
@@ -378,14 +379,40 @@ class RetoController
         $userName = trim((string)($_SESSION['nombre'] ?? $_SESSION['nombres'] ?? 'Estudiante'));
         $challengeAI = new ChallengeAIService();
 
+        /*
+         * La máquina de estados valida centralmente si la acción
+         * recibida corresponde con la etapa actual.
+         */
+        $actionValidation = RetoEstadoService::validarAccion(
+            $flow,
+            $action
+        );
+
+        if (!$actionValidation['valid']) {
+            if ($actionValidation['code'] === 'INVALID_ACTION') {
+                self::invalidActionResponse(
+                    $currentStage,
+                    (string)$actionValidation['expectedAction']
+                );
+            }
+
+            if ($actionValidation['code'] === 'STATE_CLOSED') {
+                self::jsonResponse([
+                    'ok' => false,
+                    'error' => [
+                        'code' => 'CHALLENGE_ALREADY_FINISHED',
+                        'message' => 'Este flujo de reto ya finalizó.'
+                    ]
+                ], 409);
+            }
+
+            self::invalidStageResponse($currentStage);
+        }
+
         // Máquina de estados del reto.
         switch ($currentStage) {
             case 'intro':
                 // En la etapa intro, solo se permite la acción "advance".
-                if ($action !== 'advance') {
-                    self::invalidActionResponse($currentStage, 'advance');
-                }
-
                 try {
                     // La IA genera la consigna principal del reto.
                     $messages = $challengeAI->generateChallengePromptMessages(
@@ -409,10 +436,9 @@ class RetoController
                 }
 
                 // Se avanza el flujo a la etapa donde el usuario ya puede responder.
-                $flow['currentStage'] = 'challenge_answer';
-                $flow['nextExpectedAction'] = 'reply';
-                $flow['inputEnabled'] = true;
-                $flow['requiresUserResponse'] = true;
+                $flow = RetoEstadoService::abrirRespuesta(
+                    $flow
+                );
 
                 // Guarda el flujo actualizado.
                 self::saveChallengeFlow($flow);
@@ -436,21 +462,12 @@ class RetoController
             case 'challenge_answer':
             case 'challenge_answer_retry':
                 // En estas etapas solo se permite la acción "reply".
-                if ($action !== 'reply') {
-                    self::invalidActionResponse($currentStage, 'reply');
-                }
 
                 // Primero se valida la respuesta localmente antes de llamar a la IA.
                 $basicValidation = self::validateBasicChallengeAnswer($message);
 
                 // Si falla la validación básica, no se consume API.
                 if (!$basicValidation['valid']) {
-                    // Aumenta intentos usados.
-                    $flow['attempts']['challengeAnswer'] = (int)($flow['attempts']['challengeAnswer'] ?? 0) + 1;
-
-                    // Calcula cuántos intentos quedan.
-                    $remainingAttempts = self::remainingAttempts($flow);
-
                     // Estructura de evaluación simulada para respuesta inválida local.
                     $evaluation = [
                         'accepted' => false,
@@ -462,9 +479,22 @@ class RetoController
                         'feedbackSummary' => $basicValidation['message'] ?? 'Tu respuesta necesita más desarrollo.'
                     ];
 
+                    // Aumenta intentos usados.
+                    // Calcula cuántos intentos quedan.
                     // Guarda la evaluación en el flow.
-                    $flow['evaluation'] = $evaluation;
-                    $flow['scoreAwarded'] = 0;
+                    /*
+                     * La máquina de estados aumenta el intento, conserva la
+                     * evaluación y decide si corresponde reintentar o finalizar.
+                     */
+                    $retry = RetoEstadoService::registrarReintento(
+                        $flow,
+                        $evaluation,
+                        0,
+                        $message
+                    );
+
+                    $flow = $retry['flow'];
+                    $remainingAttempts = $retry['remainingAttempts'];
 
                     // Prepara el mensaje del usuario para que aparezca en el chat.
                     $userMessagePayload = [[
@@ -475,8 +505,7 @@ class RetoController
                     ]];
 
                     // Si ya no quedan intentos, se marca el reto como fallido.
-                    if ($remainingAttempts <= 0) {
-                        $flow = self::markChallengeFlowAsFailed($flow);
+                    if ($retry['exhausted']) {
                         self::saveChallengeFlow($flow);
 
                         // En el chat se muestra solo el último mensaje del usuario.
@@ -491,11 +520,6 @@ class RetoController
                     }
 
                     // Si aún quedan intentos, el flujo entra en retry.
-                    $flow['currentStage'] = 'challenge_answer_retry';
-                    $flow['nextExpectedAction'] = 'reply';
-                    $flow['inputEnabled'] = true;
-                    $flow['requiresUserResponse'] = true;
-
                     self::saveChallengeFlow($flow);
 
                     // Mensajes de retry: mensaje del usuario + feedback del asistente.
@@ -541,11 +565,8 @@ class RetoController
 
                 // Si la IA rechaza la respuesta.
                 if (empty($aiEvaluation['accepted'])) {
-                    // Incrementa intentos usados.
-                    $flow['attempts']['challengeAnswer'] = (int)($flow['attempts']['challengeAnswer'] ?? 0) + 1;
-
                     // Guarda la evaluación de IA en el flow.
-                    $flow['evaluation'] = [
+                    $evaluation = [
                         'accepted' => false,
                         'needsRetry' => true,
                         'retryReason' => $aiEvaluation['retryReason'] ?? 'TOO_GENERIC',
@@ -555,9 +576,21 @@ class RetoController
                         'feedbackSummary' => $aiEvaluation['feedbackSummary'] ?? null
                     ];
 
-                    $flow['scoreAwarded'] = 0;
+                    // Incrementa intentos usados.
                     // Calcula intentos restantes.
-                    $remainingAttempts = self::remainingAttempts($flow);
+                    /*
+                     * La máquina de estados aumenta el intento y decide
+                     * si el reto continúa o termina como fallido.
+                     */
+                    $retry = RetoEstadoService::registrarReintento(
+                        $flow,
+                        $evaluation,
+                        0,
+                        $message
+                    );
+
+                    $flow = $retry['flow'];
+                    $remainingAttempts = $retry['remainingAttempts'];
 
                     // Prepara el mensaje del usuario.
                     $userMessagePayload = [[
@@ -568,8 +601,7 @@ class RetoController
                     ]];
 
                     // Si ya no quedan intentos, el reto termina como fallido.
-                    if ($remainingAttempts <= 0) {
-                        $flow = self::markChallengeFlowAsFailed($flow);
+                    if ($retry['exhausted']) {
                         self::saveChallengeFlow($flow);
 
                         $chatMessages = $userMessagePayload;
@@ -582,11 +614,6 @@ class RetoController
                     }
 
                     // Si aún quedan intentos, sigue en retry.
-                    $flow['currentStage'] = 'challenge_answer_retry';
-                    $flow['nextExpectedAction'] = 'reply';
-                    $flow['inputEnabled'] = true;
-                    $flow['requiresUserResponse'] = true;
-
                     // Si la IA devolvió mensajes, se normalizan.
                     // Si no, se usa fallback local.
                     $assistantRetryMessages = !empty($aiEvaluation['messages'])
@@ -624,27 +651,18 @@ class RetoController
                 $minimumScore = (int)($flow['minimumScore'] ?? 0);
 
                 // true si alcanzó el mínimo; false si quedó por debajo.
-                $meetsMinimumScore = $scoreAwarded >= $minimumScore;
+                $meetsMinimumScore = RetoEstadoService::cumplePuntajeMinimo(
+                    $scoreAwarded,
+                    $minimumScore
+                );
                 //Ejemplo: $scoreAwarded = 18; $minimumScore = 21; $meetsMinimumScore = 18 >= 21 => false
 
                 // La IA consideró válida la respuesta, pero el puntaje
                 // todavía no alcanza el mínimo requerido para aprobar.
                 if (!$meetsMinimumScore) {
-                    // Consume uno de los intentos disponibles.
-                    $flow['attempts']['challengeAnswer'] =
-                        (int)($flow['attempts']['challengeAnswer'] ?? 0) + 1;
-
-                    // Conserva la última respuesta entregada por el usuario.
-                    $flow['answers']['challengeAnswer'] = $message;
-
-                    // Guarda el puntaje real del intento.
-                    // Este valor permanece en sesión, pero todavía no
-                    // se guarda en la base de datos.
-                    $flow['scoreAwarded'] = $scoreAwarded;
-
                     // Convierte el resultado en un reintento controlado
                     // por una regla del backend.
-                    $flow['evaluation'] = [
+                    $evaluation = [
                         'accepted' => false,
                         'needsRetry' => true,
                         'retryReason' => 'BELOW_MINIMUM_SCORE',
@@ -654,8 +672,25 @@ class RetoController
                         'feedbackSummary' => $aiEvaluation['feedbackSummary'] ?? null
                     ];
 
+                    // Consume uno de los intentos disponibles.
+                    // Conserva la última respuesta entregada por el usuario.
+                    // Guarda el puntaje real del intento.
+                    // Este valor permanece en sesión, pero todavía no
+                    // se guarda en la base de datos.
                     // Calcula cuántos intentos le quedan al usuario.
-                    $remainingAttempts = self::remainingAttempts($flow);
+                    /*
+                     * La máquina de estados consume el intento, conserva la
+                     * respuesta y mantiene el puntaje real del intento.
+                     */
+                    $retry = RetoEstadoService::registrarReintento(
+                        $flow,
+                        $evaluation,
+                        $scoreAwarded,
+                        $message
+                    );
+
+                    $flow = $retry['flow'];
+                    $remainingAttempts = $retry['remainingAttempts'];
 
                     // Prepara el mensaje del usuario para mostrarlo en el chat.
                     $userMessagePayload = [[
@@ -666,14 +701,14 @@ class RetoController
                     ]];
 
                     // Si ya agotó los intentos, el reto termina como fallido.
-                    if ($remainingAttempts <= 0) {
-                        $flow = self::markChallengeFlowAsFailed($flow);
-
+                    if ($retry['exhausted']) {
                         // markChallengeFlowAsFailed coloca el puntaje en 0.
                         // Aquí restauramos el puntaje real del último intento
                         // para poder informarlo en el modal.
-                        $flow['scoreAwarded'] = $scoreAwarded;
-
+                        /*
+                         * RetoEstadoService conserva directamente el puntaje
+                         * real, por lo que no se requiere una restauración manual.
+                         */
                         self::saveChallengeFlow($flow);
 
                         $chatMessages = $userMessagePayload;
@@ -694,11 +729,6 @@ class RetoController
                     }
 
                     // Si todavía quedan intentos, se mantiene activo el reto.
-                    $flow['currentStage'] = 'challenge_answer_retry';
-                    $flow['nextExpectedAction'] = 'reply';
-                    $flow['inputEnabled'] = true;
-                    $flow['requiresUserResponse'] = true;
-
                     // Combina el mensaje del usuario con la explicación
                     // del puntaje insuficiente.
                     $retryMessages = array_merge(
@@ -763,16 +793,12 @@ class RetoController
 
                 // Solo después de recibir el feedback final se completa el
                 // flujo y se guarda el resultado.
-                $flow['answers']['challengeAnswer'] = $message;
-                $flow['evaluation'] = $successfulEvaluation;
-                $flow['scoreAwarded'] = $scoreAwarded;
-                $flow['currentStage'] = 'complete';
-                $flow['nextExpectedAction'] = null;
-                $flow['inputEnabled'] = false;
-                $flow['requiresUserResponse'] = false;
-                $flow['completed'] = true;
-                $flow['passed'] = true;
-                $flow['failed'] = false;
+                $flow = RetoEstadoService::completar(
+                    $flow,
+                    $message,
+                    $successfulEvaluation,
+                    $scoreAwarded
+                );
 
                 // Se persiste en base de datos el resultado del reto y sus efectos asociados.
                 $saved = self::persistCompletedChallenge($idUsuario, $flow);
@@ -882,58 +908,33 @@ class RetoController
         // Calcula el puntaje mínimo necesario para aprobarlo. Ejmplo: $minimumScore = 21
         $minimumScore = self::calculateMinimumPassingScore($maxScore);
 
-        return [
-            'challengeId' => (int)$reto->id,
-            'skillId' => (int)$habilidad->id,
-            'userId' => (int)$userId,
+        /*
+         * La construcción completa del estado se delega al servicio
+         * para que el controlador y las pruebas de caja blanca utilicen
+         * exactamente la misma máquina de estados.
+         */
+        $flow = RetoEstadoService::crearFlujoInicial(
+            (int)$reto->id,
+            (int)$habilidad->id,
+            (int)$userId,
+            $content
+        );
 
-            'currentStage' => 'intro',
-            'nextExpectedAction' => 'advance',
+        /*
+         * Se conservan los valores calculados por los helpers del
+         * controlador para mantener explícita la regla del 70 %.
+         */
+        // Puntaje obtenido por el usuario.
+        // Inicialmente es 0 porque todavía no ha respondido.
+        $flow['scoreAwarded'] = (int)($flow['scoreAwarded'] ?? 0);
 
-            'inputEnabled' => false,
-            'requiresUserResponse' => false,
+        // Puntaje máximo disponible en el reto.
+        $flow['maxScore'] = $maxScore;
 
-            'completed' => false,
-            'passed' => false,
-            'failed' => false,
+        // Puntaje mínimo que debe alcanzar para aprobar.
+        $flow['minimumScore'] = $minimumScore;
 
-            'attempts' => [
-                'challengeAnswer' => 0
-            ],
-
-            'limits' => [
-                'challengeAnswer' => 3
-            ],
-
-            'answers' => [
-                'challengeAnswer' => null
-            ],
-
-            'content' => $content,
-
-            'evaluation' => [
-                'accepted' => false,
-                'needsRetry' => false,
-                'retryReason' => null,
-                'detectedIssues' => [],
-                'scoreRatio' => 0,
-                'performanceLevel' => null,
-                'feedbackSummary' => null
-            ],
-
-            // Puntaje obtenido por el usuario.
-            // Inicialmente es 0 porque todavía no ha respondido.
-            'scoreAwarded' => 0,
-
-            // Puntaje máximo disponible en el reto.
-            'maxScore' => $maxScore,
-
-            // Puntaje mínimo que debe alcanzar para aprobar.
-            'minimumScore' => $minimumScore,
-
-            'startedAt' => date('Y-m-d H:i:s'),
-            'lastInteractionAt' => date('Y-m-d H:i:s'),
-        ];
+        return $flow;
     }
 
     // Devuelve el flujo activo del reto desde sesión.
@@ -961,32 +962,9 @@ class RetoController
     // No expone todos los datos internos, solo los necesarios para la UI.
     private static function sessionPayload(array $flow): array
     {
-        return [
-            'challengeId' => (int)($flow['challengeId'] ?? 0),
-            'skillId' => (int)($flow['skillId'] ?? 0),
-
-            'currentStage' => (string)($flow['currentStage'] ?? 'intro'),
-            'nextExpectedAction' => $flow['nextExpectedAction'] ?? null,
-
-            'inputEnabled' => (bool)($flow['inputEnabled'] ?? false),
-            'requiresUserResponse' => (bool)($flow['requiresUserResponse'] ?? false),
-
-            'completed' => (bool)($flow['completed'] ?? false),
-            'passed' => (bool)($flow['passed'] ?? false),
-            'failed' => (bool)($flow['failed'] ?? false),
-
-            'attempts' => [
-                'challengeAnswer' => (int)($flow['attempts']['challengeAnswer'] ?? 0)
-            ],
-
-            'limits' => [
-                'challengeAnswer' => (int)($flow['limits']['challengeAnswer'] ?? 3)
-            ],
-
-            'scoreAwarded' => (int)($flow['scoreAwarded'] ?? 0),
-            'maxScore' => (int)($flow['maxScore'] ?? 0),
-            'minimumScore' => (int)($flow['minimumScore'] ?? 0)
-        ];
+        return RetoEstadoService::sessionPayload(
+            $flow
+        );
     }
 
     /*
@@ -1005,8 +983,8 @@ class RetoController
 
         // Multiplica los puntos máximos por el porcentaje mínimo
         // Además usamos la función ceil para redondear hacia arriba y se garantice que no se apruebe con menos del 70%.
-        $minimumScore = (int) ceil(
-            $maxPoints * self::MIN_PASSING_RATIO //Usamos self porque la constante es de la clase y no de la instancia
+        $minimumScore = RetoEstadoService::calcularPuntajeMinimo(
+            $maxPoints
         );
         //Ejemplo: Para un reto de 30 puntos $minimunScore = round(30 * 0.70) = 21 puntos
 
@@ -1026,28 +1004,27 @@ class RetoController
         }
 
         //Garantiza que scoreRatio permanezca entre 0 y 1
-        $ratio = max(0, min(1, $scoreRatio));
         //Calcula el puntaje proporcional y lo redondea
-        $score = (int) round($maxPoints * $ratio);
         //Evita que el resultado supere los límites del reto
-        $score = max(0, min($maxPoints, $score));
-
         // Si la IA aceptó pero el cálculo da 0 por redondeo,
         // se garantiza mínimo 1 punto.
-        if ($accepted && $score === 0) {
-            return 1;
-        }
-
-        return $score;
+        /*
+         * El servicio centraliza la normalización del ratio,
+         * el redondeo y los límites del puntaje.
+         */
+        return RetoEstadoService::calcularPuntaje(
+            $scoreRatio,
+            $maxPoints,
+            $accepted
+        );
     }
 
     // Calcula cuántos intentos quedan según el flow.
     private static function remainingAttempts(array $flow): int
     {
-        $used = (int)($flow['attempts']['challengeAnswer'] ?? 0);
-        $limit = (int)($flow['limits']['challengeAnswer'] ?? 3);
-
-        return max(0, $limit - $used);
+        return RetoEstadoService::intentosRestantes(
+            $flow
+        );
     }
 
     /**
@@ -1262,16 +1239,10 @@ class RetoController
     // Se usa cuando el usuario agota sus intentos.
     private static function markChallengeFlowAsFailed(array $flow): array
     {
-        $flow['currentStage'] = 'failed';
-        $flow['nextExpectedAction'] = null;
-        $flow['inputEnabled'] = false;
-        $flow['requiresUserResponse'] = false;
-        $flow['completed'] = true;
-        $flow['passed'] = false;
-        $flow['failed'] = true;
-        $flow['scoreAwarded'] = 0;
-
-        return $flow;
+        return RetoEstadoService::fallar(
+            $flow,
+            (int)($flow['scoreAwarded'] ?? 0)
+        );
     }
 
     // Genera el texto que indica al usuario cuántos intentos le quedan.
@@ -1479,6 +1450,14 @@ class RetoController
         string $returnUrl,
         ?string $userMessage = null
     ): array {
+        /*
+         * La máquina de estados bloquea temporalmente la interacción
+         * sin alterar etapa, intentos, respuesta, puntaje o resultado.
+         */
+        $flow = RetoEstadoService::pausarPorIA(
+            $flow
+        );
+
         return SoporteIAService::construirRespuestaRetoNoDisponible(
             $flow,
             $returnUrl,

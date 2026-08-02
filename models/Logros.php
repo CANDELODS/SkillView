@@ -2,7 +2,7 @@
 
 namespace Model;
 
-use Classes\LogroService;
+use Classes\LogroAsignacionService;
 
 class Logros extends ActiveRecord
 {
@@ -53,14 +53,32 @@ class Logros extends ActiveRecord
     }
 
     /**
-     * Obtiene logros habilitados de tipo 1 (habilidad completada)
+     * Obtiene logros de tipo 1 (habilidad completada).
+     *
+     * Se incluyen habilitados y deshabilitados para que
+     * LogroAsignacionService aplique la decisión interna.
      */
     public static function obtenerLogrosTipoHabilidad(): array
     {
-        $sql = "SELECT * 
-                FROM " . static::$tabla . " 
-                WHERE habilitado = 1
-                  AND tipo = 1
+        $sql = "SELECT *
+                FROM " . static::$tabla . "
+                WHERE tipo = 1
+                ORDER BY id ASC";
+
+        return self::consultarSQL($sql);
+    }
+
+    /**
+     * Obtiene logros de tipo 4 (desempeño en retos).
+     *
+     * Se incluyen habilitados y deshabilitados para que
+     * LogroAsignacionService aplique la decisión interna.
+     */
+    public static function obtenerLogrosTipoDesempeno(): array
+    {
+        $sql = "SELECT *
+                FROM " . static::$tabla . "
+                WHERE tipo = 4
                 ORDER BY id ASC";
 
         return self::consultarSQL($sql);
@@ -69,16 +87,23 @@ class Logros extends ActiveRecord
     /**
      * Mapa fijo entre nombre de habilidad y slug usado en iconos/logros
      */
-    /**
-     * Devuelve el slug utilizado para identificar
-     * los iconos relacionados con cada habilidad.
-     */
-    public static function slugHabilidad(
-        string $nombreHabilidad
-    ): ?string {
-        return LogroService::slugHabilidad(
-            $nombreHabilidad
-        );
+    public static function slugHabilidad(string $nombreHabilidad): ?string
+    {
+        $mapa = [
+            'Autoconfianza' => 'autoconfianza',
+            'Manejo del Estrés' => 'estres',
+            'Inteligencia Emocional' => 'inteligencia-emocional',
+            'Comunicación Asertiva' => 'comunicacion-asertiva',
+            'Comunicación No Verbal' => 'comunicacion-no-verbal',
+            'Empatía y Escucha Activa' => 'empatia-y-escucha-activa',
+            'Trabajo en Equipo' => 'trabajo-en-equipo',
+            'Responsabilidad' => 'responsabilidad',
+            'Adaptabilidad' => 'adaptabilidad',
+            'Actitud Positiva' => 'actitud-positiva',
+            'Liderazgo' => 'liderazgo'
+        ];
+
+        return $mapa[$nombreHabilidad] ?? null;
     }
 
     /**
@@ -95,7 +120,8 @@ class Logros extends ActiveRecord
             return [];
         }
 
-        // 1. Traer logros habilitados de tipo 1 (Habilidad)
+        // 1. Traer logros de tipo 1 (Habilidad).
+        // La condición habilitado se evalúa dentro del servicio.
         $logrosTipoHabilidad = self::obtenerLogrosTipoHabilidad();
 
         if (empty($logrosTipoHabilidad)) {
@@ -152,10 +178,6 @@ class Logros extends ActiveRecord
 
             $totalLecciones = (int)($rowTotal['total'] ?? 0);
 
-            if ($totalLecciones <= 0) {
-                continue;
-            }
-
             // 4. Contar cuántas lecciones completó el usuario en esa habilidad
             $sqlCompletadas = "SELECT COUNT(*) AS completadas
                            FROM usuarios_lecciones ul
@@ -176,29 +198,47 @@ class Logros extends ActiveRecord
 
             $leccionesCompletadas = (int)($rowCompletadas['completadas'] ?? 0);
 
-            // 5. Si completó todas las lecciones de la habilidad, revisar el logro correspondiente
-            if (LogroService::habilidadCompletada($totalLecciones, $leccionesCompletadas)) {
-                $iconoEsperado = LogroService::iconoHabilidad($nombreHabilidad);
-                /*
-                * Si la habilidad no tiene un icono asociado
-                * en LogroService, se continúa con la siguiente.
-                */
-                if ($iconoEsperado === null) {
+            // 5. Evaluar cada logro correspondiente a la habilidad.
+            $iconoEsperado = 'logros/habilidad_' . $slug;
+
+            foreach ($logrosTipoHabilidad as $logro) {
+                $condicion =
+                    LogroAsignacionService::evaluarHabilidad(
+                        (int)($logro->habilitado ?? 0) === 1,
+                        $totalLecciones,
+                        $leccionesCompletadas,
+                        (string)($logro->icono ?? ''),
+                        $iconoEsperado
+                    );
+
+                if (!$condicion['cumple']) {
                     continue;
                 }
 
-                foreach ($logrosTipoHabilidad as $logro) {
-                    if ($logro->icono === $iconoEsperado) {
-                        $yaExiste = usuarios_logros::existeLogroUsuario($idUsuario, (int) $logro->id);
+                $yaExiste =
+                    usuarios_logros::existeLogroUsuario(
+                        $idUsuario,
+                        (int)$logro->id
+                    );
 
-                        if (!$yaExiste) {
-                            $registrado = usuarios_logros::registrarLogro($idUsuario, (int) $logro->id);
+                $asignacion =
+                    LogroAsignacionService::evaluarAsignacion(
+                        $condicion['cumple'],
+                        $yaExiste
+                    );
 
-                            if ($registrado) {
-                                $nuevosLogrosIds[] = (int) $logro->id;
-                            }
-                        }
-                    }
+                $registrado =
+                    LogroAsignacionService::registrarSiCorresponde(
+                        $asignacion,
+                        static fn(): bool =>
+                            usuarios_logros::registrarLogro(
+                                $idUsuario,
+                                (int)$logro->id
+                            )
+                    );
+
+                if ($registrado) {
+                    $nuevosLogrosIds[] = (int)$logro->id;
                 }
             }
         }
@@ -212,7 +252,7 @@ class Logros extends ActiveRecord
     }
 
     /**
-     * Evalúa logros nuevos tipo 4 (habilidad completada) para un usuario
+     * Evalúa logros nuevos tipo 4 (desempeño) para un usuario
      * y los registra en usuarios_logros si aún no existen.
      *
      * Devuelve un arreglo con los logros recién obtenidos.
@@ -226,13 +266,18 @@ class Logros extends ActiveRecord
             return [];
         }
 
-        // 1. Obtener información del reto y su habilidad
-        $sqlReto = "SELECT r.id, r.id_habilidades, hb.nombre AS nombre_habilidad
-                FROM retos r
-                INNER JOIN habilidades_blandas hb ON hb.id = r.id_habilidades
-                WHERE r.id = {$idReto}
-                  AND r.habilitado = 1
-                LIMIT 1";
+        // 1. Obtener información del reto y su habilidad.
+        // También se obtiene el estado habilitado para que el servicio
+        // decida si la condición puede continuar.
+        $sqlReto = "SELECT r.id,
+                           r.id_habilidades,
+                           r.habilitado AS reto_habilitado,
+                           hb.nombre AS nombre_habilidad
+                    FROM retos r
+                    INNER JOIN habilidades_blandas hb
+                        ON hb.id = r.id_habilidades
+                    WHERE r.id = {$idReto}
+                    LIMIT 1";
 
         $resultadoReto = self::$db->query($sqlReto);
 
@@ -266,44 +311,67 @@ class Logros extends ActiveRecord
         $usuarioReto = $resultadoUsuarioReto->fetch_assoc();
         $resultadoUsuarioReto->free();
 
-        $completado = (int)($usuarioReto['completado'] ?? 0);
-        $puntajeObtenido = (float)($usuarioReto['puntaje_obtenido'] ?? 0);
+        $retoHabilitado =
+            (int)($reto['reto_habilitado'] ?? 0) === 1;
 
-        // 3. Buscar logros tipo 4 (Desempeño)
-        $sqlLogros = "SELECT *
-                  FROM " . static::$tabla . "
-                  WHERE habilitado = 1
-                    AND tipo = 4
-                  ORDER BY id ASC";
+        $completado =
+            (int)($usuarioReto['completado'] ?? 0) === 1;
 
-        $logrosTipoDesempeno = self::consultarSQL($sqlLogros);
+        $puntajeObtenido =
+            (float)($usuarioReto['puntaje_obtenido'] ?? 0);
+
+        // 3. Buscar logros tipo 4 (Desempeño).
+        // La condición habilitado se evalúa dentro del servicio.
+        $logrosTipoDesempeno =
+            self::obtenerLogrosTipoDesempeno();
 
         if (empty($logrosTipoDesempeno)) {
             return [];
         }
 
         $nuevosLogrosIds = [];
-        $iconoEsperado = LogroService::iconoDesempeno($nombreHabilidad);
-        if ($iconoEsperado === null) {
-            return [];
-        }
+        $iconoEsperado = 'logros/desempeno_' . $slug;
 
         foreach ($logrosTipoDesempeno as $logro) {
-            if ($logro->icono === $iconoEsperado && LogroService::retoCumpleDesempeno(
+            $condicion =
+                LogroAsignacionService::evaluarDesempeno(
+                    (int)($logro->habilitado ?? 0) === 1,
+                    $retoHabilitado,
                     $completado,
                     $puntajeObtenido,
-                    (float) $logro->valor_objetivo
-                )
-            ) {
-                $yaExiste = usuarios_logros::existeLogroUsuario($idUsuario, (int)$logro->id);
+                    (float)($logro->valor_objetivo ?? 0),
+                    (string)($logro->icono ?? ''),
+                    $iconoEsperado
+                );
 
-                if (!$yaExiste) {
-                    $registrado = usuarios_logros::registrarLogro($idUsuario, (int)$logro->id);
+            if (!$condicion['cumple']) {
+                continue;
+            }
 
-                    if ($registrado) {
-                        $nuevosLogrosIds[] = (int)$logro->id;
-                    }
-                }
+            $yaExiste =
+                usuarios_logros::existeLogroUsuario(
+                    $idUsuario,
+                    (int)$logro->id
+                );
+
+            $asignacion =
+                LogroAsignacionService::evaluarAsignacion(
+                    $condicion['cumple'],
+                    $yaExiste
+                );
+
+            $registrado =
+                LogroAsignacionService::registrarSiCorresponde(
+                    $asignacion,
+                    static fn(): bool =>
+                        usuarios_logros::registrarLogro(
+                            $idUsuario,
+                            (int)$logro->id
+                        )
+                );
+
+            if ($registrado) {
+                $nuevosLogrosIds[] = (int)$logro->id;
             }
         }
 
@@ -314,5 +382,4 @@ class Logros extends ActiveRecord
         return usuarios_logros::obtenerPorIds($nuevosLogrosIds);
     }
     //----------------------------FIN LOGROS----------------------------//
-
 }

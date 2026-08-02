@@ -36,25 +36,144 @@ final class ProgresoService
             ($progresoLecciones * 0.50) +
             ($progresoRetos * 0.50);
 
-        return (int) round($progresoConsolidado);
+        return (int) round(
+            $progresoConsolidado
+        );
+    }
+
+    /**
+     * Calcula el detalle completo del progreso a partir
+     * de las cantidades reales de actividades.
+     *
+     * Esta operación centraliza:
+     *
+     * - porcentaje de lecciones;
+     * - porcentaje de retos;
+     * - ponderación 50/50;
+     * - nivel textual;
+     * - nivel numérico.
+     *
+     * @return array{
+     *     porcentajeLecciones: int,
+     *     porcentajeRetos: int,
+     *     progreso: int,
+     *     nivelTexto: string,
+     *     nivelNumerico: int
+     * }
+     */
+    public static function calcularDetalleDesdeCantidades(
+        int $leccionesCompletadas,
+        int $totalLecciones,
+        int $retosCompletados,
+        int $totalRetos
+    ): array {
+        /*
+         * Se reutiliza la regla centralizada para
+         * calcular porcentajes de actividades.
+         */
+        $porcentajeLecciones =
+            PorcentajeActividadService::calcular(
+                $leccionesCompletadas,
+                $totalLecciones
+            );
+
+        $porcentajeRetos =
+            PorcentajeActividadService::calcular(
+                $retosCompletados,
+                $totalRetos
+            );
+
+        /*
+         * Se aplica la ponderación:
+         *
+         * 50 % lecciones + 50 % retos.
+         */
+        $progreso =
+            self::calcularProgreso(
+                (float) $porcentajeLecciones,
+                (float) $porcentajeRetos
+            );
+
+        $nivelTexto =
+            self::determinarNivel(
+                $progreso
+            );
+
+        $nivelNumerico =
+            self::determinarNivelNumerico(
+                $progreso
+            );
+
+        return [
+            'porcentajeLecciones' =>
+                $porcentajeLecciones,
+
+            'porcentajeRetos' =>
+                $porcentajeRetos,
+
+            'progreso' =>
+                $progreso,
+
+            'nivelTexto' =>
+                $nivelTexto,
+
+            'nivelNumerico' =>
+                $nivelNumerico
+        ];
     }
 
     /**
      * Determina el nivel correspondiente al progreso alcanzado.
      */
-    public static function determinarNivel(float $progreso): string
-    {
+    public static function determinarNivel(
+        float $progreso
+    ): string {
         self::validarPorcentaje(
             $progreso,
             'El progreso consolidado'
         );
 
-        $progresoRedondeado = (int) round($progreso);
+        $progresoRedondeado =
+            (int) round(
+                $progreso
+            );
 
         return match (true) {
-            $progresoRedondeado <= 33 => 'Básico',
-            $progresoRedondeado <= 66 => 'Intermedio',
-            default => 'Avanzado'
+            $progresoRedondeado <= 33 =>
+                'Básico',
+
+            $progresoRedondeado <= 66 =>
+                'Intermedio',
+
+            default =>
+                'Avanzado'
+        };
+    }
+
+    /**
+     * Convierte el nivel textual al valor numérico
+     * almacenado en usuarios_habilidades.
+     *
+     * 1 = Básico
+     * 2 = Intermedio
+     * 3 = Avanzado
+     */
+    public static function determinarNivelNumerico(
+        float $progreso
+    ): int {
+        return match (
+            self::determinarNivel(
+                $progreso
+            )
+        ) {
+            'Básico' =>
+                1,
+
+            'Intermedio' =>
+                2,
+
+            'Avanzado' =>
+                3
         };
     }
 
@@ -65,7 +184,10 @@ final class ProgresoService
         float $porcentaje,
         string $nombre
     ): void {
-        if ($porcentaje < 0 || $porcentaje > 100) {
+        if (
+            $porcentaje < 0 ||
+            $porcentaje > 100
+        ) {
             throw new InvalidArgumentException(
                 "{$nombre} debe estar entre 0 y 100."
             );

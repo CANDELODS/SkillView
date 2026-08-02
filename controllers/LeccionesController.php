@@ -3,6 +3,7 @@
 namespace Controllers;
 
 use Classes\LessonAIService;
+use Classes\LeccionEstadoService;
 use Classes\SoporteIAService;
 use Classes\LeccionProgresoService;
 use Model\HabilidadesBlandas;
@@ -169,30 +170,15 @@ class LeccionesController
         $tipoLeccion = self::inferLessonType($contenido);
 
         // 6) Crear estado temporal de la lección en sesión
-        $_SESSION['lesson_flow'] = [
-            'lessonId' => (int)$leccion->id,
-            'skillId' => (int)$habilidad->id,
-            'currentStage' => 'intro',
-            'nextExpectedAction' => 'advance',
-            'inputEnabled' => false,
-            'requiresUserResponse' => false,
-            'completed' => false,
-            'answers' => [
-                'microPractice' => null,
-                'miniEvaluation' => null
-            ],
-            'attempts' => [
-                'microPractice' => 0,
-                'miniEvaluation' => 0
-            ],
-            'limits' => [
-                'microPractice' => 3,
-                'miniEvaluation' => 3
-            ],
-            'failed' => false,
-            'content' => $contenido,
-            'lessonType' => $tipoLeccion
-        ];
+        // La máquina de estados centraliza la estructura inicial y evita
+        // duplicar las reglas de transición dentro del controlador.
+        $_SESSION['lesson_flow'] =
+            LeccionEstadoService::crearFlujoInicial(
+                (int)$leccion->id,
+                (int)$habilidad->id,
+                $contenido,
+                $tipoLeccion
+            );
 
         // 7) Mensajes iniciales
         try {
@@ -250,24 +236,9 @@ class LeccionesController
                     'name' => $habilidad->nombre
                 ]
             ],
-            'session' => [
-                'lessonId' => (int)$leccion->id,
-                'skillId' => (int)$habilidad->id,
-                'currentStage' => 'intro',
-                'nextExpectedAction' => 'advance',
-                'inputEnabled' => false,
-                'requiresUserResponse' => false,
-                'completed' => false,
-                'attempts' => [
-                    'microPractice' => 0,
-                    'miniEvaluation' => 0
-                ],
-                'limits' => [
-                    'microPractice' => 3,
-                    'miniEvaluation' => 3
-                ],
-                'failed' => false
-            ],
+            'session' => self::sessionPayload(
+                $_SESSION['lesson_flow']
+            ),
             'content' => $contenido,
             'messages' => $messages,
             'ui' => [
@@ -386,6 +357,53 @@ class LeccionesController
         $content      = $flow['content'] ?? [];
         $lessonType   = $flow['lessonType'] ?? 'standard';
 
+        /*
+         * La máquina de estados determina si la acción enviada
+         * corresponde con la etapa actual. Así evitamos repetir
+         * la misma validación dentro de cada caso del switch.
+         */
+        $actionValidation =
+            LeccionEstadoService::validarAccion(
+                $flow,
+                $action
+            );
+
+        if (!$actionValidation['valid']) {
+            if ($actionValidation['code'] === 'INVALID_ACTION') {
+                self::invalidActionResponse(
+                    $currentStage,
+                    (string)$actionValidation['expectedAction']
+                );
+            }
+
+            if ($actionValidation['code'] === 'STATE_CLOSED') {
+                $failed =
+                    $currentStage
+                    === LeccionEstadoService::ETAPA_FALLIDA;
+
+                self::jsonResponse([
+                    'ok' => false,
+                    'error' => [
+                        'code' => $failed
+                            ? 'LESSON_FAILED'
+                            : 'LESSON_ALREADY_COMPLETED',
+                        'message' => $failed
+                            ? 'La lección ya terminó sin completarse.'
+                            : 'La lección ya fue completada.'
+                    ],
+                    'redirectTo' => '/aprendizaje'
+                ], 409);
+            }
+
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'INVALID_STAGE',
+                    'message' => 'El estado actual de la lección no es válido.'
+                ]
+            ], 409);
+        }
+
         // Variables auxiliares que luego devolveremos al frontend.
         $messages = [];
         $evaluation = null;
@@ -414,10 +432,8 @@ class LeccionesController
             // ============================================================
             case 'intro':
                 // En intro el frontend debe pedir avanzar, no responder.
-                if ($action !== 'advance') {
-                    self::invalidActionResponse($currentStage, 'advance');
-                }
-
+                // Esta validación ahora se realiza antes del switch mediante
+                // LeccionEstadoService::validarAccion().
                 // Construimos los mensajes que lanzan la micro-práctica.
                 try {
                     $lessonAIService = new LessonAIService();
@@ -444,10 +460,10 @@ class LeccionesController
 
                 // Actualizamos el estado:
                 // ahora el sistema espera una respuesta del usuario.
-                $flow['currentStage'] = 'micro_practice_answer';
-                $flow['nextExpectedAction'] = 'reply';
-                $flow['inputEnabled'] = true;
-                $flow['requiresUserResponse'] = true;
+                $flow =
+                    LeccionEstadoService::abrirMicroPractica(
+                        $flow
+                    );
 
                 // Respondemos al frontend con el nuevo estado y los mensajes.
                 self::jsonResponse([
@@ -470,30 +486,25 @@ class LeccionesController
             // ============================================================
             case 'micro_practice_answer':
             case 'micro_practice_answer_retry':
-                if ($action !== 'reply') {
-                    self::invalidActionResponse($currentStage, 'reply');
-                }
-
                 $basicValidation = self::validateBasicMicroPracticeAnswer($message);
 
                 // Si falla el filtro local, no gastamos tokens
                 if (!$basicValidation['valid']) {
-                    $flow['attempts']['microPractice'] = (int)($flow['attempts']['microPractice'] ?? 0) + 1;
+                    $retry =
+                        LeccionEstadoService::registrarReintentoMicroPractica(
+                            $flow
+                        );
 
-                    $remainingAttempts = (int)$flow['limits']['microPractice'] - (int)$flow['attempts']['microPractice'];
+                    $flow = $retry['flow'];
+                    $remainingAttempts = $retry['remainingAttempts'];
 
-                    if ($remainingAttempts <= 0) {
+                    if ($retry['exhausted']) {
                         self::buildFailedLessonResponse(
                             $flow,
                             'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la micro-práctica. Puedes volver a intentarlo más adelante.',
                             $message
                         );
                     }
-
-                    $flow['currentStage'] = 'micro_practice_answer_retry';
-                    $flow['nextExpectedAction'] = 'reply';
-                    $flow['inputEnabled'] = true;
-                    $flow['requiresUserResponse'] = true;
 
                     $warning = self::buildAttemptsWarningMessage($remainingAttempts);
 
@@ -549,22 +560,21 @@ class LeccionesController
                         $userName
                     );
                     if (!$aiEvaluation['accepted']) {
-                        $flow['attempts']['microPractice'] = (int)($flow['attempts']['microPractice'] ?? 0) + 1;
+                        $retry =
+                            LeccionEstadoService::registrarReintentoMicroPractica(
+                                $flow
+                            );
 
-                        $remainingAttempts = (int)$flow['limits']['microPractice'] - (int)$flow['attempts']['microPractice'];
+                        $flow = $retry['flow'];
+                        $remainingAttempts = $retry['remainingAttempts'];
 
-                        if ($remainingAttempts <= 0) {
+                        if ($retry['exhausted']) {
                             self::buildFailedLessonResponse(
                                 $flow,
                                 'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la micro-práctica. Puedes volver a intentarlo más adelante.',
                                 $message
                             );
                         }
-
-                        $flow['currentStage'] = 'micro_practice_answer_retry';
-                        $flow['nextExpectedAction'] = 'reply';
-                        $flow['inputEnabled'] = true;
-                        $flow['requiresUserResponse'] = true;
 
                         $messages = $lessonAIService->normalizeMessages($aiEvaluation['messages'], 'msg_ai_micro_retry_');
                         $messages[] = [
@@ -627,11 +637,11 @@ class LeccionesController
 
                     // Solo después de obtener correctamente la siguiente
                     // pregunta se actualiza la máquina de estados.
-                    $flow['answers']['microPractice'] = $message;
-                    $flow['currentStage'] = 'mini_eval_answer';
-                    $flow['nextExpectedAction'] = 'reply';
-                    $flow['inputEnabled'] = true;
-                    $flow['requiresUserResponse'] = true;
+                    $flow =
+                        LeccionEstadoService::avanzarAMiniEvaluacion(
+                            $flow,
+                            $message
+                        );
                     self::jsonResponse([
                         'ok' => true,
                         'error' => null,
@@ -665,10 +675,8 @@ class LeccionesController
             // ============================================================
             case 'mini_eval_answer':
                 // En esta etapa el frontend también debe responder.
-                if ($action !== 'reply') {
-                    self::invalidActionResponse($currentStage, 'reply');
-                }
-
+                // Esta validación ahora se realiza antes del switch mediante
+                // LeccionEstadoService::validarAccion().
                 // Validamos que la mini-evaluación no venga vacía.
                 if ($message === '') {
                     self::jsonResponse([
@@ -684,13 +692,15 @@ class LeccionesController
                 // Esto evita gastar tokens si la respuesta es demasiado corta o inválida.
                 if (strlen($message) < 8) {
 
-                    $flow['attempts']['miniEvaluation'] = (int)($flow['attempts']['miniEvaluation'] ?? 0) + 1;
+                    $retry =
+                        LeccionEstadoService::registrarReintentoMiniEvaluacion(
+                            $flow
+                        );
 
-                    $remainingAttempts =
-                        (int)$flow['limits']['miniEvaluation'] -
-                        (int)$flow['attempts']['miniEvaluation'];
+                    $flow = $retry['flow'];
+                    $remainingAttempts = $retry['remainingAttempts'];
 
-                    if ($remainingAttempts <= 0) {
+                    if ($retry['exhausted']) {
 
                         self::buildFailedLessonResponse(
                             $flow,
@@ -759,14 +769,15 @@ class LeccionesController
                     // Si la IA dice que NO es válida
                     if (!$aiEvaluation['accepted']) {
 
-                        $flow['attempts']['miniEvaluation'] =
-                            (int)($flow['attempts']['miniEvaluation'] ?? 0) + 1;
+                        $retry =
+                            LeccionEstadoService::registrarReintentoMiniEvaluacion(
+                                $flow
+                            );
 
-                        $remainingAttempts =
-                            (int)$flow['limits']['miniEvaluation'] -
-                            (int)$flow['attempts']['miniEvaluation'];
+                        $flow = $retry['flow'];
+                        $remainingAttempts = $retry['remainingAttempts'];
 
-                        if ($remainingAttempts <= 0) {
+                        if ($retry['exhausted']) {
 
                             self::buildFailedLessonResponse(
                                 $flow,
@@ -839,12 +850,11 @@ class LeccionesController
 
                     // Solo después de recibir correctamente el feedback final
                     // se actualiza la sesión y se guarda el progreso.
-                    $flow['answers'] = $completedAnswers;
-                    $flow['currentStage'] = 'complete';
-                    $flow['nextExpectedAction'] = null;
-                    $flow['inputEnabled'] = false;
-                    $flow['requiresUserResponse'] = false;
-                    $flow['completed'] = true;
+                    $flow =
+                        LeccionEstadoService::completar(
+                            $flow,
+                            $message
+                        );
 
                     self::markLessonAsCompleted($idUsuario, $lessonId);
 
@@ -1168,6 +1178,15 @@ class LeccionesController
         string $returnUrl,
         ?string $userMessage = null
     ): array {
+        /*
+         * La pausa conserva la etapa, las respuestas y los intentos,
+         * pero bloquea temporalmente cualquier nueva interacción.
+         */
+        $flow =
+            LeccionEstadoService::pausarPorIA(
+                $flow
+            );
+
         return SoporteIAService::construirRespuestaLeccionNoDisponible(
             $flow,
             $returnUrl,
@@ -1194,17 +1213,9 @@ class LeccionesController
      */
     private static function sessionPayload(array $flow): array
     {
-        return [
-            'lessonId' => (int)($flow['lessonId'] ?? 0),
-            'skillId' => (int)($flow['skillId'] ?? 0),
-            'currentStage' => $flow['currentStage'] ?? null,
-            'nextExpectedAction' => $flow['nextExpectedAction'] ?? null,
-            'inputEnabled' => (bool)($flow['inputEnabled'] ?? false),
-            'requiresUserResponse' => (bool)($flow['requiresUserResponse'] ?? false),
-            'completed' => (bool)($flow['completed'] ?? false),
-            'answers' => $flow['answers'] ?? [],
-            'attempts' => $flow['attempts'] ?? []
-        ];
+        return LeccionEstadoService::sessionPayload(
+            $flow
+        );
     }
 
     /**
@@ -1237,14 +1248,16 @@ class LeccionesController
         );
     }
 
-    private static function buildFailedLessonResponse(array $flow, string $assistantMessage, string $userMessage = ''): void
+    private static function buildFailedLessonResponse(array &$flow, string $assistantMessage, string $userMessage = ''): void
     {
-        $flow['currentStage'] = 'failed';
-        $flow['nextExpectedAction'] = null;
-        $flow['inputEnabled'] = false;
-        $flow['requiresUserResponse'] = false;
-        $flow['completed'] = false;
-        $flow['failed'] = true;
+        /*
+         * La referencia garantiza que el estado fallido también
+         * quede persistido dentro de $_SESSION['lesson_flow'].
+         */
+        $flow =
+            LeccionEstadoService::fallar(
+                $flow
+            );
 
         $messages = [];
 

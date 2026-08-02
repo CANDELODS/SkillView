@@ -158,16 +158,17 @@ class usuarios_habilidades extends ActiveRecord
      * 2 = Intermedio
      * 3 = Avanzado
      */
-    public static function calcularNivelPorProgreso(float $progreso): int
-    {
-        $nivelTexto = ProgresoService::determinarNivel($progreso);
-
-        return match ($nivelTexto) {
-            'Básico' => 1,
-            'Intermedio' => 2,
-            'Avanzado' => 3,
-            default => 1
-        };
+    public static function calcularNivelPorProgreso(
+        float $progreso
+    ): int {
+        /*
+     * La conversión también queda centralizada
+     * dentro de ProgresoService.
+     */
+        return ProgresoService
+            ::determinarNivelNumerico(
+                $progreso
+            );
     }
 
     /**
@@ -249,46 +250,36 @@ class usuarios_habilidades extends ActiveRecord
         $retosCompletados = usuarios_retos::totalCompletadosPorHabilidad($idUsuario, $idHabilidad);
 
         // -------------------------
-        // PORCENTAJE DE LECCIONES
+        // CÁLCULO DETALLADO DEL PROGRESO
         // -------------------------
-        // ProgresoService recibe porcentajes entre 0 y 100,
-        // por lo que la proporción se multiplica por 100.
-        $porcentajeLecciones = 0.0;
+        // ProgresoService recibe las cantidades reales
+        // de lecciones y retos y centraliza:
+        //
+        // - el cálculo de cada porcentaje;
+        // - la limitación máxima al 100 %;
+        // - la ponderación 50 % y 50 %;
+        // - la asignación del nivel textual;
+        // - la conversión al nivel numérico.
+        $detalleProgreso =
+            ProgresoService
+            ::calcularDetalleDesdeCantidades(
+                (int) $leccionesCompletadas,
+                (int) $totalLecciones,
+                (int) $retosCompletados,
+                (int) $totalRetos
+            );
 
-        if ($totalLecciones > 0) {
-            $porcentajeLecciones =
-                ($leccionesCompletadas / $totalLecciones) * 100;
+        // Progreso consolidado que se almacenará
+        // en usuarios_habilidades.
+        $progreso =
+            $detalleProgreso['progreso'];
 
-            // Garantiza que el porcentaje no sea mayor a 100
-            // ante posibles datos duplicados o inconsistentes.
-            $porcentajeLecciones = min(100.0, $porcentajeLecciones);
-        }
-
-        // -------------------------
-        // PORCENTAJE DE RETOS
-        // -------------------------
-        $porcentajeRetos = 0.0;
-
-        if ($totalRetos > 0) {
-            $porcentajeRetos =
-                ($retosCompletados / $totalRetos) * 100;
-
-            $porcentajeRetos = min(100.0, $porcentajeRetos);
-        }
-
-        // -------------------------
-        // PROGRESO CONSOLIDADO
-        // -------------------------
-        // La fórmula 50 % lecciones + 50 % retos
-        // ahora se encuentra centralizada en ProgresoService.
-        $progreso = ProgresoService::calcularProgreso(
-            $porcentajeLecciones,
-            $porcentajeRetos
-        );
-
-        // Convierte el nivel textual del servicio al valor
-        // numérico almacenado en la base de datos.
-        $nivel = self::calcularNivelPorProgreso($progreso);
+        // Nivel numérico:
+        // 1 = Básico
+        // 2 = Intermedio
+        // 3 = Avanzado
+        $nivel =
+            $detalleProgreso['nivelNumerico'];
 
         // Fecha actual para registrar cuándo se recalculó el progreso.
         $fecha = date('Y-m-d');
