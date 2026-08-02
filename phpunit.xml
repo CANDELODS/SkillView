@@ -16,6 +16,33 @@
         <testsuite name="Integracion">
             <directory suffix="Test.php">tests/Integration</directory>
         </testsuite>
+
+        <testsuite name="CajaBlanca">
+            <directory suffix="Test.php">tests/WhiteBox</directory>
+        </testsuite>
     </testsuites>
-    
+
+    <!--
+        Código propio considerado para los
+        reportes de cobertura.
+    -->
+    <source>
+        <include>
+            <directory suffix=".php">classes</directory>
+            <directory suffix=".php">controllers</directory>
+            <directory suffix=".php">models</directory>
+        </include>
+    </source>
+
+    <!--
+        De forma predeterminada se recopilará
+        únicamente cobertura de líneas ejecutadas.
+        La cobertura de rutas se activará por comando
+        en las pruebas de caja blanca.
+    -->
+    <coverage
+        includeUncoveredFiles="false"
+        pathCoverage="false"
+        ignoreDeprecatedCodeUnits="true"
+    />
 </phpunit>
