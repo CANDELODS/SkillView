@@ -5639,11 +5639,15 @@ body:not(.login) {
   margin-bottom: 0.2rem;
   font-weight: 700;
 }
-.register__subtitle {
+.register__subtitle, .register__subtitle--password {
   font-size: 1.6rem;
   color: #555;
   margin-bottom: 2.2rem;
   line-height: 1.4;
+}
+.register__subtitle--password {
+  font-size: 1.4rem;
+  margin: 0;
 }
 .register__form, .register__form--edit {
   display: grid;

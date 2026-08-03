@@ -133,6 +133,9 @@
       <!-- Password -->
       <div class="register__field--contraseña">
         <label class="register__label" for="password">Contraseña</label>
+        <p class="register__subtitle--password">
+          (Longitud de 6 a 16 caracteres, incluir al menos una letra mayúscula, un número y un carácter especial)
+        </p>
         <input
           class="register__input"
           type="password"
