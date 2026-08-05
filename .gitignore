@@ -10,3 +10,6 @@ node_modules
 
 # Reportes de cobertura
 coverage/
+
+# Reportes de adaptabilidad
+reports/
