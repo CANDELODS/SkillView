@@ -7,6 +7,7 @@ namespace Model;
 use Model\ActiveRecord;
 use Model\usuarios_lecciones;
 use Model\usuarios_retos;
+use InvalidArgumentException;
 
 // Modelo que representa la tabla usuarios_habilidades.
 // Esta tabla guarda el progreso consolidado del usuario por cada habilidad blanda.
@@ -20,6 +21,34 @@ class usuarios_habilidades extends ActiveRecord
 
     // Propiedades públicas que representan cada columna.
     public $id, $id_usuarios, $id_habilidades, $nivel, $progreso, $ultima_actualizacion;
+
+    // ================== REGLAS DE PROGRESO ================== //
+
+    /*
+     * Cada componente aporta la mitad del progreso consolidado.
+     * Se expresan como factores decimales para trabajar directamente
+     * con porcentajes comprendidos entre 0 y 100.
+     */
+    private const PESO_LECCIONES = 0.50;
+    private const PESO_RETOS = 0.50;
+
+    /*
+     * Límites utilizados para convertir el progreso en el nivel
+     * numérico almacenado en la tabla usuarios_habilidades.
+     */
+    private const INICIO_NIVEL_INTERMEDIO = 34.0;
+    private const INICIO_NIVEL_AVANZADO = 67.0;
+
+    // Valores numéricos guardados en la columna nivel.
+    private const NIVEL_BASICO = 1;
+    private const NIVEL_INTERMEDIO = 2;
+    private const NIVEL_AVANZADO = 3;
+
+    // El progreso válido siempre debe permanecer entre 0 y 100.
+    private const PROGRESO_MINIMO = 0.0;
+    private const PROGRESO_MAXIMO = 100.0;
+
+    // ================== FIN REGLAS DE PROGRESO ================== //
 
     // ================== REGISTRO (Inicializar Tabla Para /Perfil) ================== //
 
@@ -153,24 +182,100 @@ class usuarios_habilidades extends ActiveRecord
 
     /**
      * Determina el nivel numérico de la habilidad según el progreso.
+     *
+     * El método rechaza porcentajes fuera del rango permitido para
+     * evitar que otras partes del sistema asignen niveles a valores
+     * negativos o superiores al 100 %.
+     *
      * 1 = Básico
      * 2 = Intermedio
      * 3 = Avanzado
      */
-    public static function calcularNivelPorProgreso(float $progreso): int
-    {
-        // Si el progreso es 67 o más, el nivel es Avanzado.
-        if ($progreso >= 67) {
-            return 3;
+    public static function calcularNivelPorProgreso(
+        float $progreso
+    ): int {
+        self::validarProgreso(
+            $progreso
+        );
+
+        if (
+            $progreso >=
+            self::INICIO_NIVEL_AVANZADO
+        ) {
+            return self::NIVEL_AVANZADO;
         }
 
-        // Si el progreso es 34 o más, el nivel es Intermedio.
-        if ($progreso >= 34) {
-            return 2;
+        if (
+            $progreso >=
+            self::INICIO_NIVEL_INTERMEDIO
+        ) {
+            return self::NIVEL_INTERMEDIO;
         }
 
-        // En cualquier otro caso, queda en Básico.
-        return 1;
+        return self::NIVEL_BASICO;
+    }
+
+    /**
+     * Calcula el porcentaje de actividades completadas.
+     *
+     * - Evita divisiones por cero.
+     * - No permite cantidades negativas.
+     * - Limita el resultado al 100 % cuando existen registros
+     *   duplicados o inconsistentes.
+     */
+    private static function calcularPorcentajeActividad(
+        int $completadas,
+        int $total
+    ): float {
+        $completadas = max(0, $completadas);
+        $total = max(0, $total);
+
+        if ($total === 0) {
+            return self::PROGRESO_MINIMO;
+        }
+
+        $porcentaje =
+            ($completadas / $total) * 100;
+
+        return round(
+            min(
+                self::PROGRESO_MAXIMO,
+                $porcentaje
+            ),
+            2
+        );
+    }
+
+    /**
+     * Rechaza porcentajes fuera del rango permitido.
+     */
+    private static function validarProgreso(
+        float $progreso
+    ): void {
+        if (
+            $progreso < self::PROGRESO_MINIMO
+            || $progreso > self::PROGRESO_MAXIMO
+        ) {
+            throw new InvalidArgumentException(
+                'El progreso debe estar entre 0 y 100.'
+            );
+        }
+    }
+
+    /**
+     * Mantiene cualquier valor de progreso dentro del rango
+     * permitido por el sistema.
+     */
+    private static function normalizarProgreso(
+        float $progreso
+    ): float {
+        return min(
+            self::PROGRESO_MAXIMO,
+            max(
+                self::PROGRESO_MINIMO,
+                $progreso
+            )
+        );
     }
 
     /**
@@ -184,8 +289,16 @@ class usuarios_habilidades extends ActiveRecord
     public static function recalcularProgresoHabilidad(int $idUsuario, int $idHabilidad): void
     {
         // Se fuerzan los tipos enteros para evitar inconsistencias.
-        $idUsuario = (int)$idUsuario;
-        $idHabilidad = (int)$idHabilidad;
+        $idUsuario = (int) $idUsuario;
+        $idHabilidad = (int) $idHabilidad;
+
+        /*
+         * Un identificador inválido no puede corresponder con
+         * un usuario o una habilidad almacenada.
+         */
+        if ($idUsuario <= 0 || $idHabilidad <= 0) {
+            return;
+        }
 
         // -------------------------
         // TOTAL DE LECCIONES DE LA HABILIDAD
@@ -254,41 +367,57 @@ class usuarios_habilidades extends ActiveRecord
         // -------------------------
         // PORCENTAJE DE LECCIONES Y RETOS
         // -------------------------
-        // Calcula el porcentaje de avance en lecciones.
-        // Si no hay lecciones, se mantiene en 0 para evitar división por cero.
-        $porcentajeLecciones = 0;
-        if ($totalLecciones > 0) {
-            $porcentajeLecciones = $leccionesCompletadas / $totalLecciones;
-        }
+        /*
+         * Cada porcentaje se calcula con el mismo método privado.
+         * De esta forma se evita duplicar la validación de división
+         * por cero y el límite máximo del 100 %.
+         */
+        $porcentajeLecciones =
+            self::calcularPorcentajeActividad(
+                (int) $leccionesCompletadas,
+                $totalLecciones
+            );
 
-        // Calcula el porcentaje de avance en retos.
-        // Si no hay retos, se mantiene en 0.
-        $porcentajeRetos = 0;
-        if ($totalRetos > 0) {
-            $porcentajeRetos = $retosCompletados / $totalRetos;
-        }
+        $porcentajeRetos =
+            self::calcularPorcentajeActividad(
+                (int) $retosCompletados,
+                $totalRetos
+            );
 
         // -------------------------
-        // PROGRESO FINAL (50% + 50%)
+        // PROGRESO FINAL (50 % + 50 %)
         // -------------------------
-        // La regla de negocio de SkillView define que:
-        // - las lecciones representan el 50% del progreso,
-        // - los retos representan el otro 50%.
-        //
-        // Por eso cada porcentaje se multiplica por 50.
+        /*
+         * La regla de negocio de SkillView define que:
+         * - las lecciones representan el 50 % del progreso;
+         * - los retos representan el otro 50 %.
+         *
+         * Los porcentajes ya se encuentran en el rango de 0 a 100,
+         * por lo que cada uno se multiplica por su factor decimal.
+         */
         $progreso =
-            ($porcentajeLecciones * 50) +
-            ($porcentajeRetos * 50);
+            ($porcentajeLecciones *
+                self::PESO_LECCIONES)
+            +
+            ($porcentajeRetos *
+                self::PESO_RETOS);
 
-        // Redondea el resultado a 2 decimales para mantener consistencia visual y numérica.
-        $progreso = round($progreso, 2);
+        /*
+         * Se conservan dos decimales y se garantiza que el valor
+         * final permanezca entre 0 y 100.
+         */
+        $progreso = self::normalizarProgreso(
+            round($progreso, 2)
+        );
 
         // -------------------------
         // NIVEL SEGÚN PROGRESO
         // -------------------------
-        // Convierte el porcentaje final a un nivel numérico:
-        // 1, 2 o 3.
-        $nivel = self::calcularNivelPorProgreso($progreso);
+        // Convierte el porcentaje final al nivel numérico 1, 2 o 3.
+        $nivel =
+            self::calcularNivelPorProgreso(
+                $progreso
+            );
 
         // Fecha actual para registrar cuándo se recalculó el progreso.
         $fecha = date('Y-m-d');
