@@ -12,38 +12,126 @@ use MVC\Router;
 
 class LeccionesController
 {
-    public static function leccion(Router $router)
-    {
+    public static function leccion(
+        Router $router
+    ): void {
+        // 1) Comprobar autenticación.
         if (!isAuth()) {
             header('Location: /');
             exit;
         }
 
-        $login = false;
-        $datosUsuario = obtenerDatosUsuarioHeader($_SESSION['id']);
+        /*
+         * Todas las comprobaciones de secuencialidad dependen del
+         * identificador del usuario. Una sesión incompleta no debe
+         * continuar hacia consultas de lecciones.
+         */
+        $idUsuario = (int) (
+            $_SESSION['id']
+            ?? 0
+        );
 
-        $idLeccion = $_GET['id'] ?? null;
-        if (!$idLeccion) {
-            header('Location: /aprendizaje');
+        if ($idUsuario <= 0) {
+            header('Location: /');
             exit;
         }
 
-        $leccion = Lecciones::find($idLeccion);
-        if (!$leccion) {
-            header('Location: /aprendizaje');
-            exit;
+        // 2) Validar que el parámetro id sea un entero positivo.
+        $idLeccion = filter_var(
+            $_GET['id']
+                ?? null,
+            FILTER_VALIDATE_INT,
+            [
+                'options' => [
+                    'min_range' => 1
+                ]
+            ]
+        );
+
+        if ($idLeccion === false) {
+            self::redirigirAprendizaje();
         }
 
-        $habilidad = HabilidadesBlandas::find($leccion->id_habilidades);
-        $leccion->nombreHabilidad = $habilidad ? $habilidad->nombre : 'Habilidad';
+        // 3) Comprobar que la lección exista y esté habilitada.
+        $leccion = Lecciones::find(
+            (int) $idLeccion
+        );
 
-        $router->render('paginas/aprendizaje/leccion', [
-            'titulo' => $leccion->titulo,
-            'login' => $login,
-            'nombreUsuario'    => $datosUsuario['nombreUsuario'],
-            'inicialesUsuario' => $datosUsuario['inicialesUsuario'],
-            'leccion' => $leccion
-        ]);
+        if (
+            !$leccion
+            || (int) $leccion->habilitado !== 1
+        ) {
+            self::redirigirAprendizaje();
+        }
+
+        /*
+         * Una lección solo puede mostrarse cuando su habilidad
+         * asociada también existe y está habilitada.
+         */
+        $idHabilidad = (int) (
+            $leccion->id_habilidades
+            ?? 0
+        );
+
+        $habilidad = $idHabilidad > 0
+            ? HabilidadesBlandas::find(
+                $idHabilidad
+            )
+            : null;
+
+        if (
+            !$habilidad
+            || (int) $habilidad->habilitado !== 1
+        ) {
+            self::redirigirAprendizaje();
+        }
+
+        /*
+         * 4) Verificar la secuencialidad.
+         *
+         * Aunque el endpoint startLeccion vuelve a realizar esta
+         * comprobación, también se valida antes de renderizar la vista.
+         * Esto evita que una URL manipulada muestre una lección futura,
+         * deshabilitada o ya completada.
+         */
+        $leccionEsperada =
+            Lecciones::leccionActualPorUsuarioYHabilidad(
+                $idUsuario,
+                $idHabilidad
+            );
+
+        if (
+            !$leccionEsperada
+            || (int) $leccionEsperada->id
+            !== (int) $leccion->id
+        ) {
+            self::redirigirAprendizaje();
+        }
+
+        // 5) Preparar los datos de la vista.
+        $leccion->nombreHabilidad =
+            (string) $habilidad->nombre;
+
+        $datosUsuario =
+            obtenerDatosUsuarioHeader(
+                $idUsuario
+            );
+
+        $router->render(
+            'paginas/aprendizaje/leccion',
+            [
+                'titulo' =>
+                (string) $leccion->titulo,
+                'login' =>
+                false,
+                'nombreUsuario' =>
+                $datosUsuario['nombreUsuario'],
+                'inicialesUsuario' =>
+                $datosUsuario['inicialesUsuario'],
+                'leccion' =>
+                $leccion
+            ]
+        );
     }
 
     public static function startLeccion()
@@ -935,6 +1023,17 @@ class LeccionesController
                     ]
                 ], 409);
         }
+    }
+        /**
+     * Redirige a la ruta de aprendizaje y detiene la ejecución.
+     *
+     * Se utiliza cuando la lección solicitada no existe, está
+     * deshabilitada o no corresponde con el avance del usuario.
+     */
+    private static function redirigirAprendizaje(): void
+    {
+        header('Location: /aprendizaje');
+        exit;
     }
     //---------------------------HELPERS startLeccion---------------------------//
     /**
