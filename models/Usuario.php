@@ -59,18 +59,50 @@ class Usuario extends ActiveRecord
         $this->autoriza_tratamiento_datos = $args['autoriza_tratamiento_datos'] ?? 0;
     }
 
-    // Validar el Login de Usuarios
-    public function validarLogin()
+    /**
+     * Valida las credenciales recibidas en el formulario
+     * antes de consultar al usuario en la base de datos.
+     */
+    public function validarLogin(): array
     {
-        if (!$this->correo) {
-            self::$alertas['error'][] = 'El correo del Usuario es Obligatorio';
+        // Evita que las alertas de validaciones anteriores
+        // se acumulen en la validación actual.
+        self::$alertas = [];
+
+        // Normalizamos el correo eliminando espacios externos
+        // y convirtiéndolo a minúsculas.
+        $this->correo = strtolower(
+            trim($this->correo ?? '')
+        );
+
+        if ($this->correo === '') {
+            self::setAlerta(
+                'error',
+                'El correo es obligatorio'
+            );
+        } elseif (
+            !filter_var(
+                $this->correo,
+                FILTER_VALIDATE_EMAIL
+            )
+        ) {
+            self::setAlerta(
+                'error',
+                'Correo no válido'
+            );
         }
-        if (!filter_var($this->correo, FILTER_VALIDATE_EMAIL)) {
-            self::$alertas['error'][] = 'correo no válido';
+
+        /*
+         * No usamos trim en la contraseña, porque un espacio
+         * podría formar parte del valor escrito por el usuario.
+         */
+        if ($this->password === '') {
+            self::setAlerta(
+                'error',
+                'La contraseña no puede ir vacía'
+            );
         }
-        if (!$this->password) {
-            self::$alertas['error'][] = 'La contraseña no puede ir vacia';
-        }
+
         return self::$alertas;
     }
 
