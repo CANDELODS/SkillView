@@ -24,19 +24,109 @@ class HabilidadesBlandas extends ActiveRecord
     }
 
     //----------------------------ADMIN----------------------------
-    public function validar()
+    /**
+     * Valida y normaliza los datos utilizados al crear o editar
+     * una habilidad blanda desde el panel administrativo.
+     */
+    public function validar(): array
     {
-        if (!$this->nombre) {
-            self::$alertas['error'][] = 'El Nombre es Obligatorio';
+        /*
+         * Las alertas son estáticas y pueden conservar mensajes de
+         * una validación anterior. Se reinician para que cada ejecución
+         * refleje únicamente el estado actual del objeto.
+         */
+        self::$alertas = [];
+
+        /*
+         * Se eliminan espacios externos antes de validar y guardar.
+         * Esto evita aceptar campos compuestos únicamente por espacios.
+         */
+        $this->nombre = trim(
+            (string) $this->nombre
+        );
+
+        $this->descripcion = trim(
+            (string) $this->descripcion
+        );
+
+        /*
+         * Los tags llegan como una cadena separada por comas.
+         * Se eliminan valores vacíos y espacios innecesarios.
+         */
+        $this->tag = $this->normalizarTags(
+            (string) $this->tag
+        );
+
+        if ($this->nombre === '') {
+            self::setAlerta(
+                'error',
+                'El nombre es obligatorio'
+            );
         }
-        if (!$this->descripcion) {
-            self::$alertas['error'][] = 'La descripción es Obligatoria';
+
+        if ($this->descripcion === '') {
+            self::setAlerta(
+                'error',
+                'La descripción es obligatoria'
+            );
         }
-        if (!$this->tag) {
-            self::$alertas['error'][] = 'Los tags son obligatorios';
+
+        if ($this->tag === '') {
+            self::setAlerta(
+                'error',
+                'Los tags son obligatorios'
+            );
+        }
+
+        /*
+         * Las únicas opciones permitidas son:
+         * 0 = Deshabilitada
+         * 1 = Habilitada
+         *
+         * La conversión a string permite validar tanto valores
+         * recibidos desde un formulario como valores cargados de MySQL.
+         */
+        if (
+            !in_array(
+                (string) $this->habilitado,
+                ['0', '1'],
+                true
+            )
+        ) {
+            self::setAlerta(
+                'error',
+                'El estado seleccionado no es válido'
+            );
         }
 
         return self::$alertas;
+    }
+
+    /**
+     * Normaliza una cadena de etiquetas separadas por comas.
+     *
+     * Ejemplo:
+     * " Liderazgo, , Comunicación , Empatía "
+     * se convierte en:
+     * "Liderazgo, Comunicación, Empatía"
+     */
+    private function normalizarTags(string $tags): string
+    {
+        $listaTags = array_map(
+            'trim',
+            explode(',', $tags)
+        );
+
+        $listaTags = array_filter(
+            $listaTags,
+            static fn(string $tag): bool =>
+                $tag !== ''
+        );
+
+        return implode(
+            ', ',
+            $listaTags
+        );
     }
 
     // Busca y devuelve las habilidades que coincidan con el término de búsqueda
