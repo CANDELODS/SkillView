@@ -112,21 +112,22 @@ class ActiveRecord {
 
     // Busca un registro por su id
     public static function find($id) {
-        $query = "SELECT * FROM " . static::$tabla  ." WHERE id = ${id}";
+        $query = "SELECT * FROM " . static::$tabla  ." WHERE id = {$id}";
         $resultado = self::consultarSQL($query);
         return array_shift( $resultado ) ;
     }
 
     // Obtener Registros con cierta cantidad
     public static function get($limite) {
-        $query = "SELECT * FROM " . static::$tabla . " LIMIT ${limite} ORDER BY id DESC" ;
+        $limite = (int) $limite;
+        $query = "SELECT * FROM " . static::$tabla . " ORDER BY id DESC LIMIT {$limite}";
         $resultado = self::consultarSQL($query);
         return array_shift( $resultado ) ;
     }
 
     // Busqueda Where con Columna 
     public static function where($columna, $valor) {
-        $query = "SELECT * FROM " . static::$tabla . " WHERE ${columna} = '${valor}'";
+        $query = "SELECT * FROM " . static::$tabla . " WHERE {$columna} = '{$valor}'";
         $resultado = self::consultarSQL($query);
         return array_shift( $resultado ) ;
     }
@@ -137,11 +138,11 @@ class ActiveRecord {
         $atributos = $this->sanitizarAtributos();
 
         // Insertar en la base de datos
-        $query = " INSERT INTO " . static::$tabla . " ( ";
-        $query .= join(', ', array_keys($atributos));
-        $query .= " ) VALUES (' "; 
-        $query .= join("', '", array_values($atributos));
-        $query .= " ') ";
+        $query = "INSERT INTO " . static::$tabla . " (";
+        $query .= implode(', ', array_keys($atributos));
+        $query .= ") VALUES ('";
+        $query .= implode("', '", array_values($atributos));
+        $query .= "')";
 
         // debuguear($query); // Descomentar si no te funciona algo
 
@@ -197,7 +198,10 @@ class ActiveRecord {
     //Paginar Registros
     public static function paginar($ordenar, $porPagina, $offset)
     {
-        $query = "SELECT * FROM " . static::$tabla . " ORDER BY ${ordenar} ASC LIMIT ${porPagina} OFFSET ${offset} ";
+        $porPagina = (int) $porPagina;
+        $offset = (int) $offset;
+
+        $query = "SELECT * FROM " . static::$tabla . " ORDER BY {$ordenar} ASC LIMIT {$porPagina} OFFSET {$offset}";
         $resultado = self::consultarSQL($query);
         return $resultado;
     }
@@ -266,7 +270,7 @@ class ActiveRecord {
     }
 
     // Registros paginados que cumplen una búsqueda
-    public static function paginarBusqueda($termino, $columnas = [], $ordenar, $porPagina, $offset) {
+    public static function paginarBusqueda($termino, $columnas, $ordenar, $porPagina, $offset) {
 
     $termino = self::$db->escape_string($termino);
 
@@ -302,8 +306,8 @@ class ActiveRecord {
         public static function totalIf($columna = '', $valor = '')
     {
         $query = "SELECT COUNT(*) FROM " . static::$tabla;
-        if ($columna) {
-            $query .= " WHERE ${columna} = ${valor}";
+        if ($columna !== '') {
+            $query .= " WHERE {$columna} = {$valor}";
         }
         $resultado = self::$db->query($query);
         $total = $resultado->fetch_array(); //Traemos Los Resultados
@@ -312,7 +316,7 @@ class ActiveRecord {
 
     // Busqueda Where con Columna y sin array_shift para traer todos los resultados
     public static function whereSAF($columna, $valor) {
-        $query = "SELECT * FROM " . static::$tabla . " WHERE ${columna} = '${valor}'";
+        $query = "SELECT * FROM " . static::$tabla . " WHERE {$columna} = '{$valor}'";
         $resultado = self::consultarSQL($query);
         return $resultado;
     }
