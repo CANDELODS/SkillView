@@ -2,79 +2,113 @@
 
 use Model\Usuario;
 
-function debuguear($variable): string
+/**
+ * Muestra el contenido de una variable y detiene la ejecución.
+ *
+ * Debe utilizarse únicamente durante la depuración local.
+ */
+function debuguear($variable): void
 {
-    echo "<pre>";
+    echo '<pre>';
     var_dump($variable);
-    echo "</pre>";
+    echo '</pre>';
+
     exit;
 }
+
+/**
+ * Sanitiza contenido antes de imprimirlo dentro de una vista HTML.
+ *
+ * Se codifican comillas simples y dobles, y se establece UTF-8
+ * explícitamente para conservar correctamente tildes y la letra ñ.
+ */
 function s($html): string
 {
-    $s = htmlspecialchars($html);
-    return $s;
+    return htmlspecialchars(
+        (string) $html,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
 }
 
+/**
+ * Comprueba que exista una sesión autenticada.
+ *
+ * session_status() evita intentar iniciar una sesión que ya se
+ * encuentra activa.
+ */
 function isAuth(): bool
 {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
 
-    // No existe una sesión normal autenticada
-    if (
-        empty($_SESSION['id']) ||
-        empty($_SESSION['correo'])
-    ) {
-        return false;
-    }
-
-    $usuarioId = filter_var(
-        $_SESSION['id'],
-        FILTER_VALIDATE_INT
-    );
-
-    // El ID de la sesión no es válido
-    if (!$usuarioId) {
-        $_SESSION = [];
-        session_destroy();
-
-        return false;
-    }
-
-    // Consultar nuevamente el usuario en la base de datos
-    $usuario = Usuario::find((int) $usuarioId);
-
     /*
-     * Se invalida la sesión si:
-     * - El usuario ya no existe.
-     * - Su cuenta está deshabilitada.
+     * El correo se crea durante el inicio de sesión correcto.
+     * También comprobamos que la sesión no esté vacía.
      */
-    if (
-        !$usuario ||
-        (int) $usuario->habilitado !== 1
-    ) {
-        $_SESSION = [];
-        session_destroy();
-
-        return false;
-    }
-
-    return true;
+    return isset($_SESSION['correo'])
+        && $_SESSION['correo'] !== ''
+        && !empty($_SESSION);
 }
 
+/**
+ * Comprueba que la sesión pertenezca a una cuenta administrativa.
+ */
+function isAdmin(): bool
+{
+    /*
+     * isAuth() también se encarga de iniciar la sesión
+     * cuando todavía no está activa.
+     */
+    if (!isAuth()) {
+        return false;
+    }
+
+    return isset($_SESSION['admin'])
+        && (int) $_SESSION['admin'] === 1;
+}
+
+/**
+ * Determina si la ruta recibida forma parte de la ruta actual.
+ *
+ * Se conserva el comportamiento utilizado por el menú de navegación,
+ * pero se evita acceder a PATH_INFO cuando la clave no existe.
+ */
 function pagina_actual($path): bool
 {
-    return str_contains($_SERVER['PATH_INFO'], $path) ? true : false;
+    $pathInfo = $_SERVER['PATH_INFO'] ?? '';
+
+    return str_contains(
+        $pathInfo,
+        (string) $path
+    );
 }
 
-function obtenerDatosUsuarioHeader(int $usuarioId): array
-{
-    // Valores por defecto
+/**
+ * Obtiene el nombre corto y las iniciales que se muestran
+ * en el encabezado de las páginas autenticadas.
+ *
+ * @return array{
+ *     nombreUsuario: string,
+ *     inicialesUsuario: string
+ * }
+ */
+function obtenerDatosUsuarioHeader(
+    int $usuarioId
+): array {
+    /*
+     * Valores predeterminados utilizados cuando el usuario
+     * no existe o no puede recuperarse desde la base de datos.
+     */
     $datos = [
-        'nombreUsuario'    => 'Juan Candelo',
+        'nombreUsuario' => 'Juan Candelo',
         'inicialesUsuario' => 'JC'
     ];
+
+    if ($usuarioId <= 0) {
+        return $datos;
+    }
 
     $usuario = Usuario::find($usuarioId);
 
@@ -82,33 +116,83 @@ function obtenerDatosUsuarioHeader(int $usuarioId): array
         return $datos;
     }
 
-    // Tomamos nombres y apellidos desde la BD
-    $nombres   = trim($usuario->nombres ?? '');
-    $apellidos = trim($usuario->apellidos ?? '');
+    /*
+     * Se eliminan espacios externos antes de separar los nombres.
+     */
+    $nombres = trim(
+        (string) ($usuario->nombres ?? '')
+    );
 
-    // preg_split divide un string en partes por medio de una expresión regular como separador
-    //Soporta tabulaciones, saltos de linea y más. /\s+/ = Cualquier espacio en blanco (Espacio normal, tab, salto de línea, etc)
-    //+ = Uno o más. "Juan Sebastian" -> ["Juan", "Sebastian"]
-    $nParts = preg_split('/\s+/', $nombres);
-    $aParts = preg_split('/\s+/', $apellidos);
-    //Obtenemos la primer parte del arreglo
-    $primerNombre   = $nParts[0] ?? '';
-    $primerApellido = $aParts[0] ?? '';
+    $apellidos = trim(
+        (string) ($usuario->apellidos ?? '')
+    );
 
-    // Nombre corto: "PrimerNombre PrimerApellido"
-    $nombreCorto = trim($primerNombre . ' ' . $primerApellido);
+    /*
+     * preg_split() admite espacios normales, tabulaciones
+     * y saltos de línea como separadores.
+     *
+     * Ejemplo:
+     * "Juan Sebastián" se convierte en ["Juan", "Sebastián"].
+     */
+    $partesNombres = preg_split(
+        '/\s+/u',
+        $nombres,
+        -1,
+        PREG_SPLIT_NO_EMPTY
+    );
+
+    $partesApellidos = preg_split(
+        '/\s+/u',
+        $apellidos,
+        -1,
+        PREG_SPLIT_NO_EMPTY
+    );
+
+    $primerNombre = $partesNombres[0] ?? '';
+    $primerApellido = $partesApellidos[0] ?? '';
+
+    /*
+     * El encabezado utiliza únicamente el primer nombre
+     * y el primer apellido.
+     */
+    $nombreCorto = trim(
+        $primerNombre . ' ' . $primerApellido
+    );
+
     if ($nombreCorto !== '') {
         $datos['nombreUsuario'] = $nombreCorto;
     }
 
-    // Iniciales usando mb_substr por si hay acentos
-    //Además nos devuelve el tecto en MAYUSCULA
-    $datos['inicialesUsuario'] = mb_strtoupper(
-        //mb_substr: Toma la primera letra del texto sin importar si tiene acentos o no.
-        mb_substr($primerNombre, 0, 1, 'UTF-8') .
-            mb_substr($primerApellido, 0, 1, 'UTF-8'),
+    /*
+     * mb_substr() permite obtener correctamente la primera letra
+     * aunque el nombre o apellido comience con un carácter acentuado.
+     */
+    $inicialNombre = mb_substr(
+        $primerNombre,
+        0,
+        1,
         'UTF-8'
     );
+
+    $inicialApellido = mb_substr(
+        $primerApellido,
+        0,
+        1,
+        'UTF-8'
+    );
+
+    $iniciales = mb_strtoupper(
+        $inicialNombre . $inicialApellido,
+        'UTF-8'
+    );
+
+    /*
+     * Solo reemplazamos las iniciales predeterminadas cuando
+     * realmente se obtuvo al menos una letra.
+     */
+    if ($iniciales !== '') {
+        $datos['inicialesUsuario'] = $iniciales;
+    }
 
     return $datos;
 }
