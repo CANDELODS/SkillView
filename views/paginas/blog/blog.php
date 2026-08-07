@@ -14,7 +14,7 @@
             <form method="GET" action="/blog" class="blog__filter-flex">
                 <p class="blog__filter-p">Selecciona la habilidad de la cual quieres ver el artículo</p>
                 <!-- onchange="this.form.submit()" nos permite enviar el formulario apenas cambie el select, por lo cual no se necesita botón "Filtrar" -->
-                <select name="habilidad" class="blog__select blog__select--skills" onchange="this.form.submit()">
+                <select name="habilidad" class="blog__select blog__select--skills" onchange="this.form.submit()" aria-label="Filtrar artículos por habilidad">
                     <option value="">Todas las habilidades</option>
                     <?php foreach ($habilidadesFiltro as $hab) : ?>
                         <!-- Si la habilidad coincide con el filtro entonces le agregamos el atributo selectd y mostramos su nombre -->

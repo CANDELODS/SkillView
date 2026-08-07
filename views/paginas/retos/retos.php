@@ -13,11 +13,11 @@
         <section class="challenges__filter">
             <form method="GET" action="/retos" class="challenges__filter-flex">
                 <!-- onchange="this.form.submit()" nos permite enviar el formulario apenas cambie el select, por lo cual no se necesita botón "Filtrar" -->
-                <select name="habilidad" class="challenges__select challenges__select--skills" onchange="this.form.submit()">
+                <select name="habilidad" class="challenges__select challenges__select--skills" onchange="this.form.submit()" aria-label="Filtrar retos por habilidad">
                     <option value="">Todas las habilidades</option>
 
                     <?php foreach ($habilidadesFiltro as $hab) : ?>
-                        <!-- Si la habilidad coincide con el filtro entonces le agregamos el atributo selectd y mostramos su nombre -->
+                        <!-- Si la habilidad coincide con el filtro entonces le agregamos el atributo selected y mostramos su nombre -->
                         <option value="<?php echo (int)$hab->id; ?>"
                             <?php echo ($filtroHabilidad === (int)$hab->id) ? 'selected' : ''; ?>>
                             <?php echo htmlspecialchars($hab->nombre); ?>
@@ -25,7 +25,7 @@
                     <?php endforeach; ?>
                 </select>
 
-                <select name="dificultad" class="challenges__select challenges__select--difficults" onchange="this.form.submit()">
+                <select name="dificultad" class="challenges__select challenges__select--difficults" onchange="this.form.submit()" aria-label="Filtrar retos por dificultad">
                     <option value="">Todas las dificultades</option>
                     <option value="1" <?php echo ($filtroDificultad === 1) ? 'selected' : ''; ?>>Básico</option>
                     <option value="2" <?php echo ($filtroDificultad === 2) ? 'selected' : ''; ?>>Intermedio</option>
