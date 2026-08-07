@@ -997,16 +997,51 @@ class LeccionesController
                         );
                     }
 
-                    // Solo después de recibir correctamente el feedback final
-                    // se actualiza la sesión y se guarda el progreso.
+                    /*
+                     * Primero se persiste la finalización en la base de
+                     * datos. La sesión solo cambia a complete cuando:
+                     *
+                     * - la lección fue registrada correctamente;
+                     * - el progreso de la habilidad fue recalculado.
+                     *
+                     * Esto evita informar un éxito al frontend cuando la
+                     * escritura principal no pudo realizarse.
+                     */
+                    $lessonPersisted =
+                        self::markLessonAsCompleted(
+                            $idUsuario,
+                            $lessonId
+                        );
+
+                    if (!$lessonPersisted) {
+                        self::jsonResponse([
+                            'ok' => false,
+                            'error' => [
+                                'code' =>
+                                    'LESSON_PERSISTENCE_ERROR',
+                                'message' =>
+                                    'La respuesta fue aceptada, pero no fue posible guardar el progreso de la lección. Inténtalo nuevamente.'
+                            ],
+                            'session' =>
+                                self::sessionPayload(
+                                    $flow
+                                ),
+                            'redirectTo' =>
+                                '/aprendizaje'
+                        ], 500);
+                    }
+
+                    /*
+                     * La persistencia principal terminó correctamente.
+                     * Ahora sí se cierra la máquina de estados.
+                     */
                     $flow['answers'] = $completedAnswers;
                     $flow['currentStage'] = 'complete';
                     $flow['nextExpectedAction'] = null;
                     $flow['inputEnabled'] = false;
                     $flow['requiresUserResponse'] = false;
                     $flow['completed'] = true;
-
-                    self::markLessonAsCompleted($idUsuario, $lessonId);
+                    $flow['failed'] = false;
 
                     // Generamos evaluación final estructurada.
                     $evaluation = self::buildFinalEvaluation($flow['answers'], $content);
@@ -1798,39 +1833,139 @@ class LeccionesController
     }
 
     /**
-     * Llama al modelo usuarios_lecciones para guardar en la base de datos que la lección ya fue completada.
+     * Registra la lección completada, recalcula el progreso de su
+     * habilidad y evalúa los logros relacionados.
+     *
+     * La lección y su habilidad se validan nuevamente porque esta
+     * función representa el último límite antes de modificar la base
+     * de datos.
      */
-    private static function markLessonAsCompleted(int $idUsuario, int $lessonId): void
-    {
-        // 1) Marcar la lección como completada
-        usuarios_lecciones::marcarComoCompletada($idUsuario, $lessonId);
+    private static function markLessonAsCompleted(
+        int $idUsuario,
+        int $lessonId
+    ): bool {
+        if ($idUsuario <= 0 || $lessonId <= 0) {
+            return false;
+        }
 
-        // 2) Obtener la habilidad de esa lección
-        $lesson = Lecciones::find($lessonId);
-        if (!$lesson) {
+        try {
+            // 1) Confirmar que la lección exista y siga habilitada.
+            $lesson =
+                Lecciones::find(
+                    $lessonId
+                );
+
+            if (
+                !$lesson
+                || (int) $lesson->habilitado !== 1
+            ) {
+                return false;
+            }
+
+            $idHabilidad =
+                (int) (
+                    $lesson->id_habilidades
+                    ?? 0
+                );
+
+            if ($idHabilidad <= 0) {
+                return false;
+            }
+
+            /*
+             * 2) Crear o actualizar la relación usuario-lección.
+             *
+             * marcarComoCompletada() es idempotente: si la relación
+             * ya existe, la actualiza en lugar de insertar un duplicado.
+             */
+            $lessonRegistered =
+                usuarios_lecciones::
+                    marcarComoCompletada(
+                        $idUsuario,
+                        $lessonId
+                    );
+
+            if (!$lessonRegistered) {
+                return false;
+            }
+
+            /*
+             * 3) Recalcular únicamente la habilidad asociada con la
+             * lección recién completada.
+             */
+            usuarios_habilidades::
+                recalcularProgresoHabilidad(
+                    $idUsuario,
+                    $idHabilidad
+                );
+
+            /*
+             * 4) Los logros se evalúan después de guardar la lección y
+             * actualizar el progreso. De este modo, las consultas de
+             * gamificación trabajan con datos ya persistidos.
+             */
+            $nuevosLogros =
+                Logros::
+                    evaluarYAsignarNuevosPorLeccion(
+                        $idUsuario
+                    );
+
+            self::guardarLogrosRecientes(
+                $nuevosLogros
+            );
+
+            return true;
+        } catch (\Throwable $e) {
+            error_log(
+                'Error al completar lección '
+                . $lessonId
+                . ' para el usuario '
+                . $idUsuario
+                . ': '
+                . $e->getMessage()
+            );
+
+            return false;
+        }
+    }
+
+    /**
+     * Guarda en sesión la información mínima de los logros obtenidos
+     * para mostrarlos una sola vez al regresar a Aprendizaje.
+     *
+     * @param array<int, object> $nuevosLogros
+     */
+    private static function guardarLogrosRecientes(
+        array $nuevosLogros
+    ): void {
+        if (empty($nuevosLogros)) {
             return;
         }
-        $idHabilidad = (int)$lesson->id_habilidades;
 
-        // 3) Recalcular progreso de habilidad
-        usuarios_habilidades::recalcularProgresoHabilidad($idUsuario, $idHabilidad);
-
-        //4) Evaluar si se desbloquea un logro nuevo por completar esta habilidad
-        $nuevosLogros = Logros::evaluarYAsignarNuevosPorLeccion($idUsuario);
-
-        if (!empty($nuevosLogros)) {
-            $_SESSION['logros_recientes'] = array_map(function ($logro) {
-                return [
-                    'id' => $logro->id,
-                    'nombre' => $logro->nombre,
-                    'descripcion' => $logro->descripcion,
-                    'icono' => $logro->icono,
-                    'tipo' => $logro->tipo,
-                    'valor_objetivo' => $logro->valor_objetivo,
-                    'fecha_obtenido' => date('Y-m-d')
-                ];
-            }, $nuevosLogros);
-        }
+        $_SESSION['logros_recientes'] =
+            array_map(
+                static function (
+                    object $logro
+                ): array {
+                    return [
+                        'id' =>
+                            (int) $logro->id,
+                        'nombre' =>
+                            (string) $logro->nombre,
+                        'descripcion' =>
+                            (string) $logro->descripcion,
+                        'icono' =>
+                            (string) $logro->icono,
+                        'tipo' =>
+                            (int) $logro->tipo,
+                        'valor_objetivo' =>
+                            (int) $logro->valor_objetivo,
+                        'fecha_obtenido' =>
+                            date('Y-m-d')
+                    ];
+                },
+                $nuevosLogros
+            );
     }
     //---------------------------FIN HELPERS turnLeccion---------------------------//
 }
