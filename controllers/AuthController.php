@@ -9,16 +9,20 @@ use MVC\Router;
 
 class AuthController
 {
-    public static function login(Router $router)
-    {
-        $alertas = [];
+    /**
+     * Procesa el inicio de sesión y decide el tipo de acceso
+     * correspondiente según las credenciales y el estado de la cuenta.
+     */
+    public static function login(
+        Router $router
+    ): void {
         $login = true;
 
         // Mensaje mostrado después de cambiar correctamente
-        // la contraseña temporal.
+        // una contraseña temporal o recuperada.
         if (
-            isset($_GET['password_actualizado']) &&
-            $_GET['password_actualizado'] === '1'
+            isset($_GET['password_actualizado'])
+            && $_GET['password_actualizado'] === '1'
         ) {
             Usuario::setAlerta(
                 'exito',
@@ -28,12 +32,12 @@ class AuthController
         }
 
         /*
-     * Este mensaje se utilizará si el usuario estaba en el flujo
-     * de cambio de contraseña y su cuenta fue deshabilitada.
-     */
+         * Este mensaje se utiliza cuando el usuario estaba en el
+         * flujo de cambio obligatorio y su cuenta fue deshabilitada.
+         */
         if (
-            isset($_GET['cuenta_deshabilitada']) &&
-            $_GET['cuenta_deshabilitada'] === '1'
+            isset($_GET['cuenta_deshabilitada'])
+            && $_GET['cuenta_deshabilitada'] === '1'
         ) {
             Usuario::setAlerta(
                 'error',
@@ -42,113 +46,150 @@ class AuthController
             );
         }
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-            // Este objeto contiene solamente las credenciales
-            // escritas en el formulario.
-            $credenciales = new Usuario($_POST);
-
-            $alertas = $credenciales->validarLogin();
-
-            if (empty($alertas)) {
-
-                // Buscar el usuario por correo
-                $usuario = Usuario::where(
-                    'correo',
-                    $credenciales->correo
+        if (
+            $_SERVER['REQUEST_METHOD']
+            === 'POST'
+        ) {
+            /*
+             * Usuario::validarLogin() también normaliza el correo
+             * mediante trim() y strtolower().
+             */
+            $credenciales =
+                new Usuario(
+                    $_POST
                 );
 
-                if (!$usuario) {
-                    Usuario::setAlerta(
-                        'error',
-                        'El usuario no existe'
+            $alertas =
+                $credenciales->validarLogin();
+
+            if (empty($alertas)) {
+                $resultado =
+                    self::evaluarCredenciales(
+                        $credenciales->correo,
+                        (string) $credenciales->password
                     );
-                } elseif (
-                    !password_verify(
-                        $_POST['password'],
-                        $usuario->password
-                    )
-                ) {
-                    Usuario::setAlerta(
-                        'error',
-                        'Contraseña incorrecta'
-                    );
-                } elseif ((int) $usuario->habilitado !== 1) {
-                    /*
-                 * Aunque la contraseña sea correcta, un usuario
-                 * deshabilitado no puede obtener una sesión normal
-                 * ni una sesión temporal para cambiar la contraseña.
+
+                /*
+                 * Los estados rechazados no crean ni modifican
+                 * información de sesión.
                  */
+                if (!$resultado['autenticado']) {
                     Usuario::setAlerta(
                         'error',
-                        'Tu cuenta se encuentra deshabilitada. '
-                            . 'Comunícate con el administrador de SkillView.'
+                        $resultado['mensaje']
                     );
                 } else {
-                    // Iniciar la sesión para cualquier tipo de ingreso:
-                    // normal o con cambio obligatorio de contraseña.
-                    if (session_status() === PHP_SESSION_NONE) {
-                        session_start();
-                    }
-
-                    // Limpiar cualquier información anterior
-                    $_SESSION = [];
-
-                    // Evitar reutilización del identificador de sesión
-                    session_regenerate_id(true);
+                    $usuario =
+                        $resultado['usuario'];
 
                     /*
-                 * Si la contraseña fue restablecida por el administrador,
-                 * se crea únicamente una sesión temporal.
-                 */
-                    if ((int) $usuario->debe_cambiar_password === 1) {
+                     * La sesión se crea únicamente después de:
+                     * - localizar al usuario;
+                     * - verificar la contraseña;
+                     * - confirmar que la cuenta está habilitada.
+                     */
+                    self::iniciarSesionSegura();
 
-                        $_SESSION['cambio_password_usuario_id'] =
-                            (int) $usuario->id;
+                    if (
+                        $resultado['requiereCambioPassword']
+                    ) {
+                        /*
+                         * Para el cambio obligatorio se crea una sesión
+                         * temporal mínima. No se concede acceso a las
+                         * rutas normales ni administrativas.
+                         */
+                        $_SESSION[
+                            'cambio_password_usuario_id'
+                        ] = (int) $usuario->id;
 
-                        header('Location: /cambiar-password');
+                        header(
+                            'Location: /cambiar-password'
+                        );
                         exit;
                     }
 
-                    // Sesión normal
-                    $_SESSION['id'] = $usuario->id;
-                    $_SESSION['nombres'] = $usuario->nombres;
-                    $_SESSION['apellidos'] = $usuario->apellidos;
-                    $_SESSION['edad'] = $usuario->edad;
-                    $_SESSION['sexo'] = $usuario->sexo;
-                    $_SESSION['correo'] = $usuario->correo;
-                    $_SESSION['universidad'] = $usuario->universidad;
-                    $_SESSION['carrera'] = $usuario->carrera;
-                    $_SESSION['admin'] = $usuario->admin ?? null;
+                    // Sesión normal del usuario autenticado.
+                    self::guardarDatosSesionUsuario(
+                        $usuario
+                    );
 
-                    // Redireccionar según el rol
-                    if ((int) $usuario->admin === 1) {
-                        header('Location: /admin/dashboard');
-                    } else {
-                        header('Location: /principal');
-                    }
-
+                    header(
+                        'Location: '
+                            . $resultado['redireccion']
+                    );
                     exit;
                 }
             }
         }
 
-        $alertas = Usuario::getAlertas();
+        $alertas =
+            Usuario::getAlertas();
 
-        $router->render('auth/login', [
-            'titulo' => 'Iniciar Sesión',
-            'alertas' => $alertas,
-            'login' => $login
-        ]);
+        $router->render(
+            'auth/login',
+            [
+                'titulo' =>
+                    'Iniciar Sesión',
+                'alertas' =>
+                    $alertas,
+                'login' =>
+                    $login
+            ]
+        );
     }
 
-    public static function logout()
+    /**
+     * Elimina la sesión autenticada y redirige
+     * al formulario de inicio de sesión.
+     */
+    public static function logout(): void
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            session_start();
-            $_SESSION = [];
-            header('Location: /');
+        /*
+         * El cierre de sesión solo se permite mediante POST.
+         * Un acceso GET directo no debe destruir una sesión.
+         */
+        if (
+            $_SERVER['REQUEST_METHOD']
+            !== 'POST'
+        ) {
+            header('Location: /404');
+            exit;
         }
+
+        if (
+            session_status()
+            === PHP_SESSION_NONE
+        ) {
+            session_start();
+        }
+
+        // Eliminar todas las variables almacenadas.
+        $_SESSION = [];
+
+        /*
+         * Eliminar también la cookie que contiene el
+         * identificador de la sesión.
+         */
+        if (ini_get('session.use_cookies')) {
+            $parametros =
+                session_get_cookie_params();
+
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $parametros['path'],
+                $parametros['domain'],
+                $parametros['secure'],
+                $parametros['httponly']
+            );
+        }
+
+        // Invalidar definitivamente la sesión en el servidor.
+        session_destroy();
+
+        header('Location: /');
+        exit;
     }
 
     public static function registro(Router $router)
@@ -578,4 +619,163 @@ class AuthController
             'token' => $token
         ]);
     }
+
+    /**
+     * Evalúa las credenciales sin modificar la sesión.
+     *
+     * @return array{
+     *     autenticado: bool,
+     *     mensaje: string,
+     *     usuario: Usuario|null,
+     *     requiereCambioPassword: bool,
+     *     redireccion: string
+     * }
+     */
+    private static function evaluarCredenciales(
+        string $correo,
+        string $password
+    ): array {
+        $usuario =
+            Usuario::where(
+                'correo',
+                $correo
+            );
+
+        if (!$usuario) {
+            return [
+                'autenticado' => false,
+                'mensaje' =>
+                    'El usuario no existe',
+                'usuario' => null,
+                'requiereCambioPassword' =>
+                    false,
+                'redireccion' => '/'
+            ];
+        }
+
+        if (
+            !password_verify(
+                $password,
+                $usuario->password
+            )
+        ) {
+            return [
+                'autenticado' => false,
+                'mensaje' =>
+                    'Contraseña incorrecta',
+                'usuario' => null,
+                'requiereCambioPassword' =>
+                    false,
+                'redireccion' => '/'
+            ];
+        }
+
+        if (
+            (int) $usuario->habilitado
+            !== 1
+        ) {
+            return [
+                'autenticado' => false,
+                'mensaje' =>
+                    'Tu cuenta se encuentra deshabilitada. '
+                    . 'Comunícate con el administrador de SkillView.',
+                'usuario' => null,
+                'requiereCambioPassword' =>
+                    false,
+                'redireccion' => '/'
+            ];
+        }
+
+        $requiereCambioPassword =
+            (int) $usuario->
+                debe_cambiar_password
+            === 1;
+
+        if ($requiereCambioPassword) {
+            return [
+                'autenticado' => true,
+                'mensaje' => '',
+                'usuario' => $usuario,
+                'requiereCambioPassword' =>
+                    true,
+                'redireccion' =>
+                    '/cambiar-password'
+            ];
+        }
+
+        $redireccion =
+            (int) $usuario->admin === 1
+                ? '/admin/dashboard'
+                : '/principal';
+
+        return [
+            'autenticado' => true,
+            'mensaje' => '',
+            'usuario' => $usuario,
+            'requiereCambioPassword' =>
+                false,
+            'redireccion' =>
+                $redireccion
+        ];
+    }
+
+    /**
+     * Inicia una sesión limpia y genera un nuevo identificador.
+     *
+     * Regenerar el ID después de autenticar evita reutilizar
+     * un identificador de sesión previo al inicio de sesión.
+     */
+    private static function iniciarSesionSegura(): void
+    {
+        if (
+            session_status()
+            === PHP_SESSION_NONE
+        ) {
+            session_start();
+        }
+
+        $_SESSION = [];
+
+        session_regenerate_id(
+            true
+        );
+    }
+
+    /**
+     * Guarda únicamente los datos necesarios para una sesión normal.
+     */
+    private static function guardarDatosSesionUsuario(
+        Usuario $usuario
+    ): void {
+        $_SESSION['id'] =
+            (int) $usuario->id;
+
+        $_SESSION['nombres'] =
+            $usuario->nombres;
+
+        $_SESSION['apellidos'] =
+            $usuario->apellidos;
+
+        $_SESSION['edad'] =
+            $usuario->edad;
+
+        $_SESSION['sexo'] =
+            $usuario->sexo;
+
+        $_SESSION['correo'] =
+            $usuario->correo;
+
+        $_SESSION['universidad'] =
+            $usuario->universidad;
+
+        $_SESSION['carrera'] =
+            $usuario->carrera;
+
+        $_SESSION['admin'] =
+            (int) (
+                $usuario->admin
+                ?? 0
+            );
+    }
+
 }
