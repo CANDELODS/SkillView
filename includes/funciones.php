@@ -32,10 +32,63 @@ function s($html): string
 }
 
 /**
- * Comprueba que exista una sesión autenticada.
+ * Invalida una sesión autenticada sin realizar redirecciones.
  *
- * session_status() evita intentar iniciar una sesión que ya se
- * encuentra activa.
+ * Se utiliza cuando el usuario de la sesión:
+ * - ya no existe en la base de datos;
+ * - fue deshabilitado mientras tenía una sesión abierta.
+ *
+ * No redirigir desde aquí permite que cada controlador conserve
+ * su comportamiento actual:
+ * - las páginas normales redirigen al login;
+ * - los endpoints de API responden JSON con código 401.
+ */
+function invalidarSesionAutenticada(): void
+{
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // Eliminar todas las variables de la sesión actual.
+    $_SESSION = [];
+
+    /*
+     * Eliminar también la cookie que identifica la sesión,
+     * siempre que PHP esté utilizando cookies para sesiones.
+     */
+    if (ini_get('session.use_cookies')) {
+        $parametros = session_get_cookie_params();
+
+        setcookie(
+            session_name(),
+            '',
+            time() - 42000,
+            $parametros['path'],
+            $parametros['domain'],
+            $parametros['secure'],
+            $parametros['httponly']
+        );
+    }
+
+    // Invalidar el identificador almacenado en el servidor.
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_destroy();
+    }
+}
+
+/**
+ * Comprueba que la sesión siga perteneciendo a una cuenta válida.
+ *
+ * No basta con comprobar los datos guardados en $_SESSION, porque
+ * el administrador puede deshabilitar una cuenta mientras el usuario
+ * todavía tiene el navegador abierto.
+ *
+ * Por eso, en cada petición protegida:
+ * 1. se comprueba la sesión;
+ * 2. se consulta nuevamente el usuario en la base de datos;
+ * 3. se verifica que continúe habilitado.
+ *
+ * Si la cuenta fue deshabilitada, la sesión se invalida inmediatamente.
  */
 function isAuth(): bool
 {
@@ -44,12 +97,89 @@ function isAuth(): bool
     }
 
     /*
-     * El correo se crea durante el inicio de sesión correcto.
-     * También comprobamos que la sesión no esté vacía.
+     * Una sesión temporal de cambio obligatorio de contraseña
+     * no contiene id/correo y no debe considerarse autenticada.
      */
-    return isset($_SESSION['correo'])
-        && $_SESSION['correo'] !== ''
-        && !empty($_SESSION);
+    $idUsuario = filter_var(
+        $_SESSION['id'] ?? null,
+        FILTER_VALIDATE_INT,
+        [
+            'options' => [
+                'min_range' => 1
+            ]
+        ]
+    );
+
+    $correoSesion = trim(
+        (string) (
+            $_SESSION['correo']
+            ?? ''
+        )
+    );
+
+    if (
+        $idUsuario === false
+        || $correoSesion === ''
+    ) {
+        return false;
+    }
+
+    try {
+        /*
+         * La base de datos es la fuente real del estado de la cuenta.
+         * Esto impide que una sesión antigua continúe autorizada
+         * después de cambiar habilitado de 1 a 0.
+         */
+        $usuario = Usuario::find(
+            (int) $idUsuario
+        );
+    } catch (\Throwable $e) {
+        /*
+         * Ante un fallo al comprobar la cuenta se aplica un criterio
+         * seguro: no se concede acceso con un estado que no pudo
+         * verificarse.
+         */
+        error_log(
+            'No fue posible validar la sesión del usuario '
+            . (int) $idUsuario
+            . ': '
+            . $e->getMessage()
+        );
+
+        return false;
+    }
+
+    /*
+     * Si la cuenta fue eliminada externamente o está deshabilitada,
+     * se destruye la sesión que permanecía abierta en el navegador.
+     */
+    if (
+        !$usuario
+        || (int) (
+            $usuario->habilitado
+            ?? 0
+        ) !== 1
+    ) {
+        invalidarSesionAutenticada();
+
+        return false;
+    }
+
+    /*
+     * Sincronizamos los datos de sesión que pueden cambiar desde
+     * administración. Así la sesión no conserva un rol o correo
+     * diferente al registrado actualmente en la base de datos.
+     */
+    $_SESSION['correo'] =
+        (string) $usuario->correo;
+
+    $_SESSION['admin'] =
+        (int) (
+            $usuario->admin
+            ?? 0
+        );
+
+    return true;
 }
 
 /**
