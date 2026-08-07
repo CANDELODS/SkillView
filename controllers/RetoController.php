@@ -920,32 +920,88 @@ class RetoController
                     self::jsonResponse($response);
                 }
 
-                // Solo después de recibir el feedback final se completa el
-                // flujo y se guarda el resultado.
-                $flow['answers']['challengeAnswer'] = $message;
-                $flow['evaluation'] = $successfulEvaluation;
-                $flow['scoreAwarded'] = $scoreAwarded;
-                $flow['currentStage'] = 'complete';
-                $flow['nextExpectedAction'] = null;
-                $flow['inputEnabled'] = false;
-                $flow['requiresUserResponse'] = false;
-                $flow['completed'] = true;
-                $flow['passed'] = true;
-                $flow['failed'] = false;
+                /*
+                 * Se prepara una copia del flujo con el estado final.
+                 *
+                 * Todavía no reemplazamos el flujo activo de sesión:
+                 * primero debemos confirmar que el reto, el puntaje y
+                 * el progreso se guardaron correctamente.
+                 */
+                $completedFlow = $flow;
 
-                // Se persiste en base de datos el resultado del reto y sus efectos asociados.
-                $saved = self::persistCompletedChallenge($idUsuario, $flow);
+                $completedFlow['answers']['challengeAnswer'] =
+                    $message;
 
-                // Si falla la persistencia, se responde error 500.
+                $completedFlow['evaluation'] =
+                    $successfulEvaluation;
+
+                $completedFlow['scoreAwarded'] =
+                    $scoreAwarded;
+
+                $completedFlow['currentStage'] =
+                    'complete';
+
+                $completedFlow['nextExpectedAction'] =
+                    null;
+
+                $completedFlow['inputEnabled'] =
+                    false;
+
+                $completedFlow['requiresUserResponse'] =
+                    false;
+
+                $completedFlow['completed'] =
+                    true;
+
+                $completedFlow['passed'] =
+                    true;
+
+                $completedFlow['failed'] =
+                    false;
+
+                /*
+                 * La persistencia valida nuevamente:
+                 * - existencia y estado del reto;
+                 * - habilidad asociada;
+                 * - puntaje mínimo del 70 %;
+                 * - registro en usuarios_retos;
+                 * - actualización del progreso;
+                 * - evaluación de logros.
+                 */
+                $saved =
+                    self::persistCompletedChallenge(
+                        $idUsuario,
+                        $completedFlow
+                    );
+
+                /*
+                 * Si ocurre un problema, la sesión conserva el estado
+                 * anterior. De este modo el backend no comunica un
+                 * reto completado cuando la operación principal falló.
+                 */
                 if (!$saved) {
                     self::jsonResponse([
                         'ok' => false,
                         'error' => [
-                            'code' => 'PERSISTENCE_ERROR',
-                            'message' => 'No fue posible guardar el progreso del reto.'
-                        ]
+                            'code' =>
+                                'PERSISTENCE_ERROR',
+                            'message' =>
+                                'La respuesta fue aprobada, pero no fue posible guardar el progreso del reto. Inténtalo nuevamente.'
+                        ],
+                        'session' =>
+                            self::sessionPayload(
+                                $flow
+                            ),
+                        'redirectTo' =>
+                            '/retos'
                     ], 500);
                 }
+
+                /*
+                 * La base de datos ya contiene el resultado correcto.
+                 * Ahora sí se adopta y guarda el estado final.
+                 */
+                $flow = $completedFlow;
 
                 // Mensaje del usuario que se mostrará en el chat final.
                 $userMessages = [[
@@ -1342,81 +1398,322 @@ class RetoController
         );
     }
 
-    // Persiste un reto exitoso en base de datos y desencadena efectos secundarios:
-    // - guarda usuarios_retos,
-    // - recalcula progreso de habilidad,
-    // - evalúa logros,
-    // - guarda logros recientes en sesión.
-    private static function persistCompletedChallenge(int $idUsuario, array $flow): bool
-    {
-        $idUsuario = (int)$idUsuario;
-        $challengeId = (int)($flow['challengeId'] ?? 0);
-        $skillId = (int)($flow['skillId'] ?? 0);
-        $scoreAwarded = (int)($flow['scoreAwarded'] ?? 0);
-        $completed = (bool)($flow['completed'] ?? false);
-        $passed = (bool)($flow['passed'] ?? false);
+    /**
+     * Persiste un reto aprobado y ejecuta sus efectos asociados.
+     *
+     * Antes de modificar la base de datos se valida nuevamente la
+     * información crítica del flujo. No se confía únicamente en los
+     * datos almacenados en sesión porque esta función representa el
+     * último límite antes de registrar puntos y progreso.
+     */
+    private static function persistCompletedChallenge(
+        int $idUsuario,
+        array $flow
+    ): bool {
+        $idUsuario =
+            (int) $idUsuario;
 
-        // Validación de integridad.
-        if ($idUsuario <= 0 || $challengeId <= 0 || $skillId <= 0) {
+        $challengeId =
+            (int) (
+                $flow['challengeId']
+                ?? 0
+            );
+
+        $skillId =
+            (int) (
+                $flow['skillId']
+                ?? 0
+            );
+
+        $scoreAwarded =
+            (int) (
+                $flow['scoreAwarded']
+                ?? 0
+            );
+
+        $completed =
+            (bool) (
+                $flow['completed']
+                ?? false
+            );
+
+        $passed =
+            (bool) (
+                $flow['passed']
+                ?? false
+            );
+
+        // -------------------------
+        // VALIDACIÓN DE INTEGRIDAD
+        // -------------------------
+        if (
+            $idUsuario <= 0
+            || $challengeId <= 0
+            || $skillId <= 0
+        ) {
             return false;
         }
 
-        // Solo persiste si el reto realmente terminó y fue aprobado.
+        /*
+         * Solo un flujo que realmente terminó como aprobado puede
+         * producir un registro en usuarios_retos.
+         */
         if (!$completed || !$passed) {
             return false;
         }
 
-        // Guarda o actualiza el reto en la tabla usuarios_retos.
-        $saved = usuarios_retos::marcarComoCompletado($idUsuario, $challengeId, $scoreAwarded);
+        try {
+            // 1) El reto debe existir y continuar habilitado.
+            $challenge =
+                Retos::find(
+                    $challengeId
+                );
 
-        if (!$saved) {
-            return false;
-        }
-
-        // Recalcular progreso de la habilidad
-        self::recalculateUserSkillProgress($idUsuario, $skillId);
-
-        // Evaluar logros nuevos tipo 4 (desempeño)
-        $nuevosLogros = Logros::evaluarYAsignarNuevosPorReto($idUsuario, $challengeId);
-
-        if (!empty($nuevosLogros)) {
-            // Garantiza que la sesión esté activa antes de usarla.
-            if (session_status() !== PHP_SESSION_ACTIVE) {
-                session_start();
+            if (
+                !$challenge
+                || (int) (
+                    $challenge->habilitado
+                    ?? 0
+                ) !== 1
+            ) {
+                return false;
             }
 
-            // Lee logros recientes ya existentes en sesión.
-            $logrosSesionActual = $_SESSION['logros_recientes'] ?? [];
+            /*
+             * 2) La habilidad almacenada en el flujo debe ser
+             * exactamente la habilidad a la que pertenece el reto.
+             *
+             * Esto evita actualizar una habilidad diferente mediante
+             * datos inconsistentes.
+             */
+            $challengeSkillId =
+                (int) (
+                    $challenge->id_habilidades
+                    ?? 0
+                );
 
-            // Formatea los logros nuevos para que puedan mostrarse fácilmente en frontend.
-            $logrosNuevosFormateados = array_map(function ($logro) {
-                return [
-                    'id' => $logro->id,
-                    'nombre' => $logro->nombre,
-                    'descripcion' => $logro->descripcion,
-                    'icono' => $logro->icono,
-                    'tipo' => $logro->tipo,
-                    'valor_objetivo' => $logro->valor_objetivo,
-                    'fecha_obtenido' => date('Y-m-d')
-                ];
-            }, $nuevosLogros);
+            if (
+                $challengeSkillId <= 0
+                || $challengeSkillId !== $skillId
+            ) {
+                return false;
+            }
 
-            // Fusiona logros anteriores + logros nuevos.
-            $_SESSION['logros_recientes'] = array_merge($logrosSesionActual, $logrosNuevosFormateados);
+            // 3) La habilidad también debe existir y estar habilitada.
+            $skill =
+                HabilidadesBlandas::find(
+                    $challengeSkillId
+                );
+
+            if (
+                !$skill
+                || (int) (
+                    $skill->habilitado
+                    ?? 0
+                ) !== 1
+            ) {
+                return false;
+            }
+
+            // -------------------------
+            // VALIDACIÓN DEL PUNTAJE
+            // -------------------------
+            /*
+             * El máximo se vuelve a leer desde el reto almacenado en
+             * MySQL. Así la persistencia no depende exclusivamente del
+             * valor conservado en la sesión.
+             */
+            $maxScore =
+                max(
+                    0,
+                    (int) (
+                        $challenge->puntos
+                        ?? 0
+                    )
+                );
+
+            if ($maxScore <= 0) {
+                return false;
+            }
+
+            /*
+             * El mínimo se recalcula con la misma regla general del
+             * controlador: ceil(70 % de los puntos disponibles).
+             */
+            $minimumScore =
+                self::calculateMinimumPassingScore(
+                    $maxScore
+                );
+
+            /*
+             * Un reto no se registra cuando:
+             * - el puntaje es negativo;
+             * - no alcanza el mínimo;
+             * - supera los puntos disponibles.
+             */
+            if (
+                $scoreAwarded < $minimumScore
+                || $scoreAwarded < 0
+                || $scoreAwarded > $maxScore
+            ) {
+                return false;
+            }
+
+            // -------------------------
+            // REGISTRO DEL RETO
+            // -------------------------
+            /*
+             * marcarComoCompletado() conserva la lógica existente del
+             * modelo para crear o actualizar la relación usuario-reto.
+             * Esto evita generar un segundo registro para la misma
+             * combinación cuando la operación se repite.
+             */
+            $saved =
+                usuarios_retos::
+                    marcarComoCompletado(
+                        $idUsuario,
+                        $challengeId,
+                        $scoreAwarded
+                    );
+
+            if (!$saved) {
+                return false;
+            }
+
+            // -------------------------
+            // ACTUALIZACIÓN DEL PROGRESO
+            // -------------------------
+            /*
+             * Se recalcula exclusivamente la habilidad real del reto.
+             * No se utiliza un identificador diferente proveniente del
+             * cliente o de otra actividad.
+             */
+            $progressUpdated =
+                self::recalculateUserSkillProgress(
+                    $idUsuario,
+                    $challengeSkillId
+                );
+
+            if (!$progressUpdated) {
+                return false;
+            }
+
+            // -------------------------
+            // EVALUACIÓN DE LOGROS
+            // -------------------------
+            /*
+             * Los logros se evalúan después de guardar el reto y
+             * actualizar el progreso, para que trabajen con los datos
+             * más recientes de la base de datos.
+             */
+            $newAchievements =
+                Logros::
+                    evaluarYAsignarNuevosPorReto(
+                        $idUsuario,
+                        $challengeId
+                    );
+
+            self::guardarLogrosRecientes(
+                $newAchievements
+            );
+
+            return true;
+        } catch (\Throwable $e) {
+            /*
+             * Los detalles técnicos se registran únicamente en el log
+             * del servidor. El frontend recibe un error controlado.
+             */
+            error_log(
+                'Error al completar reto '
+                . $challengeId
+                . ' para el usuario '
+                . $idUsuario
+                . ': '
+                . $e->getMessage()
+            );
+
+            return false;
+        }
+    }
+
+    /**
+     * Guarda en sesión la información mínima de los logros obtenidos
+     * para mostrarlos una sola vez al regresar a la página de retos.
+     *
+     * Los logros ya existentes en la sesión se conservan y se fusionan
+     * con los nuevos.
+     *
+     * @param array<int, object> $newAchievements
+     */
+    private static function guardarLogrosRecientes(
+        array $newAchievements
+    ): void {
+        if (empty($newAchievements)) {
+            return;
         }
 
-        return true;
+        if (
+            session_status()
+            !== PHP_SESSION_ACTIVE
+        ) {
+            session_start();
+        }
+
+        $currentAchievements =
+            $_SESSION['logros_recientes']
+            ?? [];
+
+        $formattedAchievements =
+            array_map(
+                static function (
+                    object $achievement
+                ): array {
+                    return [
+                        'id' =>
+                            (int) $achievement->id,
+                        'nombre' =>
+                            (string) $achievement->nombre,
+                        'descripcion' =>
+                            (string) $achievement->descripcion,
+                        'icono' =>
+                            (string) $achievement->icono,
+                        'tipo' =>
+                            (int) $achievement->tipo,
+                        'valor_objetivo' =>
+                            (int) $achievement->valor_objetivo,
+                        'fecha_obtenido' =>
+                            date('Y-m-d')
+                    ];
+                },
+                $newAchievements
+            );
+
+        $_SESSION['logros_recientes'] =
+            array_merge(
+                $currentAchievements,
+                $formattedAchievements
+            );
     }
 
     // Recalcula el progreso consolidado de la habilidad del usuario.
-    // Devuelve true si los ids son válidos y la operación se ejecuta.
-    private static function recalculateUserSkillProgress(int $idUsuario, int $idHabilidad): bool
-    {
-        if ($idUsuario <= 0 || $idHabilidad <= 0) {
+    // Devuelve true si los identificadores son válidos y la operación se ejecuta.
+    private static function recalculateUserSkillProgress(
+        int $idUsuario,
+        int $idHabilidad
+    ): bool {
+        if (
+            $idUsuario <= 0
+            || $idHabilidad <= 0
+        ) {
             return false;
         }
 
-        usuarios_habilidades::recalcularProgresoHabilidad($idUsuario, $idHabilidad);
+        usuarios_habilidades::
+            recalcularProgresoHabilidad(
+                $idUsuario,
+                $idHabilidad
+            );
+
         return true;
     }
 
