@@ -854,7 +854,7 @@
 
     // Envía al backend la acción "advance".
     async function sendAdvanceTurn() {
-        if (state.isLoading || state.completed) return;
+        if (state.isLoading || state.completed || state.failed) return;
 
         setLoading(true);
         renderTypingIndicator();
@@ -916,7 +916,7 @@
 
     // Envía la respuesta del usuario al backend.
     async function sendReplyTurn(userMessage) {
-        if (state.isLoading || state.completed) return;
+        if (state.isLoading || state.completed || state.failed) return;
 
         setLoading(true);
         renderTypingIndicator();
@@ -982,10 +982,11 @@
         event.preventDefault();
 
         if (
-            state.serviceUnavailable ||
             !state.inputEnabled ||
             !state.requiresUserResponse ||
             state.isLoading ||
+            state.completed ||
+            state.failed ||
             state.avatarIsSpeaking ||
             state.avatarIsPendingSpeech
         ) {
@@ -1254,24 +1255,50 @@
         applyUiState();
     }
 
-    // Procesa finalización del reto.
+    /**
+     * Procesa el resultado terminal del reto.
+     *
+     * completed = reto aprobado.
+     * failed    = intentos agotados sin aprobar.
+     */
     function handleCompletion(data) {
+
         if (!data) return;
 
         if (data.progress) {
-            if (data.progress.challengeCompleted || data.progress.failed) {
+
+            // El reto fue aprobado.
+            if (data.progress.challengeCompleted) {
                 state.completed = true;
+                state.failed = false;
+            }
+
+            // El reto terminó sin ser aprobado.
+            if (data.progress.failed) {
+                state.failed = true;
+                state.completed = false;
+            }
+
+            /*
+             * Ambos resultados son terminales.
+             * Por eso detenemos cualquier reconocimiento
+             * de voz y bloqueamos nuevamente los controles.
+             */
+            if (state.completed || state.failed) {
 
                 if (state.isListening) {
                     stopSpeechRecognition();
                 }
 
+                applyUiState();
                 updateMicButtonState();
             }
         }
 
         if (data.completionModal) {
-            queueCompletionModal(data.completionModal);
+            queueCompletionModal(
+                data.completionModal
+            );
         }
     }
 

@@ -48,6 +48,10 @@
         inputEnabled: false,
         requiresUserResponse: false,
         completed: false,
+
+        // Indica que la lección terminó sin ser completada.
+        failed: false,
+
         isLoading: false,
         modalRedirectTo: null,
         isListening: false,
@@ -839,7 +843,7 @@
 
     // Envía al backend la acción "advance" para pasar a la siguiente parte del flujo
     async function sendAdvanceTurn() {
-        if (state.isLoading || state.completed) return;
+        if (state.isLoading || state.completed || state.failed) return;
 
         setLoading(true);
         renderTypingIndicator();
@@ -901,7 +905,7 @@
 
     // Envía al backend una respuesta escrita por el usuario
     async function sendReplyTurn(userMessage) {
-        if (state.isLoading || state.completed) return;
+        if (state.isLoading || state.completed || state.failed) return;
 
         setLoading(true);
         renderTypingIndicator();
@@ -967,10 +971,11 @@
         event.preventDefault();
 
         if (
-            state.serviceUnavailable ||
             !state.inputEnabled ||
             !state.requiresUserResponse ||
             state.isLoading ||
+            state.completed ||
+            state.failed ||
             state.avatarIsSpeaking ||
             state.avatarIsPendingSpeech
         ) {
@@ -1135,6 +1140,10 @@
         state.inputEnabled = Boolean(session.inputEnabled);
         state.requiresUserResponse = Boolean(session.requiresUserResponse);
         state.completed = Boolean(session.completed);
+
+        // El backend diferencia una lección completada
+        // de una lección terminada por agotamiento de intentos.
+        state.failed = Boolean(session.failed);
     }
 
     /**
@@ -1181,6 +1190,7 @@
          * - hay una narración pendiente.
          */
         const shouldDisableComposer = state.isLoading || !state.inputEnabled || state.completed ||
+            state.failed ||
             state.avatarIsSpeaking ||
             state.avatarIsPendingSpeech;
 
@@ -1248,22 +1258,51 @@
         applyUiState();
     }
 
-    // Procesa información de finalización de la lección
+    /**
+     * Procesa el resultado terminal de la lección.
+     *
+     * completed = terminó satisfactoriamente.
+     * failed    = terminó por agotamiento de intentos.
+     *
+     * Ambos son estados terminales, pero no significan lo mismo.
+     */
     function handleCompletion(data) {
-        if (!data || !data.progress) return;
 
-        if (data.progress.lessonCompleted || data.progress.failed) {
-            state.completed = true;
+        if (!data) return;
 
-            if (state.isListening) {
-                stopSpeechRecognition();
+        if (data.progress) {
+
+            // Lección completada correctamente.
+            if (data.progress.lessonCompleted) {
+                state.completed = true;
+                state.failed = false;
             }
 
-            updateMicButtonState();
+            // Lección terminada sin aprobar.
+            if (data.progress.failed) {
+                state.failed = true;
+                state.completed = false;
+            }
+
+            // En cualquiera de los dos estados terminales
+            // dejamos de escuchar y bloqueamos el compositor.
+            if (state.completed || state.failed) {
+
+                if (state.isListening) {
+                    stopSpeechRecognition();
+                }
+
+                applyUiState();
+                updateMicButtonState();
+            }
         }
 
+        // El modal debe poder procesarse incluso si en algún
+        // caso futuro el backend no incluye progress.
         if (data.completionModal) {
-            queueCompletionModal(data.completionModal);
+            queueCompletionModal(
+                data.completionModal
+            );
         }
     }
 
