@@ -23,7 +23,7 @@ class DashboardController
             'titulo' => 'Panel de administración'
         ]);
     }
-//----------------------------------ADMINISTRAR USUARIOS----------------------------------
+    //----------------------------------ADMINISTRAR USUARIOS----------------------------------
     public static function indexUsuarios(Router $router)
     {
         /*
@@ -111,10 +111,22 @@ class DashboardController
             $usuarios = Usuario::paginar('nombres', $registros_por_pagina, $paginacion->offset());
         }
 
-        // Cambiamos los valores 0 y 1 de la columna sexo por Femenino y Masculino
+        /*
+         * Convertimos el valor almacenado en una etiqueta legible.
+         *
+         * 0 = Masculino
+         * 1 = Femenino
+         * 3 = Prefiero no decirlo
+         */
         if (!empty($usuarios)) {
             foreach ($usuarios as $usuario) {
-                $usuario->sexo = $usuario->sexo ? 'Femenino' : 'Masculino';
+                $usuario->sexo =
+                    match ((string) $usuario->sexo) {
+                        '0' => 'Masculino',
+                        '1' => 'Femenino',
+                        '3' => 'Prefiero no decirlo',
+                        default => 'No definido'
+                    };
             }
         }
 
@@ -187,8 +199,7 @@ class DashboardController
 
             $debeCambiarPasswordOriginal =
                 (int) (
-                    $usuario->
-                        debe_cambiar_password
+                    $usuario->debe_cambiar_password
                     ?? 0
                 );
 
@@ -208,38 +219,38 @@ class DashboardController
              */
             $datosPermitidos = [
                 'nombres' =>
-                    $_POST['nombres']
+                $_POST['nombres']
                     ?? '',
                 'apellidos' =>
-                    $_POST['apellidos']
+                $_POST['apellidos']
                     ?? '',
                 'edad' =>
-                    $_POST['edad']
+                $_POST['edad']
                     ?? '',
                 'sexo' =>
-                    $_POST['sexo']
+                $_POST['sexo']
                     ?? '',
                 'correo' =>
-                    $_POST['correo']
+                $_POST['correo']
                     ?? '',
                 'universidad' =>
-                    $_POST['universidad']
+                $_POST['universidad']
                     ?? '',
                 'carrera' =>
-                    $_POST['carrera']
+                $_POST['carrera']
                     ?? '',
                 'password' =>
-                    $_POST['password']
+                $_POST['password']
                     ?? '',
                 'password2' =>
-                    $_POST['password2']
+                $_POST['password2']
                     ?? '',
                 /*
                  * Si por alguna razón el formulario no envía el
                  * estado, se conserva el valor actual.
                  */
                 'habilitado' =>
-                    $_POST['habilitado']
+                $_POST['habilitado']
                     ?? $usuario->habilitado
             ];
 
@@ -259,11 +270,10 @@ class DashboardController
              */
             if (
                 empty($alertas)
-                && Usuario::
-                    correoEnUsoPorOtroUsuario(
-                        (int) $usuario->id,
-                        (string) $usuario->correo
-                    )
+                && Usuario::correoEnUsoPorOtroUsuario(
+                    (int) $usuario->id,
+                    (string) $usuario->correo
+                )
             ) {
                 $alertas['error'][] =
                     'El correo ya está registrado por otro usuario';
@@ -283,7 +293,7 @@ class DashboardController
             if (
                 empty($alertas)
                 && (int) $usuario->id
-                    === $idAdministradorActual
+                === $idAdministradorActual
                 && (int) $usuario->habilitado === 0
             ) {
                 $alertas['error'][] =
@@ -309,8 +319,7 @@ class DashboardController
                      */
                     $usuario->hashPassword();
 
-                    $usuario->
-                        debe_cambiar_password = 1;
+                    $usuario->debe_cambiar_password = 1;
                 } else {
                     /*
                      * Si no se escribió una nueva contraseña,
@@ -320,8 +329,7 @@ class DashboardController
                     $usuario->password =
                         $passwordOriginal;
 
-                    $usuario->
-                        debe_cambiar_password =
+                    $usuario->debe_cambiar_password =
                         $debeCambiarPasswordOriginal;
                 }
 
@@ -352,46 +360,46 @@ class DashboardController
             'admin/usuarios/editar',
             [
                 'titulo' =>
-                    'Editar Usuario',
+                'Editar Usuario',
                 'alertas' =>
-                    $alertas,
+                $alertas,
                 'alertasExito' =>
-                    $alertasExito,
+                $alertasExito,
                 'usuario' =>
-                    $usuario
+                $usuario
             ]
         );
+        // public static function eliminarUsuarios()
+        // {
+        //     /*
+        //      * Todas las acciones de este controlador pertenecen al
+        //      * panel administrativo. La autorización se valida desde
+        //      * un único método para evitar diferencias entre rutas.
+        //      */
+        //     self::protegerRutaAdministrativa();
+
+        //     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        //         $id = $_POST['id'];
+        //         $usuario = Usuario::find($id);
+        //         if (!isset($usuario)) {
+        //             $_SESSION['alertas']['error'][] = "No se pudo eliminar el usuario";
+        //             header('Location: /admin/usuarios');
+        //             exit;
+        //         }
+        //         $resultado = $usuario->eliminar();
+        //         if ($resultado) {
+        //             // Guardamos la alerta en sesión para mostrarla después del redirect
+        //             $_SESSION['alertas']['exito'][] = "El usuario se eliminó correctamente";
+        //             header('Location: /admin/usuarios');
+        //             exit;
+        //         }
+        //     }
+        // }
     }
 
-    public static function eliminarUsuarios()
-    {
-        /*
-         * Todas las acciones de este controlador pertenecen al
-         * panel administrativo. La autorización se valida desde
-         * un único método para evitar diferencias entre rutas.
-         */
-        self::protegerRutaAdministrativa();
+    //----------------------------------FIN ADMINISTRAR USUARIOS----------------------------------
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $id = $_POST['id'];
-            $usuario = Usuario::find($id);
-            if (!isset($usuario)) {
-                $_SESSION['alertas']['error'][] = "No se pudo eliminar el usuario";
-                header('Location: /admin/usuarios');
-                exit;
-            }
-            $resultado = $usuario->eliminar();
-            if ($resultado) {
-                // Guardamos la alerta en sesión para mostrarla después del redirect
-                $_SESSION['alertas']['exito'][] = "El usuario se eliminó correctamente";
-                header('Location: /admin/usuarios');
-                exit;
-            }
-        }
-    }
-//----------------------------------FIN ADMINISTRAR USUARIOS----------------------------------
-
-//----------------------------------ADMINISTRAR HABILIDADES----------------------------------
+    //----------------------------------ADMINISTRAR HABILIDADES----------------------------------
     public static function indexHabilidades(Router $router)
     {
 
@@ -505,7 +513,7 @@ class DashboardController
             //Validar
             $alertas = $habilidad->validar();
             //Si no hay alertas, guardamos
-            if(empty($alertas)){
+            if (empty($alertas)) {
                 $resultado = $habilidad->guardar();
                 if ($resultado) {
                     $alertasExito[] = "La habilidad se creó correctamente";
@@ -533,12 +541,23 @@ class DashboardController
         self::protegerRutaAdministrativa();
         $alertas = [];
         $alertasExito = [];
-        //Validar el id que llega por la URL
-        $id = $_GET['id'];
-        //Validamos si el id es un número entero
-        $id = filter_var($id, FILTER_VALIDATE_INT);
-        if (!$id) {
-            header('Location: /admin/usuarios');
+        // Validar que el id recibido sea un entero positivo.
+        $id =
+            filter_var(
+                $_GET['id']
+                    ?? null,
+                FILTER_VALIDATE_INT,
+                [
+                    'options' => [
+                        'min_range' => 1
+                    ]
+                ]
+            );
+
+        if ($id === false) {
+            header(
+                'Location: /admin/habilidades'
+            );
             exit;
         }
         //Obtenemos la habilidad a editar
@@ -604,7 +623,7 @@ class DashboardController
 //----------------------------------FIN ADMINISTRAR HABILIDADES----------------------------------
 
     /**
-     * Protege todas las rutas administrativas.
+     * Protege las rutas administrativas disponibles.
      *
      * Reglas:
      * - Sin sesión autenticada: volver al inicio de sesión.
@@ -625,5 +644,4 @@ class DashboardController
             exit;
         }
     }
-
 }
