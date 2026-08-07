@@ -65,6 +65,10 @@
         inputEnabled: false,
         requiresUserResponse: false,
         completed: false,
+
+        // Indica que el reto terminó sin ser aprobado.
+        failed: false,
+
         isLoading: false,
         modalRedirectTo: null,
         isListening: false,
@@ -74,7 +78,17 @@
         pendingAutoAdvance: false,
         // Se activa cuando la IA o la conexión no están disponibles.
         // Mientras sea true, el reto permanece pausado y el composer bloqueado.
-        serviceUnavailable: false
+        serviceUnavailable: false,
+        /*
+        * Conserva la última configuración de interfaz recibida desde el backend.
+        * Esto permite que los cambios temporales de carga no borren el placeholder ni otras instrucciones
+        * correspondientes a la etapa actual.
+        */
+        lastUi: {
+            composerPlaceholder: 'Escribe tu respuesta.',
+            focusInput: false,
+            showReturnButton: false
+        }
     };
 
     // ---------------------------------------------------------------------
@@ -1127,8 +1141,10 @@
     // ESTADO Y UI
     // ---------------------------------------------------------------------
 
-    // Aplica al estado frontend los datos de sesión devueltos por backend.
+    // Toma el estado de sesión enviado por el backend
+    // y sincroniza el estado local del reto.
     function applySessionState(session) {
+
         if (!session) return;
 
         state.currentStage = session.currentStage ?? state.currentStage;
@@ -1136,20 +1152,49 @@
         state.inputEnabled = Boolean(session.inputEnabled);
         state.requiresUserResponse = Boolean(session.requiresUserResponse);
         state.completed = Boolean(session.completed);
+        /*
+         * También sincronizamos el estado fallido.
+         *
+         * Esto permite bloquear definitivamente
+         * el compositor cuando se agotan los intentos.
+         */
+        state.failed = Boolean(session.failed);
     }
 
-    // Aplica visualmente el estado actual a input, enviar y micrófono.
-    function applyUiState(ui) {
-        const safeUi = ui || {};
+    /**
+     * Sincroniza los controles visuales del reto
+     * con el estado funcional recibido del backend.
+     */
+    function applyUiState(ui = null) {
+
+        const receivedUi = ui && typeof ui === 'object' ? ui : null;
+        /*
+         * Solo se actualiza la configuración guardada
+         * cuando la respuesta contiene información real.
+         *
+         * De esta manera una llamada interna como
+         * applyUiState() no elimina el último placeholder.
+         */
+        if (receivedUi && Object.keys(receivedUi).length > 0) {
+            state.lastUi = {
+                ...state.lastUi,
+                ...receivedUi
+            };
+        }
+
+        const safeUi = state.lastUi || {};
         const placeholder = resolveComposerPlaceholder(safeUi);
         const focusInput = Boolean(safeUi.focusInput);
-
         textInput.placeholder = placeholder;
-
-        const shouldDisableComposer =
-            state.isLoading ||
-            !state.inputEnabled ||
-            state.completed ||
+        /*
+         * El compositor se bloquea durante cargas,
+         * narraciones y estados finales.
+         *
+         * A diferencia de las lecciones, aquí también
+         * contemplamos explícitamente state.failed.
+         */
+        const shouldDisableComposer = state.isLoading || !state.inputEnabled || state.completed ||
+            state.failed ||
             state.avatarIsSpeaking ||
             state.avatarIsPendingSpeech;
 
@@ -1159,7 +1204,10 @@
         if (micButton) {
             micButton.disabled = shouldDisableComposer;
         }
-
+        /*
+         * Solo enfocamos automáticamente el campo
+         * cuando el backend está esperando una respuesta.
+         */
         if (focusInput && !shouldDisableComposer && state.requiresUserResponse) {
             textInput.focus();
         }
@@ -1192,10 +1240,18 @@
         return 'Escribe tu respuesta...';
     }
 
-    // Marca loading on/off y recalcula UI.
+    /**
+     * Cambia el estado de carga del reto sin perder
+     * la configuración visual de la etapa actual.
+     */
     function setLoading(isLoading) {
-        state.isLoading = isLoading;
-        applyUiState({});
+
+        state.isLoading = Boolean(isLoading);
+        /*
+         * Se reutiliza la última configuración
+         * recibida desde la API.
+         */
+        applyUiState();
     }
 
     // Procesa finalización del reto.
