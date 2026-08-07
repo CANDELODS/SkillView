@@ -11,25 +11,27 @@ class DashboardController
 {
     public static function index(Router $router)
     {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        /*
+         * Todas las acciones de este controlador pertenecen al
+         * panel administrativo. La autorización se valida desde
+         * un único método para evitar diferencias entre rutas.
+         */
+        self::protegerRutaAdministrativa();
 
         // Render a la vista 
         $router->render('admin/dashboard/index', [
             'titulo' => 'Panel de administración'
         ]);
     }
-    //----------------------------------ADMINISTRAR USUARIOS----------------------------------
+//----------------------------------ADMINISTRAR USUARIOS----------------------------------
     public static function indexUsuarios(Router $router)
     {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        /*
+         * Todas las acciones de este controlador pertenecen al
+         * panel administrativo. La autorización se valida desde
+         * un único método para evitar diferencias entre rutas.
+         */
+        self::protegerRutaAdministrativa();
 
         // Obtenemos la búsqueda desde la URL
         $busqueda = $_GET['busqueda'] ?? '';
@@ -109,18 +111,10 @@ class DashboardController
             $usuarios = Usuario::paginar('nombres', $registros_por_pagina, $paginacion->offset());
         }
 
-        // Cambiamos los valores 0, 1 y 3 de la columna sexo por Femenino, Masculino y Prefiero no decirlo
+        // Cambiamos los valores 0 y 1 de la columna sexo por Femenino y Masculino
         if (!empty($usuarios)) {
             foreach ($usuarios as $usuario) {
-                if ((string)$usuario->sexo === '0') {
-                    $usuario->sexo = 'Masculino';
-                } elseif ((string)$usuario->sexo === '1') {
-                    $usuario->sexo = 'Femenino';
-                } elseif ((string)$usuario->sexo === '3') {
-                    $usuario->sexo = 'Prefiero no decirlo';
-                } else {
-                    $usuario->sexo = 'No definido';
-                }
+                $usuario->sexo = $usuario->sexo ? 'Femenino' : 'Masculino';
             }
         }
 
@@ -135,11 +129,12 @@ class DashboardController
 
     public static function editarUsuarios(Router $router)
     {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        /*
+         * Todas las acciones de este controlador pertenecen al
+         * panel administrativo. La autorización se valida desde
+         * un único método para evitar diferencias entre rutas.
+         */
+        self::protegerRutaAdministrativa();
         $alertas = [];
         $alertasExito = [];
         //Validar el id que llega por la URL
@@ -165,30 +160,12 @@ class DashboardController
             $usuario->sincronizar($_POST);
             //Validamos
             $alertas = $usuario->validar_edicion();
-            /*
-            * Evitar que el administrador que tiene la sesión abierta
-            * deshabilite accidentalmente su propia cuenta.
-            */
-            if (
-                (int) $usuario->id === (int) $_SESSION['id'] &&
-                (int) $usuario->habilitado === 0
-            ) {
-                // Restauramos visualmente el estado habilitado
-                $usuario->habilitado = 1;
-
-                $alertas['error'][] =
-                    'No puedes deshabilitar tu propia cuenta '
-                    . 'mientras tienes la sesión iniciada.';
-            }
             //Si no hay alertar, guardamos
             if (empty($alertas)) {
                 //Validamos si el admin escribió un nuevo password
                 if ($usuario->password) {
                     //Si el admin escribió una nueva contraseña...
                     $usuario->hashPassword();
-
-                    //Obligamos al usuario a cambiar la contraseña en su próximo inicio de sesión
-                    $usuario->debe_cambiar_password = 1;
                 } else {
                     //Si no escribió nada en password, mantenemos la contraseña original
                     $usuario->password = $passwordOriginal;
@@ -214,42 +191,44 @@ class DashboardController
         ]);
     }
 
-    // public static function eliminarUsuarios()
-    // {
-    //     // Verificamos si el usuario está autenticado
-    //     if (!isAuth()) {
-    //         header('Location: /');
-    //         exit;
-    //     }
+    public static function eliminarUsuarios()
+    {
+        /*
+         * Todas las acciones de este controlador pertenecen al
+         * panel administrativo. La autorización se valida desde
+         * un único método para evitar diferencias entre rutas.
+         */
+        self::protegerRutaAdministrativa();
 
-    //     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    //         $id = $_POST['id'];
-    //         $usuario = Usuario::find($id);
-    //         if (!isset($usuario)) {
-    //             $_SESSION['alertas']['error'][] = "No se pudo eliminar el usuario";
-    //             header('Location: /admin/usuarios');
-    //             exit;
-    //         }
-    //         $resultado = $usuario->eliminar();
-    //         if ($resultado) {
-    //             // Guardamos la alerta en sesión para mostrarla después del redirect
-    //             $_SESSION['alertas']['exito'][] = "El usuario se eliminó correctamente";
-    //             header('Location: /admin/usuarios');
-    //             exit;
-    //         }
-    //     }
-    // }
-    //----------------------------------FIN ADMINISTRAR USUARIOS----------------------------------
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id = $_POST['id'];
+            $usuario = Usuario::find($id);
+            if (!isset($usuario)) {
+                $_SESSION['alertas']['error'][] = "No se pudo eliminar el usuario";
+                header('Location: /admin/usuarios');
+                exit;
+            }
+            $resultado = $usuario->eliminar();
+            if ($resultado) {
+                // Guardamos la alerta en sesión para mostrarla después del redirect
+                $_SESSION['alertas']['exito'][] = "El usuario se eliminó correctamente";
+                header('Location: /admin/usuarios');
+                exit;
+            }
+        }
+    }
+//----------------------------------FIN ADMINISTRAR USUARIOS----------------------------------
 
-    //----------------------------------ADMINISTRAR HABILIDADES----------------------------------
+//----------------------------------ADMINISTRAR HABILIDADES----------------------------------
     public static function indexHabilidades(Router $router)
     {
 
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        /*
+         * Todas las acciones de este controlador pertenecen al
+         * panel administrativo. La autorización se valida desde
+         * un único método para evitar diferencias entre rutas.
+         */
+        self::protegerRutaAdministrativa();
 
         // Obtenemos la búsqueda desde la URL
         $busqueda = $_GET['busqueda'] ?? '';
@@ -343,17 +322,18 @@ class DashboardController
         $alertas = [];
         $alertasExito = [];
         $habilidad = new HabilidadesBlandas;
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        /*
+         * Todas las acciones de este controlador pertenecen al
+         * panel administrativo. La autorización se valida desde
+         * un único método para evitar diferencias entre rutas.
+         */
+        self::protegerRutaAdministrativa();
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $habilidad->sincronizar($_POST);
             //Validar
             $alertas = $habilidad->validar();
             //Si no hay alertas, guardamos
-            if (empty($alertas)) {
+            if(empty($alertas)){
                 $resultado = $habilidad->guardar();
                 if ($resultado) {
                     $alertasExito[] = "La habilidad se creó correctamente";
@@ -373,11 +353,12 @@ class DashboardController
 
     public static function editarHabilidades(Router $router)
     {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        /*
+         * Todas las acciones de este controlador pertenecen al
+         * panel administrativo. La autorización se valida desde
+         * un único método para evitar diferencias entre rutas.
+         */
+        self::protegerRutaAdministrativa();
         $alertas = [];
         $alertasExito = [];
         //Validar el id que llega por la URL
@@ -407,7 +388,7 @@ class DashboardController
                 $resultado = $habilidad->guardar();
 
                 if ($resultado) {
-                    $alertasExito[] = "La habilidad de actualizó correctamente";
+                    $alertasExito[] = "La habilidad se actualizó correctamente";
                 } else {
                     $alertas['error'][] = "Ocurrió un error al actualizarla habilidad";
                 }
@@ -424,11 +405,12 @@ class DashboardController
 
     public static function eliminarHabilidades()
     {
-        // Verificamos si el usuario está autenticado
-        if (!isAuth()) {
-            header('Location: /');
-            exit;
-        }
+        /*
+         * Todas las acciones de este controlador pertenecen al
+         * panel administrativo. La autorización se valida desde
+         * un único método para evitar diferencias entre rutas.
+         */
+        self::protegerRutaAdministrativa();
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $id = $_POST['id'];
@@ -447,5 +429,29 @@ class DashboardController
             }
         }
     }
-    //----------------------------------FIN ADMINISTRAR HABILIDADES----------------------------------
+//----------------------------------FIN ADMINISTRAR HABILIDADES----------------------------------
+
+    /**
+     * Protege todas las rutas administrativas.
+     *
+     * Reglas:
+     * - Sin sesión autenticada: volver al inicio de sesión.
+     * - Usuario autenticado sin rol administrador: volver a /principal.
+     * - Administrador autenticado: continuar normalmente.
+     *
+     * isAdmin() reutiliza la sesión actual y comprueba que admin = 1.
+     */
+    private static function protegerRutaAdministrativa(): void
+    {
+        if (!isAuth()) {
+            header('Location: /');
+            exit;
+        }
+
+        if (!isAdmin()) {
+            header('Location: /principal');
+            exit;
+        }
+    }
+
 }
