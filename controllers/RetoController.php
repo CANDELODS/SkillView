@@ -22,6 +22,38 @@ class RetoController
     // Porcentaje mínimo de puntos que debe alcanzar el usuario para aprobar un reto.
     private const MIN_PASSING_RATIO = 0.70;
 
+    // Cantidad máxima de oportunidades disponibles en cada reto.
+    private const MAX_CHALLENGE_ATTEMPTS = 3;
+
+    /*
+     * Condiciones mínimas aplicadas antes de consultar OpenAI.
+     * Estas reglas evitan consumir la API con respuestas vacías
+     * o claramente insuficientes.
+     */
+    private const MIN_ANSWER_LENGTH = 12;
+    private const MIN_ANSWER_WORDS = 3;
+
+    // Límites admitidos para la proporción de puntaje devuelta por IA.
+    private const MIN_SCORE_RATIO = 0.0;
+    private const MAX_SCORE_RATIO = 1.0;
+
+    /*
+     * Respuestas demasiado genéricas que no contienen información
+     * suficiente para evaluar el desempeño del usuario.
+     */
+    private const GENERIC_INVALID_ANSWERS = [
+        'si',
+        'sí',
+        'no',
+        'ok',
+        'bien',
+        'normal',
+        'pensaria mejor',
+        'pensaría mejor',
+        'lo haria bien',
+        'lo haría bien'
+    ];
+
     // Método que renderiza la vista principal de un reto individual.
     // Este método NO ejecuta la IA todavía.
     // Solo prepara la vista /retos/reto?id=...
@@ -453,13 +485,31 @@ class RetoController
             ], 409);
         }
 
-        // Si el reto ya terminó, no se permiten más acciones.
+        /*
+         * Un reto que agotó sus intentos permanece cerrado.
+         * Se comprueba antes de completed porque los retos fallidos
+         * también quedan marcados como finalizados.
+         */
+        if (!empty($flow['failed'])) {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'CHALLENGE_FAILED',
+                    'message' =>
+                        'Este reto finalizó porque se agotaron los intentos disponibles.',
+                    'redirectTo' => '/retos'
+                ]
+            ], 409);
+        }
+
+        // Si el reto ya fue completado, no se permiten más acciones.
         if (!empty($flow['completed'])) {
             self::jsonResponse([
                 'ok' => false,
                 'error' => [
                     'code' => 'CHALLENGE_ALREADY_FINISHED',
-                    'message' => 'Este flujo de reto ya finalizó.'
+                    'message' => 'Este flujo de reto ya finalizó.',
+                    'redirectTo' => '/retos'
                 ]
             ], 409);
         }
@@ -537,11 +587,16 @@ class RetoController
 
                 // Si falla la validación básica, no se consume API.
                 if (!$basicValidation['valid']) {
-                    // Aumenta intentos usados.
-                    $flow['attempts']['challengeAnswer'] = (int)($flow['attempts']['challengeAnswer'] ?? 0) + 1;
-
-                    // Calcula cuántos intentos quedan.
-                    $remainingAttempts = self::remainingAttempts($flow);
+                    /*
+                     * Registra el intento fallido y conserva la última
+                     * respuesta. La validación local no asigna puntos.
+                     */
+                    $remainingAttempts =
+                        self::registerFailedChallengeAttempt(
+                            $flow,
+                            $message,
+                            0
+                        );
 
                     // Estructura de evaluación simulada para respuesta inválida local.
                     $evaluation = [
@@ -611,7 +666,7 @@ class RetoController
                         $content,
                         [
                             'attemptNumber' => (int)($flow['attempts']['challengeAnswer'] ?? 0) + 1,
-                            'maxAttempts' => (int)($flow['limits']['challengeAnswer'] ?? 3),
+                            'maxAttempts' => (int)($flow['limits']['challengeAnswer'] ?? self::MAX_CHALLENGE_ATTEMPTS),
                             'maxPoints' => (int)($flow['maxScore'] ?? 0),
                         ],
                         $userName
@@ -633,8 +688,17 @@ class RetoController
 
                 // Si la IA rechaza la respuesta.
                 if (empty($aiEvaluation['accepted'])) {
-                    // Incrementa intentos usados.
-                    $flow['attempts']['challengeAnswer'] = (int)($flow['attempts']['challengeAnswer'] ?? 0) + 1;
+                    /*
+                     * El rechazo de la IA consume una oportunidad.
+                     * Se conserva la respuesta del usuario y el puntaje
+                     * se mantiene en cero porque no fue aceptada.
+                     */
+                    $remainingAttempts =
+                        self::registerFailedChallengeAttempt(
+                            $flow,
+                            $message,
+                            0
+                        );
 
                     // Guarda la evaluación de IA en el flow.
                     $flow['evaluation'] = [
@@ -646,10 +710,6 @@ class RetoController
                         'performanceLevel' => 'INSUFFICIENT',
                         'feedbackSummary' => $aiEvaluation['feedbackSummary'] ?? null
                     ];
-
-                    $flow['scoreAwarded'] = 0;
-                    // Calcula intentos restantes.
-                    $remainingAttempts = self::remainingAttempts($flow);
 
                     // Prepara el mensaje del usuario.
                     $userMessagePayload = [[
@@ -716,23 +776,30 @@ class RetoController
                 $minimumScore = (int)($flow['minimumScore'] ?? 0);
 
                 // true si alcanzó el mínimo; false si quedó por debajo.
-                $meetsMinimumScore = $scoreAwarded >= $minimumScore;
-                //Ejemplo: $scoreAwarded = 18; $minimumScore = 21; $meetsMinimumScore = 18 >= 21 => false
+                $meetsMinimumScore =
+                    $scoreAwarded >= $minimumScore;
+
+                /*
+                 * Ejemplo:
+                 * scoreAwarded = 18
+                 * minimumScore = 21
+                 * 18 >= 21 => false
+                 */
 
                 // La IA consideró válida la respuesta, pero el puntaje
                 // todavía no alcanza el mínimo requerido para aprobar.
                 if (!$meetsMinimumScore) {
-                    // Consume uno de los intentos disponibles.
-                    $flow['attempts']['challengeAnswer'] =
-                        (int)($flow['attempts']['challengeAnswer'] ?? 0) + 1;
-
-                    // Conserva la última respuesta entregada por el usuario.
-                    $flow['answers']['challengeAnswer'] = $message;
-
-                    // Guarda el puntaje real del intento.
-                    // Este valor permanece en sesión, pero todavía no
-                    // se guarda en la base de datos.
-                    $flow['scoreAwarded'] = $scoreAwarded;
+                    /*
+                     * Una respuesta válida con puntaje insuficiente
+                     * consume un intento, pero conserva tanto el texto
+                     * como el puntaje real alcanzado.
+                     */
+                    $remainingAttempts =
+                        self::registerFailedChallengeAttempt(
+                            $flow,
+                            $message,
+                            $scoreAwarded
+                        );
 
                     // Convierte el resultado en un reintento controlado
                     // por una regla del backend.
@@ -746,9 +813,6 @@ class RetoController
                         'feedbackSummary' => $aiEvaluation['feedbackSummary'] ?? null
                     ];
 
-                    // Calcula cuántos intentos le quedan al usuario.
-                    $remainingAttempts = self::remainingAttempts($flow);
-
                     // Prepara el mensaje del usuario para mostrarlo en el chat.
                     $userMessagePayload = [[
                         'id' => 'msg_u_' . uniqid(),
@@ -759,12 +823,15 @@ class RetoController
 
                     // Si ya agotó los intentos, el reto termina como fallido.
                     if ($remainingAttempts <= 0) {
-                        $flow = self::markChallengeFlowAsFailed($flow);
-
-                        // markChallengeFlowAsFailed coloca el puntaje en 0.
-                        // Aquí restauramos el puntaje real del último intento
-                        // para poder informarlo en el modal.
-                        $flow['scoreAwarded'] = $scoreAwarded;
+                        /*
+                         * Se conserva el puntaje del último intento para
+                         * mostrarlo en el resultado final del reto.
+                         */
+                        $flow =
+                            self::markChallengeFlowAsFailed(
+                                $flow,
+                                $scoreAwarded
+                            );
 
                         self::saveChallengeFlow($flow);
 
@@ -1007,7 +1074,8 @@ class RetoController
             ],
 
             'limits' => [
-                'challengeAnswer' => 3
+                'challengeAnswer' =>
+                    self::MAX_CHALLENGE_ATTEMPTS
             ],
 
             'answers' => [
@@ -1085,7 +1153,11 @@ class RetoController
             ],
 
             'limits' => [
-                'challengeAnswer' => (int)($flow['limits']['challengeAnswer'] ?? 3)
+                'challengeAnswer' =>
+                    (int) (
+                        $flow['limits']['challengeAnswer']
+                        ?? self::MAX_CHALLENGE_ATTEMPTS
+                    )
             ],
 
             'scoreAwarded' => (int)($flow['scoreAwarded'] ?? 0),
@@ -1098,61 +1170,176 @@ class RetoController
      * Calcula el puntaje mínimo necesario para aprobar un reto.
      *
      * La regla de SkillView establece que el usuario debe alcanzar
-     * como mínimo el 70 % de los puntos disponibles.
+     * como mínimo el 70 % de los puntos disponibles. Se utiliza ceil()
+     * para garantizar que nunca se apruebe con menos del porcentaje
+     * establecido cuando el resultado contiene decimales.
+     *
+     * Ejemplo:
+     * 25 puntos × 0.70 = 17.5
+     * ceil(17.5) = 18 puntos mínimos.
      */
-    private static function calculateMinimumPassingScore(int $maxPoints): int
-    {
-        // Si el reto no tiene un puntaje máximo válido,
-        // no es posible calcular un mínimo de aprobación.
+    private static function calculateMinimumPassingScore(
+        int $maxPoints
+    ): int {
         if ($maxPoints <= 0) {
             return 0;
         }
 
-        // Multiplica los puntos máximos por el porcentaje mínimo
-        // Además usamos la función ceil para redondear hacia arriba y se garantice que no se apruebe con menos del 70%.
-        $minimumScore = (int) ceil(
-            $maxPoints * self::MIN_PASSING_RATIO //Usamos self porque la constante es de la clase y no de la instancia
-        );
-        //Ejemplo: Para un reto de 30 puntos $minimunScore = round(30 * 0.70) = 21 puntos
+        $minimumScore =
+            (int) ceil(
+                $maxPoints
+                * self::MIN_PASSING_RATIO
+            );
 
-        // Garantiza que el mínimo nunca sea inferior a 1 punto.
-        return max(1, $minimumScore);
+        return max(
+            1,
+            min(
+                $maxPoints,
+                $minimumScore
+            )
+        );
     }
 
     // Convierte el scoreRatio devuelto por IA en el puntaje real del reto.
     // Regla:
-    // - si no fue aceptado, el puntaje es 0,
-    // - si fue aceptado, el puntaje se calcula proporcionalmente al máximo.
-    private static function calculateChallengeScore(float $scoreRatio, int $maxPoints, bool $accepted): int
-    {
-        //Una respuesta rechazada no recibe puntos
+    // - una respuesta rechazada obtiene 0 puntos;
+    // - una respuesta aceptada se calcula proporcionalmente al máximo.
+    private static function calculateChallengeScore(
+        float $scoreRatio,
+        int $maxPoints,
+        bool $accepted
+    ): int {
         if (!$accepted || $maxPoints <= 0) {
             return 0;
         }
 
-        //Garantiza que scoreRatio permanezca entre 0 y 1
-        $ratio = max(0, min(1, $scoreRatio));
-        //Calcula el puntaje proporcional y lo redondea
-        $score = (int) round($maxPoints * $ratio);
-        //Evita que el resultado supere los límites del reto
-        $score = max(0, min($maxPoints, $score));
+        /*
+         * La proporción de IA se limita al intervalo [0, 1].
+         * Esto evita puntajes negativos o superiores al máximo
+         * ante una respuesta externa inconsistente.
+         */
+        $ratio =
+            max(
+                self::MIN_SCORE_RATIO,
+                min(
+                    self::MAX_SCORE_RATIO,
+                    $scoreRatio
+                )
+            );
 
-        // Si la IA aceptó pero el cálculo da 0 por redondeo,
-        // se garantiza mínimo 1 punto.
-        if ($accepted && $score === 0) {
-            return 1;
-        }
+        $score =
+            (int) round(
+                $maxPoints * $ratio
+            );
 
-        return $score;
+        $score =
+            max(
+                0,
+                min(
+                    $maxPoints,
+                    $score
+                )
+            );
+
+        /*
+         * Si la IA aceptó la respuesta y el redondeo produjo cero,
+         * se conserva al menos un punto.
+         */
+        return $score === 0
+            ? 1
+            : $score;
     }
 
     // Calcula cuántos intentos quedan según el flow.
-    private static function remainingAttempts(array $flow): int
-    {
-        $used = (int)($flow['attempts']['challengeAnswer'] ?? 0);
-        $limit = (int)($flow['limits']['challengeAnswer'] ?? 3);
+    private static function remainingAttempts(
+        array $flow
+    ): int {
+        $used =
+            max(
+                0,
+                (int) (
+                    $flow['attempts']['challengeAnswer']
+                    ?? 0
+                )
+            );
 
-        return max(0, $limit - $used);
+        $limit =
+            max(
+                0,
+                (int) (
+                    $flow['limits']['challengeAnswer']
+                    ?? self::MAX_CHALLENGE_ATTEMPTS
+                )
+            );
+
+        return max(
+            0,
+            $limit - $used
+        );
+    }
+
+    /**
+     * Registra un intento que no aprobó el reto.
+     *
+     * Se conserva la última respuesta y el puntaje obtenido para que
+     * el estado del flujo represente exactamente el último intento.
+     * El contador nunca supera el límite configurado.
+     */
+    private static function registerFailedChallengeAttempt(
+        array &$flow,
+        string $message,
+        int $scoreAwarded
+    ): int {
+        $limit =
+            max(
+                0,
+                (int) (
+                    $flow['limits']['challengeAnswer']
+                    ?? self::MAX_CHALLENGE_ATTEMPTS
+                )
+            );
+
+        $used =
+            max(
+                0,
+                (int) (
+                    $flow['attempts']['challengeAnswer']
+                    ?? 0
+                )
+            );
+
+        $flow['attempts']['challengeAnswer'] =
+            $limit > 0
+                ? min(
+                    $limit,
+                    $used + 1
+                )
+                : $used;
+
+        $flow['answers']['challengeAnswer'] =
+            trim($message);
+
+        $maxScore =
+            max(
+                0,
+                (int) (
+                    $flow['maxScore']
+                    ?? 0
+                )
+            );
+
+        $flow['scoreAwarded'] =
+            max(
+                0,
+                min(
+                    $maxScore,
+                    $scoreAwarded
+                )
+            );
+
+        return self::remainingAttempts(
+            $flow
+        );
     }
 
     // Persiste un reto exitoso en base de datos y desencadena efectos secundarios:
@@ -1267,71 +1454,102 @@ class RetoController
     }
 
     // Validación local mínima antes de llamar a la IA.
-    // Sirve para filtrar respuestas vacías, demasiado cortas o absurdamente genéricas.
-    private static function validateBasicChallengeAnswer(string $message): array
-    {
-        $message = trim($message);
+    // Filtra respuestas vacías, demasiado cortas o sin contenido útil.
+    private static function validateBasicChallengeAnswer(
+        string $message
+    ): array {
+        $message =
+            trim(
+                $message
+            );
 
-        // Caso 1: respuesta vacía.
+        // Caso 1: respuesta vacía o compuesta únicamente por espacios.
         if ($message === '') {
             return [
                 'valid' => false,
                 'reason' => 'EMPTY_RESPONSE',
-                'message' => 'Tu respuesta está vacía. Intenta escribir una idea completa.'
+                'message' =>
+                    'Tu respuesta está vacía. Intenta escribir una idea completa.'
             ];
         }
 
-        // Caso 2: respuesta demasiado corta.
-        if (mb_strlen($message) < 12) {
-            return [
-                'valid' => false,
-                'reason' => 'TOO_SHORT',
-                'message' => 'Tu respuesta es demasiado corta. Intenta desarrollar mejor tu idea.'
-            ];
-        }
-
-        // Caso 3: menos de 3 palabras útiles.
-        $words = preg_split('/\s+/u', $message, -1, PREG_SPLIT_NO_EMPTY);
-        if (!$words || count($words) < 3) {
-            return [
-                'valid' => false,
-                'reason' => 'INSUFFICIENT_DEVELOPMENT',
-                'message' => 'Tu respuesta necesita un poco más de desarrollo.'
-            ];
-        }
-
-        // Caso 4: no contiene letras ni números útiles.
-        if (!preg_match('/[a-záéíóúñ0-9]/iu', $message)) {
+        // Caso 2: no contiene letras ni números útiles.
+        if (
+            !preg_match(
+                '/[a-záéíóúñ0-9]/iu',
+                $message
+            )
+        ) {
             return [
                 'valid' => false,
                 'reason' => 'INVALID_CONTENT',
-                'message' => 'Tu respuesta no contiene contenido válido. Intenta escribir una idea clara.'
+                'message' =>
+                    'Tu respuesta no contiene contenido válido. Intenta escribir una idea clara.'
+            ];
+        }
+
+        // Caso 3: respuesta demasiado corta.
+        if (
+            mb_strlen(
+                $message,
+                'UTF-8'
+            )
+            < self::MIN_ANSWER_LENGTH
+        ) {
+            return [
+                'valid' => false,
+                'reason' => 'TOO_SHORT',
+                'message' =>
+                    'Tu respuesta es demasiado corta. Intenta desarrollar mejor tu idea.'
+            ];
+        }
+
+        // Caso 4: cantidad insuficiente de palabras.
+        $words =
+            preg_split(
+                '/\s+/u',
+                $message,
+                -1,
+                PREG_SPLIT_NO_EMPTY
+            );
+
+        if (
+            !$words
+            || count($words)
+                < self::MIN_ANSWER_WORDS
+        ) {
+            return [
+                'valid' => false,
+                'reason' =>
+                    'INSUFFICIENT_DEVELOPMENT',
+                'message' =>
+                    'Tu respuesta necesita un poco más de desarrollo.'
             ];
         }
 
         // Caso 5: respuestas demasiado genéricas conocidas.
-        $generic = [
-            'si',
-            'sí',
-            'no',
-            'ok',
-            'bien',
-            'normal',
-            'pensaria mejor',
-            'pensaría mejor',
-            'lo haria bien',
-            'lo haría bien'
-        ];
+        $normalizedMessage =
+            mb_strtolower(
+                $message,
+                'UTF-8'
+            );
 
-        if (in_array(mb_strtolower($message), $generic, true)) {
+        if (
+            in_array(
+                $normalizedMessage,
+                self::GENERIC_INVALID_ANSWERS,
+                true
+            )
+        ) {
             return [
                 'valid' => false,
                 'reason' => 'TOO_GENERIC',
-                'message' => 'Tu respuesta es demasiado general. Intenta ser más específico.'
+                'message' =>
+                    'Tu respuesta es demasiado general. Intenta ser más específico.'
             ];
         }
 
-        // Si pasa todas las validaciones, se considera válida para enviar a IA.
+        // Si supera el filtro local, la respuesta puede enviarse a la IA.
         return [
             'valid' => true,
             'reason' => null,
@@ -1379,10 +1597,11 @@ class RetoController
         ], 409);
     }
 
-    // Marca el flujo como fallido.
-    // Se usa cuando el usuario agota sus intentos.
-    private static function markChallengeFlowAsFailed(array $flow): array
-    {
+    // Marca el flujo como fallido cuando el usuario agota sus intentos.
+    private static function markChallengeFlowAsFailed(
+        array $flow,
+        ?int $scoreAwarded = null
+    ): array {
         $flow['currentStage'] = 'failed';
         $flow['nextExpectedAction'] = null;
         $flow['inputEnabled'] = false;
@@ -1390,7 +1609,31 @@ class RetoController
         $flow['completed'] = true;
         $flow['passed'] = false;
         $flow['failed'] = true;
-        $flow['scoreAwarded'] = 0;
+
+        /*
+         * Cuando el último intento fue rechazado, el puntaje será 0.
+         * Cuando fue válido pero quedó por debajo del mínimo, se
+         * conserva el puntaje real para mostrarlo en el resultado.
+         */
+        if ($scoreAwarded !== null) {
+            $maxScore =
+                max(
+                    0,
+                    (int) (
+                        $flow['maxScore']
+                        ?? 0
+                    )
+                );
+
+            $flow['scoreAwarded'] =
+                max(
+                    0,
+                    min(
+                        $maxScore,
+                        $scoreAwarded
+                    )
+                );
+        }
 
         return $flow;
     }
