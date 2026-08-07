@@ -12,6 +12,43 @@ use MVC\Router;
 
 class LeccionesController
 {
+    /*
+     * Cantidad máxima de respuestas incorrectas permitidas
+     * en cada fase evaluativa de la lección.
+     */
+    private const LIMITE_INTENTOS_MICROPRACTICA = 3;
+    private const LIMITE_INTENTOS_MINIEVALUACION = 3;
+
+    /*
+     * Condiciones mínimas aplicadas antes de consultar OpenAI.
+     * Este filtro evita consumir tokens con respuestas vacías,
+     * demasiado cortas o claramente genéricas.
+     */
+    private const LONGITUD_MINIMA_RESPUESTA = 12;
+    private const PALABRAS_MINIMAS_RESPUESTA = 4;
+
+    /*
+     * Respuestas breves que no aportan información suficiente
+     * para evaluar el aprendizaje del usuario.
+     */
+    private const RESPUESTAS_GENERICAS_INVALIDAS = [
+        'no',
+        'si',
+        'sí',
+        'nose',
+        'no se',
+        'no sé',
+        'xd',
+        'asdf',
+        '123',
+        'ok',
+        'idk'
+    ];
+
+    /**
+     * Renderiza una lección únicamente cuando corresponde con la
+     * siguiente actividad permitida para el usuario autenticado.
+     */
     public static function leccion(
         Router $router
     ): void {
@@ -95,15 +132,16 @@ class LeccionesController
          * deshabilitada o ya completada.
          */
         $leccionEsperada =
-            Lecciones::leccionActualPorUsuarioYHabilidad(
-                $idUsuario,
-                $idHabilidad
-            );
+            Lecciones::
+                leccionActualPorUsuarioYHabilidad(
+                    $idUsuario,
+                    $idHabilidad
+                );
 
         if (
             !$leccionEsperada
             || (int) $leccionEsperada->id
-            !== (int) $leccion->id
+                !== (int) $leccion->id
         ) {
             self::redirigirAprendizaje();
         }
@@ -121,15 +159,19 @@ class LeccionesController
             'paginas/aprendizaje/leccion',
             [
                 'titulo' =>
-                (string) $leccion->titulo,
+                    (string) $leccion->titulo,
                 'login' =>
-                false,
+                    false,
                 'nombreUsuario' =>
-                $datosUsuario['nombreUsuario'],
+                    $datosUsuario[
+                        'nombreUsuario'
+                    ],
                 'inicialesUsuario' =>
-                $datosUsuario['inicialesUsuario'],
+                    $datosUsuario[
+                        'inicialesUsuario'
+                    ],
                 'leccion' =>
-                $leccion
+                    $leccion
             ]
         );
     }
@@ -272,8 +314,10 @@ class LeccionesController
                 'miniEvaluation' => 0
             ],
             'limits' => [
-                'microPractice' => 3,
-                'miniEvaluation' => 3
+                'microPractice' =>
+                    self::LIMITE_INTENTOS_MICROPRACTICA,
+                'miniEvaluation' =>
+                    self::LIMITE_INTENTOS_MINIEVALUACION
             ],
             'failed' => false,
             'content' => $contenido,
@@ -349,8 +393,10 @@ class LeccionesController
                     'miniEvaluation' => 0
                 ],
                 'limits' => [
-                    'microPractice' => 3,
-                    'miniEvaluation' => 3
+                    'microPractice' =>
+                        self::LIMITE_INTENTOS_MICROPRACTICA,
+                    'miniEvaluation' =>
+                        self::LIMITE_INTENTOS_MINIEVALUACION
                 ],
                 'failed' => false
             ],
@@ -464,6 +510,23 @@ class LeccionesController
             ], 409);
         }
 
+        /*
+         * Una lección que agotó sus intentos queda cerrada.
+         * El usuario debe regresar a Aprendizaje e iniciar nuevamente
+         * el proceso cuando corresponda.
+         */
+        if (!empty($flow['failed'])) {
+            self::jsonResponse([
+                'ok' => false,
+                'error' => [
+                    'code' => 'LESSON_FAILED',
+                    'message' =>
+                        'Esta lección terminó porque se agotaron los intentos disponibles.'
+                ],
+                'redirectTo' => '/aprendizaje'
+            ], 409);
+        }
+
         // -------------------- 4) LEER EL ESTADO ACTUAL DE LA MÁQUINA --------------------
         // currentStage = en qué etapa exacta va la lección
         // content      = contenido parseado de la descripción de la lección
@@ -564,9 +627,12 @@ class LeccionesController
 
                 // Si falla el filtro local, no gastamos tokens
                 if (!$basicValidation['valid']) {
-                    $flow['attempts']['microPractice'] = (int)($flow['attempts']['microPractice'] ?? 0) + 1;
+                        $remainingAttempts =
+                            self::registrarIntentoFallido(
+                                $flow,
+                                'microPractice'
+                            );
 
-                    $remainingAttempts = (int)$flow['limits']['microPractice'] - (int)$flow['attempts']['microPractice'];
 
                     if ($remainingAttempts <= 0) {
                         self::buildFailedLessonResponse(
@@ -635,9 +701,12 @@ class LeccionesController
                         $userName
                     );
                     if (!$aiEvaluation['accepted']) {
-                        $flow['attempts']['microPractice'] = (int)($flow['attempts']['microPractice'] ?? 0) + 1;
+                        $remainingAttempts =
+                            self::registrarIntentoFallido(
+                                $flow,
+                                'microPractice'
+                            );
 
-                        $remainingAttempts = (int)$flow['limits']['microPractice'] - (int)$flow['attempts']['microPractice'];
 
                         if ($remainingAttempts <= 0) {
                             self::buildFailedLessonResponse(
@@ -755,29 +824,24 @@ class LeccionesController
                     self::invalidActionResponse($currentStage, 'reply');
                 }
 
-                // Validamos que la mini-evaluación no venga vacía.
-                if ($message === '') {
-                    self::jsonResponse([
-                        'ok' => false,
-                        'error' => [
-                            'code' => 'EMPTY_MESSAGE',
-                            'message' => 'Debes responder la mini-evaluación.'
-                        ]
-                    ], 422);
-                }
+                /*
+                 * Aplicamos el mismo filtro básico de la micropráctica.
+                 * Una respuesta localmente inválida consume un intento,
+                 * pero no genera una consulta a OpenAI.
+                 */
+                $basicValidation =
+                    self::validateBasicMiniEvaluationAnswer(
+                        $message
+                    );
 
-                // -------------------- VALIDACIÓN BÁSICA (SIN IA) --------------------
-                // Esto evita gastar tokens si la respuesta es demasiado corta o inválida.
-                if (strlen($message) < 8) {
-
-                    $flow['attempts']['miniEvaluation'] = (int)($flow['attempts']['miniEvaluation'] ?? 0) + 1;
-
+                if (!$basicValidation['valid']) {
                     $remainingAttempts =
-                        (int)$flow['limits']['miniEvaluation'] -
-                        (int)$flow['attempts']['miniEvaluation'];
+                        self::registrarIntentoFallido(
+                            $flow,
+                            'miniEvaluation'
+                        );
 
                     if ($remainingAttempts <= 0) {
-
                         self::buildFailedLessonResponse(
                             $flow,
                             'No se pudo completar esta lección porque no se alcanzó una respuesta válida en la mini-evaluación.',
@@ -785,41 +849,52 @@ class LeccionesController
                         );
                     }
 
-                    $warning = self::buildAttemptsWarningMessage($remainingAttempts);
-
                     self::jsonResponse([
                         'ok' => true,
                         'error' => null,
-                        'session' => self::sessionPayload($flow),
+                        'session' =>
+                            self::sessionPayload(
+                                $flow
+                            ),
                         'evaluation' => [
                             'accepted' => false,
                             'needsRetry' => true,
-                            'retryReason' => 'ANSWER_TOO_SHORT'
+                            'retryReason' =>
+                                $basicValidation['reason']
                         ],
                         'messages' => [
                             [
-                                'id' => 'msg_u_' . uniqid(),
+                                'id' =>
+                                    'msg_u_' . uniqid(),
                                 'role' => 'user',
                                 'type' => 'text',
                                 'text' => $message
                             ],
                             [
-                                'id' => 'msg_a_' . uniqid(),
+                                'id' =>
+                                    'msg_a_' . uniqid(),
                                 'role' => 'assistant',
                                 'type' => 'text',
-                                'text' => 'Tu respuesta es demasiado breve. Intenta explicar mejor tu idea.'
+                                'text' =>
+                                    'Tu respuesta todavía no contiene suficiente información. Explica mejor tu idea antes de continuar.'
                             ],
                             [
-                                'id' => 'msg_a_' . uniqid(),
+                                'id' =>
+                                    'msg_a_' . uniqid(),
                                 'role' => 'assistant',
                                 'type' => 'text',
-                                'text' => $warning
+                                'text' =>
+                                    self::
+                                        buildAttemptsWarningMessage(
+                                            $remainingAttempts
+                                        )
                             ]
                         ],
                         'ui' => [
                             'showTyping' => true,
                             'showAvatarSpeaking' => true,
-                            'composerPlaceholder' => 'Amplía tu respuesta...',
+                            'composerPlaceholder' =>
+                                'Amplía tu respuesta...',
                             'focusInput' => true,
                             'showReturnButton' => false
                         ]
@@ -844,13 +919,12 @@ class LeccionesController
 
                     // Si la IA dice que NO es válida
                     if (!$aiEvaluation['accepted']) {
-
-                        $flow['attempts']['miniEvaluation'] =
-                            (int)($flow['attempts']['miniEvaluation'] ?? 0) + 1;
-
                         $remainingAttempts =
-                            (int)$flow['limits']['miniEvaluation'] -
-                            (int)$flow['attempts']['miniEvaluation'];
+                            self::registrarIntentoFallido(
+                                $flow,
+                                'miniEvaluation'
+                            );
+
 
                         if ($remainingAttempts <= 0) {
 
@@ -1024,7 +1098,7 @@ class LeccionesController
                 ], 409);
         }
     }
-        /**
+    /**
      * Redirige a la ruta de aprendizaje y detiene la ejecución.
      *
      * Se utiliza cuando la lección solicitada no existe, está
@@ -1035,6 +1109,7 @@ class LeccionesController
         header('Location: /aprendizaje');
         exit;
     }
+
     //---------------------------HELPERS startLeccion---------------------------//
     /**
      * Esta función permite devolver una respuesta en formato JSON desde el backend.
@@ -1333,69 +1408,125 @@ class LeccionesController
             'nextExpectedAction' => $flow['nextExpectedAction'] ?? null,
             'inputEnabled' => (bool)($flow['inputEnabled'] ?? false),
             'requiresUserResponse' => (bool)($flow['requiresUserResponse'] ?? false),
-            'completed' => (bool)($flow['completed'] ?? false),
-            'answers' => $flow['answers'] ?? [],
-            'attempts' => $flow['attempts'] ?? []
+            'completed' =>
+                (bool) (
+                    $flow['completed']
+                    ?? false
+                ),
+            'failed' =>
+                (bool) (
+                    $flow['failed']
+                    ?? false
+                ),
+            'answers' =>
+                $flow['answers']
+                ?? [],
+            'attempts' =>
+                $flow['attempts']
+                ?? [],
+            'limits' =>
+                $flow['limits']
+                ?? []
         ];
     }
 
     /**
-     * Decide si una respuesta del usuario es suficientemente buena para seguir avanzando.
+     * Valida localmente una respuesta de micropráctica.
+     *
+     * @return array{
+     *     valid: bool,
+     *     reason: string|null
+     * }
      */
-    private static function isAnswerAcceptable(string $message): bool
-    {
-        $message = trim($message);
-        //mínimo 12 caracteres
-        if (mb_strlen($message) < 12) {
-            return false;
-        }
-        //mínimo 4 palabras
-        $palabras = preg_split('/\s+/u', $message);
-        return count($palabras) >= 4;
+    private static function validateBasicMicroPracticeAnswer(
+        string $message
+    ): array {
+        return self::validateBasicLessonAnswer(
+            $message
+        );
     }
 
+    /**
+     * Valida localmente una respuesta de mini-evaluación.
+     *
+     * Se mantiene un método separado para conservar la intención
+     * de cada fase, aunque ambas compartan las mismas reglas básicas.
+     *
+     * @return array{
+     *     valid: bool,
+     *     reason: string|null
+     * }
+     */
+    private static function validateBasicMiniEvaluationAnswer(
+        string $message
+    ): array {
+        return self::validateBasicLessonAnswer(
+            $message
+        );
+    }
 
-    private static function validateBasicMicroPracticeAnswer(string $message): array
-    {
-        $message = trim(mb_strtolower($message));
+    /**
+     * Aplica las condiciones mínimas antes de consultar OpenAI.
+     *
+     * @return array{
+     *     valid: bool,
+     *     reason: string|null
+     * }
+     */
+    private static function validateBasicLessonAnswer(
+        string $message
+    ): array {
+        $normalizedMessage =
+            mb_strtolower(
+                trim($message),
+                'UTF-8'
+            );
 
-        $invalidShortAnswers = [
-            'no',
-            'si',
-            'sí',
-            'nose',
-            'no se',
-            'no sé',
-            'xd',
-            'asdf',
-            '123',
-            'ok',
-            'idk'
-        ];
-
-        if ($message === '') {
+        if ($normalizedMessage === '') {
             return [
                 'valid' => false,
                 'reason' => 'EMPTY'
             ];
         }
 
-        if (in_array($message, $invalidShortAnswers, true)) {
+        if (
+            in_array(
+                $normalizedMessage,
+                self::RESPUESTAS_GENERICAS_INVALIDAS,
+                true
+            )
+        ) {
             return [
                 'valid' => false,
                 'reason' => 'TOO_GENERIC'
             ];
         }
 
-        if (mb_strlen($message) < 12) {
+        if (
+            mb_strlen(
+                $normalizedMessage,
+                'UTF-8'
+            )
+            < self::LONGITUD_MINIMA_RESPUESTA
+        ) {
             return [
                 'valid' => false,
                 'reason' => 'TOO_SHORT'
             ];
         }
 
-        $words = preg_split('/\s+/u', $message);
-        if (count($words) < 4) {
+        $words =
+            preg_split(
+                '/\s+/u',
+                $normalizedMessage,
+                -1,
+                PREG_SPLIT_NO_EMPTY
+            );
+
+        if (
+            count($words)
+            < self::PALABRAS_MINIMAS_RESPUESTA
+        ) {
             return [
                 'valid' => false,
                 'reason' => 'TOO_SHORT'
@@ -1406,6 +1537,45 @@ class LeccionesController
             'valid' => true,
             'reason' => null
         ];
+    }
+
+    /**
+     * Incrementa el contador de la fase y devuelve los intentos
+     * que todavía quedan disponibles.
+     *
+     * El resultado nunca es negativo.
+     */
+    private static function registrarIntentoFallido(
+        array &$flow,
+        string $phase
+    ): int {
+        $currentAttempts =
+            max(
+                0,
+                (int) (
+                    $flow['attempts'][$phase]
+                    ?? 0
+                )
+            );
+
+        $attemptLimit =
+            max(
+                0,
+                (int) (
+                    $flow['limits'][$phase]
+                    ?? 0
+                )
+            );
+
+        $currentAttempts++;
+
+        $flow['attempts'][$phase] =
+            $currentAttempts;
+
+        return max(
+            0,
+            $attemptLimit - $currentAttempts
+        );
     }
 
     private static function buildAttemptsWarningMessage(int $remainingAttempts): string
@@ -1421,7 +1591,11 @@ class LeccionesController
         return "Te quedan {$remainingAttempts} intentos más para responder correctamente esta parte.";
     }
 
-    private static function buildFailedLessonResponse(array $flow, string $assistantMessage, string $userMessage = ''): void
+    private static function buildFailedLessonResponse(
+        array &$flow,
+        string $assistantMessage,
+        string $userMessage = ''
+    ): void
     {
         $flow['currentStage'] = 'failed';
         $flow['nextExpectedAction'] = null;
@@ -1431,6 +1605,9 @@ class LeccionesController
         $flow['failed'] = true;
 
         $messages = [];
+
+        $userMessage =
+            trim($userMessage);
 
         if ($userMessage !== '') {
             $messages[] = [
