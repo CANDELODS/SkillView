@@ -89,17 +89,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalContent = modal.querySelector('.modal__content');
     const closeButton = modal.querySelector('[data-modal-close]');
     let redirectUrl = '/principal';
+
     if (window.location.pathname.startsWith('/admin/usuarios/editar')) {
       redirectUrl = '/admin/usuarios';
-    } else if (window.location.pathname.startsWith('/admin/habilidades/crear') || window.location.pathname.startsWith('/admin/habilidades/editar')) {
+
+    } else if (
+      window.location.pathname.startsWith('/admin/habilidades/crear') ||
+      window.location.pathname.startsWith('/admin/habilidades/editar')
+    ) {
       redirectUrl = '/admin/habilidades';
     }
+
     const REDIRECT_DELAY = 5000; // 5 segundos
 
     // Mostrar el modal
     const showModal = () => {
       //Agregamos la clase modal--visible para mostrar el modal
       modal.classList.add('modal--visible');
+
       //Bloqueamos el scroll usando el helper global
       window.SV.lockScroll();
     };
@@ -108,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const hideModal = () => {
       //Quitamos la clase modal--visible para ocultar el modal
       modal.classList.remove('modal--visible');
+
       //Desbloqueamos el scroll usando el helper global
       window.SV.unlockScroll();
     };
@@ -132,7 +140,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Cerrar al hacer clic fuera del contenido (en el backdrop)
     modal.addEventListener('click', (event) => {
-      if (event.target === modal || event.target.classList.contains('modal__backdrop')) {
+      if (
+        event.target === modal ||
+        event.target.classList.contains('modal__backdrop')
+      ) {
         clearTimeout(timeoutId);
         hideModal();
         window.location.href = redirectUrl;
@@ -145,11 +156,18 @@ document.addEventListener('DOMContentLoaded', () => {
         event.stopPropagation();
       });
     }
-    /*event.stopPropagation() detiene la propagación del evento hacia arriba en el DOM.
-    Si el usuario hace clic sobre el contenido del modal (título, texto, botón)
-    ese clic no se propaga al listener que está en modal.addEventListener('click', ...).
+
+    /*
+    event.stopPropagation() detiene la propagación del evento hacia arriba en el DOM.
+
+    Si el usuario hace clic sobre el contenido del modal
+    (título, texto, botón), ese clic no se propaga al listener que
+    está en modal.addEventListener('click', ...).
+
     Sin esto:
-    Hacer clic en el botón podría contarse también como clic en el fondo y disparar el cierre doble.*/
+    Hacer clic en el botón podría contarse también como clic en el fondo
+    y disparar el cierre doble.
+    */
   }
 
   //---------------FIN MODAL DE REGISTRO EXITOSO CON REDIRECCIÓN AUTOMÁTICA----------------//
@@ -161,7 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (alertas.length > 0) {
     alertas.forEach(alerta => {
-      // Esperamos 4 segundos antes de ocultarla
+
+      // Esperamos 8 segundos antes de ocultarla
       setTimeout(() => {
         alerta.classList.add('alerta--ocultar');
 
@@ -169,53 +188,89 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
           alerta.remove();
         }, 500); // coincide con la duración del transition en CSS
+
       }, 8000);
     });
   }
+
   //---------------FIN OCULTAR ALERTAS DESPUES DE UNOS SEGUNDOS----------------//
 
   //---------------MENU MOBILE----------------//
+
   const toggle = document.querySelector('.site-header__toggle');
   const mobileNav = document.querySelector('.site-nav--mobile');
   const closeBtn = document.querySelector('.site-nav__mobile-close');
 
-  // Antes tenías: if (!toggle || !mobileNav) return;
-  // Eso "cortaba" el resto de lógicas dentro del DOMContentLoaded.
-  // Ahora solo ejecutamos el bloque del menú si existe en el DOM.
+  /*
+   * Antes se utilizaba:
+   *
+   * if (!toggle || !mobileNav) return;
+   *
+   * Ese return terminaba toda la ejecución del DOMContentLoaded,
+   * impidiendo inicializar otras funcionalidades en vistas donde
+   * el menú móvil no estuviera presente.
+   *
+   * Ahora el bloque simplemente se ejecuta cuando los elementos existen.
+   */
   if (toggle && mobileNav) {
 
     const openMenu = () => {
       mobileNav.classList.add('site-nav--mobile-open');
-      toggle.setAttribute('aria-expanded', 'true');
-      //Si quieres bloquear scroll cuando el menú esté abierto, puedes hacerlo aquí:
-      //window.SV.lockScroll();
+
+      toggle.setAttribute(
+        'aria-expanded',
+        'true'
+      );
+
+      // Si en el futuro se desea bloquear el scroll al abrir:
+      // window.SV.lockScroll();
     };
 
     const closeMenu = () => {
       mobileNav.classList.remove('site-nav--mobile-open');
-      toggle.setAttribute('aria-expanded', 'false');
-      //Si bloqueas scroll al abrir, desbloquea al cerrar:
-      //window.SV.unlockScroll();
+
+      toggle.setAttribute(
+        'aria-expanded',
+        'false'
+      );
+
+      // Si se bloquea el scroll al abrir:
+      // window.SV.unlockScroll();
     };
 
     toggle.addEventListener('click', () => {
-      const isOpen = mobileNav.classList.contains('site-nav--mobile-open');
+
+      const isOpen =
+        mobileNav.classList.contains(
+          'site-nav--mobile-open'
+        );
+
       if (isOpen) {
         closeMenu();
       } else {
         openMenu();
       }
+
     });
 
     if (closeBtn) {
-      closeBtn.addEventListener('click', closeMenu);
+      closeBtn.addEventListener(
+        'click',
+        closeMenu
+      );
     }
 
-    // Opcional: cerrar menú al hacer click en un enlace
+    // Cerrar el menú después de seleccionar un enlace de navegación.
     mobileNav.addEventListener('click', (e) => {
-      if (e.target.closest('.site-nav__link')) {
+
+      if (
+        e.target.closest(
+          '.site-nav__link'
+        )
+      ) {
         closeMenu();
       }
+
     });
   }
 
@@ -223,8 +278,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 });
 
-//Mensaje de confirmación con modal personalizado
+
+//Mensaje de confirmación con modal personalizado.
+
+// Actualmente se conserva porque las habilidades blandas sí mantienen
+// la operación administrativa de eliminación.
 function confirmDelete(event, message) {
+
   // 1. Evitamos que el formulario se envíe automáticamente
   event.preventDefault();
 
@@ -232,57 +292,120 @@ function confirmDelete(event, message) {
   const form = event.target;
 
   // 3. Si ya existe un modal abierto, lo eliminamos para no duplicar
-  const existingModal = document.querySelector('.modal-delete');
+  const existingModal =
+    document.querySelector(
+      '.modal-delete'
+    );
+
   if (existingModal) {
     existingModal.remove();
   }
 
   // 4. Creamos el contenedor del modal
-  const modalDelete = document.createElement('div');
-  modalDelete.classList.add('modal-delete');
+  const modalDelete =
+    document.createElement(
+      'div'
+    );
+
+  modalDelete.classList.add(
+    'modal-delete'
+  );
+
   modalDelete.innerHTML = `
-        <div class="modal-delete__backdrop"></div>
-        <div class="modal-delete__content" role="dialog" aria-modal="true" aria-labelledby="modal-delete-title">
-            <h2 id="modal-delete-title" class="modal-delete__title">Confirmar eliminación</h2>
-            <p class="modal-delete__text">
-                ${message || "¿Estás seguro de eliminar este elemento?"}
-            </p>
-            <div class="modal-delete__actions">
-                <button type="button" id="confirm-yes" class="modal-delete__btn--yes">
-                    Sí, eliminar
-                </button>
-                <button type="button" id="confirm-no" class="modal-delete__btn--no">
-                    No, cancelar
-                </button>
-            </div>
-        </div>
-    `;
+    <div class="modal-delete__backdrop"></div>
+
+    <div
+      class="modal-delete__content"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-delete-title"
+    >
+      <h2
+        id="modal-delete-title"
+        class="modal-delete__title"
+      >
+        Confirmar eliminación
+      </h2>
+
+      <p class="modal-delete__text">
+        ${message || "¿Estás seguro de eliminar este elemento?"}
+      </p>
+
+      <div class="modal-delete__actions">
+
+        <button
+          type="button"
+          id="confirm-yes"
+          class="modal-delete__btn--yes"
+        >
+          Sí, eliminar
+        </button>
+
+        <button
+          type="button"
+          id="confirm-no"
+          class="modal-delete__btn--no"
+        >
+          No, cancelar
+        </button>
+
+      </div>
+    </div>
+  `;
 
   // 5. Lo agregamos al DOM
-  document.body.appendChild(modalDelete);
+  document.body.appendChild(
+    modalDelete
+  );
 
   // 6. Obtenemos los botones
-  const btnYes = modalDelete.querySelector('#confirm-yes');
-  const btnNo = modalDelete.querySelector('#confirm-no');
-  const backdrop = modalDelete.querySelector('.modal-delete__backdrop');
+  const btnYes =
+    modalDelete.querySelector(
+      '#confirm-yes'
+    );
+
+  const btnNo =
+    modalDelete.querySelector(
+      '#confirm-no'
+    );
+
+  const backdrop =
+    modalDelete.querySelector(
+      '.modal-delete__backdrop'
+    );
 
   // Función para cerrar el modal
   const closeModal = () => {
     modalDelete.remove();
   };
 
-  // 7. Si el usuario confirma -> cerramos modal y enviamos el formulario
-  btnYes.addEventListener('click', () => {
-    closeModal();
-    form.submit(); // Aquí sí se envía al servidor
-  });
+  // 7. Si el usuario confirma
+  // cerramos modal y enviamos el formulario
+  btnYes.addEventListener(
+    'click',
+    () => {
 
-  // 8. Si el usuario cancela -> solo cerramos modal
-  btnNo.addEventListener('click', closeModal);
+      closeModal();
+
+      // Aquí sí se envía al servidor
+      form.submit();
+    }
+  );
+
+  // 8. Si el usuario cancela
+  // solo cerramos modal
+  btnNo.addEventListener(
+    'click',
+    closeModal
+  );
 
   // 9. Cerrar si hace clic en el fondo oscuro
-  backdrop.addEventListener('click', closeModal);
+  backdrop.addEventListener(
+    'click',
+    closeModal
+  );
 
-  // 10. Devolvemos false por si acaso, para que el onsubmit no continúe
+  // 10. Devolvemos false por si acaso,
+  // para que el onsubmit no continúe
   return false;
 }
