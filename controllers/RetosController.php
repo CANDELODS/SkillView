@@ -182,6 +182,26 @@ class RetosController
             $habilidadesLookup
         );
 
+        // -------------------------
+        // LOGROS RECIENTES
+        // -------------------------
+        /*
+         * Los logros obtenidos al finalizar un reto se almacenan
+         * temporalmente en sesión desde RetoController.
+         *
+         * La página /retos debe consumirlos porque retos.js utiliza
+         * window.logrosRecientes para mostrar el modal automático.
+         * Después de leerlos se eliminan de sesión para que no vuelvan
+         * a mostrarse en otra sección, por ejemplo /aprendizaje.
+         */
+        $logrosRecientes =
+            $_SESSION['logros_recientes']
+            ?? [];
+
+        unset(
+            $_SESSION['logros_recientes']
+        );
+
         // Render a la vista.
         $router->render(
             'paginas/retos/retos',
@@ -215,7 +235,9 @@ class RetosController
                 'progresoPorHabilidad' =>
                     $progresoPorHabilidad,
                 'medallas' =>
-                    $medallas
+                    $medallas,
+                'logrosRecientes' =>
+                    $logrosRecientes
             ]
         );
     }
