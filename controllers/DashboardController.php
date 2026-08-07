@@ -127,68 +127,240 @@ class DashboardController
         ]);
     }
 
-    public static function editarUsuarios(Router $router)
-    {
+    public static function editarUsuarios(
+        Router $router
+    ): void {
         /*
          * Todas las acciones de este controlador pertenecen al
          * panel administrativo. La autorización se valida desde
          * un único método para evitar diferencias entre rutas.
          */
         self::protegerRutaAdministrativa();
+
         $alertas = [];
         $alertasExito = [];
-        //Validar el id que llega por la URL
-        $id = $_GET['id'];
-        //Validamos si el id es un número entero
-        $id = filter_var($id, FILTER_VALIDATE_INT);
-        if (!$id) {
-            header('Location: /admin/usuarios');
-            exit;
-        }
-        //Obtenemos el usuario a editar
-        $usuario = Usuario::find($id);
-        //Validamos si el usuario existe
-        if (!$usuario) {
-            header('Location: /admin/usuarios');
+
+        // -------------------------
+        // VALIDACIÓN DEL USUARIO
+        // -------------------------
+        $id =
+            filter_var(
+                $_GET['id']
+                    ?? null,
+                FILTER_VALIDATE_INT,
+                [
+                    'options' => [
+                        'min_range' => 1
+                    ]
+                ]
+            );
+
+        if ($id === false) {
+            header(
+                'Location: /admin/usuarios'
+            );
             exit;
         }
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            //Guardamos el hash original antes de sincronizar
-            $passwordOriginal = $usuario->password;
-            //Sincronizamos con los datos del formulario
-            $usuario->sincronizar($_POST);
-            //Validamos
-            $alertas = $usuario->validar_edicion();
-            //Si no hay alertar, guardamos
+        $usuario =
+            Usuario::find(
+                (int) $id
+            );
+
+        if (!$usuario) {
+            header(
+                'Location: /admin/usuarios'
+            );
+            exit;
+        }
+
+        if (
+            $_SERVER['REQUEST_METHOD']
+            === 'POST'
+        ) {
+            /*
+             * Guardamos los valores internos que no deben alterarse
+             * directamente desde el formulario administrativo.
+             */
+            $passwordOriginal =
+                (string) $usuario->password;
+
+            $debeCambiarPasswordOriginal =
+                (int) (
+                    $usuario->
+                        debe_cambiar_password
+                    ?? 0
+                );
+
+            /*
+             * Solo sincronizamos los campos que realmente pertenecen
+             * al formulario de edición.
+             *
+             * Cualquier dato adicional enviado manualmente por POST,
+             * por ejemplo:
+             * - admin;
+             * - debe_cambiar_password;
+             * - autoriza_tratamiento_datos;
+             * - token_recuperacion;
+             * - token_expiracion;
+             *
+             * queda ignorado y conserva el valor almacenado.
+             */
+            $datosPermitidos = [
+                'nombres' =>
+                    $_POST['nombres']
+                    ?? '',
+                'apellidos' =>
+                    $_POST['apellidos']
+                    ?? '',
+                'edad' =>
+                    $_POST['edad']
+                    ?? '',
+                'sexo' =>
+                    $_POST['sexo']
+                    ?? '',
+                'correo' =>
+                    $_POST['correo']
+                    ?? '',
+                'universidad' =>
+                    $_POST['universidad']
+                    ?? '',
+                'carrera' =>
+                    $_POST['carrera']
+                    ?? '',
+                'password' =>
+                    $_POST['password']
+                    ?? '',
+                'password2' =>
+                    $_POST['password2']
+                    ?? '',
+                /*
+                 * Si por alguna razón el formulario no envía el
+                 * estado, se conserva el valor actual.
+                 */
+                'habilitado' =>
+                    $_POST['habilitado']
+                    ?? $usuario->habilitado
+            ];
+
+            $usuario->sincronizar(
+                $datosPermitidos
+            );
+
+            // -------------------------
+            // VALIDACIONES DEL MODELO
+            // -------------------------
+            $alertas =
+                $usuario->validar_edicion();
+
+            /*
+             * El mismo correo del usuario es válido.
+             * Solo se rechaza si pertenece a una cuenta diferente.
+             */
+            if (
+                empty($alertas)
+                && Usuario::
+                    correoEnUsoPorOtroUsuario(
+                        (int) $usuario->id,
+                        (string) $usuario->correo
+                    )
+            ) {
+                $alertas['error'][] =
+                    'El correo ya está registrado por otro usuario';
+            }
+
+            /*
+             * El administrador que mantiene la sesión activa no puede
+             * deshabilitar su propia cuenta. Esto evita perder el
+             * acceso administrativo durante la misma operación.
+             */
+            $idAdministradorActual =
+                (int) (
+                    $_SESSION['id']
+                    ?? 0
+                );
+
+            if (
+                empty($alertas)
+                && (int) $usuario->id
+                    === $idAdministradorActual
+                && (int) $usuario->habilitado === 0
+            ) {
+                $alertas['error'][] =
+                    'No puedes deshabilitar tu propia cuenta mientras tienes una sesión administrativa activa';
+            }
+
             if (empty($alertas)) {
-                //Validamos si el admin escribió un nuevo password
-                if ($usuario->password) {
-                    //Si el admin escribió una nueva contraseña...
+                // -------------------------
+                // CONTRASEÑA OPCIONAL
+                // -------------------------
+                if (
+                    (string) $usuario->password
+                    !== ''
+                ) {
+                    /*
+                     * Una contraseña escrita por el administrador se
+                     * considera temporal:
+                     *
+                     * - se almacena únicamente su hash;
+                     * - la contraseña anterior deja de ser válida;
+                     * - se exige al usuario cambiarla en el próximo
+                     *   inicio de sesión.
+                     */
                     $usuario->hashPassword();
+
+                    $usuario->
+                        debe_cambiar_password = 1;
                 } else {
-                    //Si no escribió nada en password, mantenemos la contraseña original
-                    $usuario->password = $passwordOriginal;
+                    /*
+                     * Si no se escribió una nueva contraseña,
+                     * se conserva exactamente el hash anterior y
+                     * también el estado previo de cambio obligatorio.
+                     */
+                    $usuario->password =
+                        $passwordOriginal;
+
+                    $usuario->
+                        debe_cambiar_password =
+                        $debeCambiarPasswordOriginal;
                 }
-                // Eliminar password2
-                unset($usuario->password2);
-                //Actualizamos el usuarios
-                $resultado = $usuario->guardar();
+
+                /*
+                 * password2 no forma parte de la tabla usuarios.
+                 * Se deja vacío después de la validación para evitar
+                 * conservar información innecesaria en el objeto.
+                 */
+                $usuario->password2 = '';
+
+                // ActiveRecord actualiza únicamente la fila del usuario.
+                // Las tablas de progreso no son eliminadas ni modificadas.
+                $resultado =
+                    $usuario->guardar();
 
                 if ($resultado) {
-                    $alertasExito[] = "El usuario de actualizó correctamente";
+                    $alertasExito[] =
+                        'El usuario se actualizó correctamente';
                 } else {
-                    $alertas['error'][] = "Ocurrió un error al guardar el usuario";
+                    $alertas['error'][] =
+                        'Ocurrió un error al guardar el usuario';
                 }
             }
         }
-        // Render a la vista 
-        $router->render('admin/usuarios/editar', [
-            'titulo' => 'Editar Usuario',
-            'alertas' => $alertas,
-            'alertasExito' => $alertasExito,
-            'usuario' => $usuario
-        ]);
+
+        // Render a la vista.
+        $router->render(
+            'admin/usuarios/editar',
+            [
+                'titulo' =>
+                    'Editar Usuario',
+                'alertas' =>
+                    $alertas,
+                'alertasExito' =>
+                    $alertasExito,
+                'usuario' =>
+                    $usuario
+            ]
+        );
     }
 
     public static function eliminarUsuarios()
@@ -388,7 +560,7 @@ class DashboardController
                 $resultado = $habilidad->guardar();
 
                 if ($resultado) {
-                    $alertasExito[] = "La habilidad se actualizó correctamente";
+                    $alertasExito[] = "La habilidad de actualizó correctamente";
                 } else {
                     $alertas['error'][] = "Ocurrió un error al actualizarla habilidad";
                 }

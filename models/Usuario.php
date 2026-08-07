@@ -169,7 +169,14 @@ class Usuario extends ActiveRecord
         $this->apellidos   = trim($this->apellidos ?? '');
         $this->universidad = trim($this->universidad ?? '');
         $this->carrera     = trim($this->carrera ?? '');
-        $this->correo      = trim($this->correo ?? '');
+
+        /*
+         * El correo se normaliza antes de validarlo y compararlo
+         * con los registros existentes.
+         */
+        $this->correo = strtolower(
+            trim($this->correo ?? '')
+        );
 
         $this->validarTextoSinNumeros($this->nombres, 'El nombre', 25);
         $this->validarTextoSinNumeros($this->apellidos, 'El apellido', 25);
@@ -209,6 +216,66 @@ class Usuario extends ActiveRecord
         }
 
         return self::$alertas;
+    }
+
+    /**
+     * Comprueba si el correo indicado pertenece a otro usuario.
+     *
+     * Durante una edición administrativa el usuario puede conservar
+     * su propio correo. Solo se considera duplicado cuando el mismo
+     * correo está asociado con un identificador diferente.
+     */
+    public static function correoEnUsoPorOtroUsuario(
+        int $idUsuario,
+        string $correo
+    ): bool {
+        $idUsuario =
+            (int) $idUsuario;
+
+        $correo =
+            strtolower(
+                trim($correo)
+            );
+
+        if (
+            $idUsuario <= 0
+            || $correo === ''
+        ) {
+            return false;
+        }
+
+        /*
+         * escape_string() protege el valor antes de incorporarlo
+         * a la consulta. El identificador ya fue convertido a entero.
+         */
+        $correoSeguro =
+            self::$db->escape_string(
+                $correo
+            );
+
+        $query = "
+            SELECT id
+            FROM " . static::$tabla . "
+            WHERE correo = '{$correoSeguro}'
+              AND id <> {$idUsuario}
+            LIMIT 1
+        ";
+
+        $resultado =
+            self::$db->query(
+                $query
+            );
+
+        if (!$resultado) {
+            return false;
+        }
+
+        $correoDuplicado =
+            $resultado->num_rows > 0;
+
+        $resultado->free();
+
+        return $correoDuplicado;
     }
 
     // Valida un correo
