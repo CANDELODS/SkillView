@@ -25,12 +25,111 @@ class RetoController
     // Método que renderiza la vista principal de un reto individual.
     // Este método NO ejecuta la IA todavía.
     // Solo prepara la vista /retos/reto?id=...
-    public static function reto(Router $router)
-    {
+    public static function reto(
+        Router $router
+    ): void {
         // Si el usuario no está autenticado, se redirige al inicio.
         if (!isAuth()) {
             header('Location: /');
             exit;
+        }
+
+        /*
+         * Todas las comprobaciones del reto dependen del identificador
+         * del usuario. Una sesión incompleta no debe continuar hacia
+         * consultas de retos o progreso.
+         */
+        $idUsuario = (int) (
+            $_SESSION['id']
+            ?? 0
+        );
+
+        if ($idUsuario <= 0) {
+            header('Location: /');
+            exit;
+        }
+
+        /*
+         * Se valida que el id recibido por GET sea un entero positivo.
+         *
+         * Se rechazan valores como:
+         * - id vacío;
+         * - texto;
+         * - cero;
+         * - números negativos.
+         */
+        $idReto = filter_var(
+            $_GET['id']
+                ?? null,
+            FILTER_VALIDATE_INT,
+            [
+                'options' => [
+                    'min_range' => 1
+                ]
+            ]
+        );
+
+        if ($idReto === false) {
+            self::redirigirRetos();
+        }
+
+        // Busca el reto en base de datos.
+        $reto = Retos::find(
+            (int) $idReto
+        );
+
+        /*
+         * El detalle no debe mostrarse cuando el reto:
+         * - no existe;
+         * - está deshabilitado.
+         *
+         * startChallenge() ya aplica esta comprobación al iniciar
+         * el flujo. También se valida aquí para impedir que una URL
+         * manipulada muestre una actividad no disponible.
+         */
+        if (
+            !$reto
+            || (int) ($reto->habilitado ?? 0) !== 1
+        ) {
+            self::redirigirRetos();
+        }
+
+        // Busca la habilidad a la que pertenece el reto.
+        $idHabilidad = (int) (
+            $reto->id_habilidades
+            ?? 0
+        );
+
+        $habilidad = $idHabilidad > 0
+            ? HabilidadesBlandas::find(
+                $idHabilidad
+            )
+            : null;
+
+        /*
+         * Un reto no puede mostrarse cuando su habilidad asociada
+         * no existe o se encuentra deshabilitada.
+         */
+        if (
+            !$habilidad
+            || (int) ($habilidad->habilitado ?? 0) !== 1
+        ) {
+            self::redirigirRetos();
+        }
+
+        /*
+         * SkillView no permite repetir retos aprobados.
+         * Esta misma regla se aplica en startChallenge(), pero se
+         * comprueba antes de renderizar para evitar mostrar una página
+         * cuyo flujo no puede volver a iniciarse.
+         */
+        if (
+            usuarios_retos::yaCompletado(
+                $idUsuario,
+                (int) $reto->id
+            )
+        ) {
+            self::redirigirRetos();
         }
 
         // Variable de compatibilidad con el layout.
@@ -38,41 +137,36 @@ class RetoController
 
         // Obtiene datos para el encabezado del sistema:
         // nombre de usuario e iniciales.
-        $datosUsuario = obtenerDatosUsuarioHeader($_SESSION['id']);
+        $datosUsuario =
+            obtenerDatosUsuarioHeader(
+                $idUsuario
+            );
 
-        // Se toma el id del reto desde la URL.
-        $idReto = $_GET['id'] ?? null;
-
-        // Si no hay id, redirige a la lista de retos.
-        if (!$idReto) {
-            header('Location: /retos');
-            exit;
-        }
-
-        // Busca el reto en base de datos.
-        $reto = Retos::find($idReto);
-
-        // Si no existe, redirige a la lista.
-        if (!$reto) {
-            header('Location: /retos');
-            exit;
-        }
-
-        // Busca la habilidad a la que pertenece el reto.
-        $habilidad = HabilidadesBlandas::find($reto->id_habilidades);
-
-        // Se agrega un nombre legible de la habilidad al objeto reto
+        // Se agrega el nombre legible de la habilidad al objeto reto
         // para mostrarlo cómodamente en la vista.
-        $reto->nombreHabilidad = $habilidad ? $habilidad->nombre : 'Habilidad';
+        $reto->nombreHabilidad =
+            (string) $habilidad->nombre;
 
         // Renderiza la vista del reto enviando todas las variables necesarias.
-        $router->render('paginas/retos/reto', [
-            'titulo' => $reto->nombre,
-            'login' => $login,
-            'nombreUsuario'    => $datosUsuario['nombreUsuario'],
-            'inicialesUsuario' => $datosUsuario['inicialesUsuario'],
-            'reto' => $reto
-        ]);
+        $router->render(
+            'paginas/retos/reto',
+            [
+                'titulo' =>
+                    (string) $reto->nombre,
+                'login' =>
+                    $login,
+                'nombreUsuario' =>
+                    $datosUsuario[
+                        'nombreUsuario'
+                    ],
+                'inicialesUsuario' =>
+                    $datosUsuario[
+                        'inicialesUsuario'
+                    ],
+                'reto' =>
+                    $reto
+            ]
+        );
     }
 
     // Método API que inicia un reto con IA.
@@ -819,6 +913,19 @@ class RetoController
                 self::invalidStageResponse($currentStage);
                 break;
         }
+    }
+
+    /**
+     * Redirige a la página principal de retos y detiene la ejecución.
+     *
+     * Se utiliza cuando el reto solicitado no existe, está
+     * deshabilitado, pertenece a una habilidad no disponible o ya
+     * fue completado por el usuario.
+     */
+    private static function redirigirRetos(): void
+    {
+        header('Location: /retos');
+        exit;
     }
 
     // Lee los datos del request.
